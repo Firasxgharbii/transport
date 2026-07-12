@@ -1,0 +1,458 @@
+.page {
+  --crimson: #dc143c;
+  --crimson-dark: #a80f2e;
+  --white: #ffffff;
+  --black: #171717;
+  --gray: #f5f5f5;
+  --gray-dark: #626262;
+  --border: #e4e4e4;
+
+  width: 100%;
+  min-height: 100vh;
+
+  color: var(--black);
+  background-color: var(--white);
+}
+
+.main {
+  width: 100%;
+}
+
+/* ========================================
+   SECTION PRINCIPALE
+======================================== */
+
+.regionsSection {
+  padding:
+    calc(var(--navbar-height, 108px) + 80px)
+    24px
+    120px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #ffffff 54%,
+      #f7f7f7 100%
+    );
+}
+
+/* ========================================
+   EN-TÊTE
+======================================== */
+
+.heading {
+  width: min(850px, 100%);
+
+  margin: 0 auto 75px;
+
+  text-align: center;
+}
+
+.eyebrow {
+  margin-bottom: 17px;
+
+  color: var(--crimson);
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: clamp(45px, 6vw, 78px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+
+.divider {
+  width: 75px;
+  height: 5px;
+
+  margin: 28px auto;
+
+  background-color: var(--crimson);
+}
+
+.introduction {
+  color: #484848;
+
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.subText {
+  margin-top: 15px;
+
+  color: var(--gray-dark);
+
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ========================================
+   GRILLE DES RÉGIONS
+======================================== */
+
+.regionsGrid {
+  width: min(1250px, 100%);
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px;
+
+  margin: 0 auto;
+}
+
+/* ========================================
+   CARTE
+======================================== */
+
+.regionCard {
+  position: relative;
+
+  min-height: 650px;
+
+  padding: 40px 34px;
+
+  background-color: var(--white);
+
+  border: 1px solid var(--border);
+  border-top: 5px solid var(--crimson);
+
+  box-shadow:
+    0 15px 38px rgba(0, 0, 0, 0.07);
+
+  overflow: hidden;
+
+  transition:
+    transform 0.35s ease,
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+
+.regionCard:hover {
+  border-color: rgba(220, 20, 60, 0.35);
+
+  transform: translateY(-8px);
+
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.12);
+}
+
+.regionNumber {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+
+  color: rgba(220, 20, 60, 0.1);
+
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.regionIcon {
+  width: 55px;
+  height: 55px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 24px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 12px 28px rgba(220, 20, 60, 0.22);
+}
+
+.regionCard h2 {
+  position: relative;
+
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+
+  color: var(--black);
+
+  font-size: 29px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.regionCard h2::after {
+  content: "";
+
+  position: absolute;
+  bottom: 0;
+  left: 0;
+
+  width: 42px;
+  height: 3px;
+
+  background-color: var(--crimson);
+}
+
+.regionCard ul {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.regionCard li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  color: #4f4f4f;
+
+  font-size: 14px;
+  line-height: 1.45;
+
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.regionCard li:hover {
+  color: var(--crimson);
+
+  transform: translateX(5px);
+}
+
+.cityDot {
+  flex-shrink: 0;
+
+  width: 6px;
+  height: 6px;
+
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+}
+
+/* ========================================
+   BLOC CONTACT
+======================================== */
+
+.contactBox {
+  width: min(1250px, 100%);
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+
+  margin: 65px auto 0;
+  padding: 45px 50px;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--crimson) 0%,
+      var(--crimson-dark) 100%
+    );
+
+  box-shadow:
+    0 22px 50px rgba(220, 20, 60, 0.2);
+}
+
+.contactLabel {
+  margin-bottom: 10px;
+
+  color: rgba(255, 255, 255, 0.75);
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.contactBox h2 {
+  max-width: 750px;
+
+  font-size: clamp(25px, 3vw, 39px);
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.contactButton {
+  flex-shrink: 0;
+
+  min-height: 55px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 16px 25px;
+
+  color: var(--crimson);
+  background-color: var(--white);
+
+  border: 2px solid var(--white);
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.contactButton:hover {
+  color: var(--white);
+  background-color: var(--black);
+  border-color: var(--black);
+
+  transform: translateY(-4px);
+}
+
+.contactButton svg {
+  transition: transform 0.3s ease;
+}
+
+.contactButton:hover svg {
+  transform: translateX(4px);
+}
+
+/* ========================================
+   TABLETTE
+======================================== */
+
+@media (max-width: 1000px) {
+  .regionsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .regionCard:last-child {
+    grid-column: 1 / -1;
+
+    width: min(600px, 100%);
+
+    justify-self: center;
+  }
+
+  .contactBox {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 680px) {
+  .regionsSection {
+    padding:
+      calc(var(--navbar-height, 88px) + 55px)
+      20px
+      85px;
+  }
+
+  .heading {
+    margin-bottom: 50px;
+  }
+
+  .heading h1 {
+    font-size: clamp(39px, 13vw, 55px);
+  }
+
+  .introduction {
+    font-size: 15px;
+  }
+
+  .regionsGrid {
+    grid-template-columns: 1fr;
+    gap: 23px;
+  }
+
+  .regionCard,
+  .regionCard:last-child {
+    width: 100%;
+    min-height: auto;
+
+    grid-column: auto;
+
+    padding: 33px 25px;
+  }
+
+  .regionNumber {
+    font-size: 54px;
+  }
+
+  .regionCard h2 {
+    font-size: 25px;
+  }
+
+  .contactBox {
+    margin-top: 45px;
+    padding: 35px 25px;
+  }
+
+  .contactBox h2 {
+    font-size: 27px;
+  }
+
+  .contactButton {
+    width: 100%;
+  }
+}
+
+/* ========================================
+   PETITS MOBILES
+======================================== */
+
+@media (max-width: 390px) {
+  .regionsSection {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .heading h1 {
+    font-size: 38px;
+  }
+
+  .regionCard {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITÉ
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .regionCard,
+  .regionCard li,
+  .contactButton,
+  .contactButton svg {
+    transition: none;
+  }
+}

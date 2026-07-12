@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 
 const services = [
   {
@@ -34,7 +35,7 @@ export default function HomePage() {
 
       <main>
         {/* HERO */}
-        <section className="hero">
+        <section id="top" className="hero">
           <div className="hero-overlay" />
 
           <div className="hero-content">
@@ -45,9 +46,8 @@ export default function HomePage() {
             <h1>Transport</h1>
 
             <p className="hero-description">
-              Une plateforme moderne pour gérer vos commandes,
-              vos chauffeurs, vos clients et vos livraisons
-              efficacement.
+              Une plateforme moderne pour gérer vos commandes, vos chauffeurs,
+              vos clients et vos livraisons efficacement.
             </p>
 
             <div className="hero-actions">
@@ -96,6 +96,7 @@ export default function HomePage() {
                     className="service-icon"
                     size={70}
                     strokeWidth={1.5}
+                    aria-hidden="true"
                   />
 
                   <h3>{service.title}</h3>
@@ -128,6 +129,8 @@ export default function HomePage() {
           </Link>
         </section>
       </main>
+
+      <Footer />
     </>
   );
 }

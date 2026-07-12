@@ -1,0 +1,1168 @@
+.page {
+  --crimson: #dc143c;
+  --crimson-dark: #a80f2e;
+  --white: #ffffff;
+  --black: #171717;
+  --gray: #f5f5f5;
+  --text-gray: #626262;
+  --border: #e6e6e6;
+
+  width: 100%;
+  min-height: 100vh;
+
+  color: var(--black);
+  background-color: var(--white);
+}
+
+.main {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ========================================
+   HERO
+======================================== */
+
+.hero {
+  position: relative;
+
+  width: 100%;
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    calc(var(--navbar-height, 108px) + 75px)
+    clamp(22px, 5vw, 80px)
+    100px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #ffffff 68%,
+      #f5f5f5 68%,
+      #f5f5f5 100%
+    );
+
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+
+  position: absolute;
+  top: 0;
+  left: 0;
+
+  width: 7px;
+  height: 100%;
+
+  background-color: var(--crimson);
+}
+
+.heroContainer {
+  position: relative;
+  z-index: 2;
+
+  width: min(1420px, 100%);
+
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(460px, 1.08fr);
+  align-items: center;
+  gap: clamp(65px, 7vw, 115px);
+
+  margin: 0 auto;
+}
+
+/* CONTENU HERO */
+
+.heroContent {
+  position: relative;
+  z-index: 3;
+
+  max-width: 720px;
+
+  animation: aboutTextEntry 0.8s ease both;
+}
+
+.heroLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  margin-bottom: 26px;
+}
+
+.heroLabelLine {
+  width: 48px;
+  height: 3px;
+
+  background-color: var(--crimson);
+}
+
+.eyebrow,
+.sectionLabel,
+.ctaLabel {
+  margin: 0;
+
+  color: var(--crimson);
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+}
+
+.heroTitle {
+  max-width: 740px;
+
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: clamp(50px, 5.6vw, 86px);
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -3px;
+  text-transform: uppercase;
+
+  text-wrap: balance;
+}
+
+.heroTitle span {
+  display: block;
+
+  color: var(--crimson);
+}
+
+.heroLead {
+  max-width: 690px;
+
+  margin-top: 32px;
+
+  color: #242424;
+
+  font-size: clamp(18px, 1.45vw, 22px);
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.heroText {
+  max-width: 650px;
+
+  margin-top: 18px;
+
+  color: var(--text-gray);
+
+  font-size: 15px;
+  line-height: 1.85;
+}
+
+/* LISTE DES SERVICES */
+
+.serviceList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 15px 26px;
+
+  margin-top: 30px;
+}
+
+.serviceItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  color: #444444;
+
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.serviceItem svg {
+  flex-shrink: 0;
+  color: var(--crimson);
+}
+
+/* BOUTONS */
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+
+  margin-top: 38px;
+}
+
+.primaryButton,
+.secondaryButton,
+.ctaButton {
+  min-height: 56px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 16px 25px;
+
+  border: 2px solid transparent;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.primaryButton {
+  color: var(--white);
+  background-color: var(--crimson);
+  border-color: var(--crimson);
+
+  box-shadow: 0 14px 30px rgba(220, 20, 60, 0.2);
+}
+
+.primaryButton:hover {
+  background-color: var(--crimson-dark);
+  border-color: var(--crimson-dark);
+
+  transform: translateY(-4px);
+
+  box-shadow: 0 18px 38px rgba(220, 20, 60, 0.28);
+}
+
+.primaryButton svg,
+.ctaButton svg {
+  transition: transform 0.3s ease;
+}
+
+.primaryButton:hover svg,
+.ctaButton:hover svg {
+  transform: translateX(4px);
+}
+
+.secondaryButton {
+  color: var(--black);
+  background-color: transparent;
+  border-color: var(--black);
+}
+
+.secondaryButton:hover {
+  color: var(--white);
+  background-color: var(--black);
+
+  transform: translateY(-4px);
+}
+
+/* VISUEL HERO */
+
+.heroVisual {
+  position: relative;
+
+  min-height: 720px;
+
+  animation: aboutVisualEntry 0.9s 0.1s ease both;
+}
+
+.heroDecorText {
+  position: absolute;
+  top: 18px;
+  right: -20px;
+  z-index: 0;
+
+  color: rgba(220, 20, 60, 0.07);
+
+  font-size: clamp(110px, 13vw, 210px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -10px;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+
+  pointer-events: none;
+}
+
+.heroImageFrame {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  bottom: 40px;
+  left: 45px;
+  z-index: 1;
+
+  overflow: hidden;
+
+  border-radius: 220px 20px 20px 20px;
+
+  box-shadow: 0 35px 80px rgba(0, 0, 0, 0.2);
+}
+
+.heroImageFrame::before {
+  content: "";
+
+  position: absolute;
+  inset: 18px;
+  z-index: 3;
+
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 205px 10px 10px 10px;
+
+  pointer-events: none;
+}
+
+.heroPhoto {
+  position: absolute;
+  inset: 0;
+
+  background:
+    url("/images/about-truck-1.jpeg")
+    58%
+    center /
+    cover
+    no-repeat;
+
+  transition: transform 0.8s ease;
+}
+
+.heroVisual:hover .heroPhoto {
+  transform: scale(1.045);
+}
+
+.heroPhotoOverlay {
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      180deg,
+      transparent 45%,
+      rgba(0, 0, 0, 0.48) 100%
+    );
+}
+
+.heroExperienceCard {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 5;
+
+  min-width: 235px;
+
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  padding: 22px 24px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  box-shadow: 0 20px 45px rgba(220, 20, 60, 0.3);
+}
+
+.heroExperienceCard strong {
+  padding-right: 16px;
+
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.heroExperienceCard span {
+  display: flex;
+  flex-direction: column;
+
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.heroExperienceCard small {
+  margin-top: 4px;
+
+  color: rgba(255, 255, 255, 0.75);
+
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+}
+
+.heroMiniCard {
+  position: absolute;
+  right: -15px;
+  bottom: 78px;
+  z-index: 5;
+
+  display: flex;
+  align-items: center;
+  gap: 13px;
+
+  padding: 17px 20px;
+
+  color: var(--black);
+  background-color: var(--white);
+
+  border-left: 4px solid var(--crimson);
+
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.16);
+}
+
+.heroMiniCard svg {
+  flex-shrink: 0;
+  color: var(--crimson);
+}
+
+.heroMiniCard span {
+  display: flex;
+  flex-direction: column;
+
+  color: #676767;
+
+  font-size: 11px;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.heroMiniCard strong {
+  color: var(--black);
+  font-size: 13px;
+}
+
+/* ========================================
+   NOTRE ENTREPRISE
+======================================== */
+
+.storySection {
+  padding: 120px 24px;
+
+  background-color: var(--gray);
+}
+
+.storyContainer {
+  width: min(1300px, 100%);
+
+  display: grid;
+  grid-template-columns: minmax(390px, 0.95fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: clamp(55px, 8vw, 120px);
+
+  margin: 0 auto;
+}
+
+.storyVisual {
+  position: relative;
+
+  min-height: 610px;
+}
+
+.storyImage {
+  width: 100%;
+  height: 610px;
+
+  background:
+    url("/images/about-truck-2.jpeg")
+    center /
+    cover
+    no-repeat;
+
+  border-radius: 20px 180px 20px 20px;
+
+  box-shadow: 0 25px 55px rgba(0, 0, 0, 0.16);
+}
+
+.storyBadge {
+  position: absolute;
+  right: -30px;
+  bottom: 35px;
+
+  min-width: 270px;
+
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  padding: 22px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  box-shadow: 0 18px 40px rgba(220, 20, 60, 0.25);
+}
+
+.storyBadge svg {
+  flex-shrink: 0;
+}
+
+.storyBadge strong,
+.storyBadge span {
+  display: block;
+}
+
+.storyBadge strong {
+  margin-bottom: 5px;
+}
+
+.storyBadge span {
+  color: rgba(255, 255, 255, 0.8);
+
+  font-size: 12px;
+}
+
+.sectionLabel {
+  margin-bottom: 18px;
+}
+
+.sectionTitle {
+  color: var(--crimson);
+
+  font-size: clamp(40px, 5vw, 70px);
+  font-weight: 900;
+  line-height: 1.03;
+  letter-spacing: -1px;
+  text-transform: uppercase;
+}
+
+.storyContent > p:not(.sectionLabel) {
+  margin-top: 24px;
+
+  color: var(--text-gray);
+
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.storyDetails {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+
+  margin-top: 40px;
+}
+
+.storyDetail {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+
+  padding: 22px;
+
+  background-color: var(--white);
+  border-left: 4px solid var(--crimson);
+
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.storyDetail:hover {
+  transform: translateY(-6px);
+
+  box-shadow: 0 17px 35px rgba(0, 0, 0, 0.1);
+}
+
+.storyDetail svg {
+  flex-shrink: 0;
+
+  color: var(--crimson);
+}
+
+.storyDetail strong {
+  display: block;
+
+  margin-bottom: 6px;
+}
+
+.storyDetail span {
+  color: var(--text-gray);
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ========================================
+   STATISTIQUES
+======================================== */
+
+.statsSection {
+  padding: 0 24px;
+
+  background-color: var(--gray);
+}
+
+.statsContainer {
+  width: min(1100px, 100%);
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  margin: 0 auto;
+
+  background-color: var(--white);
+
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+}
+
+.statCard {
+  min-height: 185px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 28px;
+
+  border-right: 1px solid var(--border);
+
+  text-align: center;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.statCard:last-child {
+  border-right: none;
+}
+
+.statCard:hover {
+  color: var(--white);
+  background-color: var(--crimson);
+
+  transform: translateY(-6px);
+}
+
+.statCard strong {
+  color: var(--crimson);
+
+  font-size: clamp(42px, 5vw, 62px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.statCard span {
+  margin-top: 13px;
+
+  color: var(--text-gray);
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.statCard:hover strong,
+.statCard:hover span {
+  color: var(--white);
+}
+
+/* ========================================
+   VALEURS
+======================================== */
+
+.valuesSection {
+  padding: 120px 24px;
+
+  background-color: var(--white);
+}
+
+.valuesContainer {
+  width: min(1250px, 100%);
+
+  margin: 0 auto;
+}
+
+.valuesHeading {
+  max-width: 800px;
+
+  margin: 0 auto 60px;
+
+  text-align: center;
+}
+
+.valuesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.valueCard {
+  position: relative;
+
+  min-height: 320px;
+
+  padding: 38px 32px;
+
+  background-color: var(--white);
+  border: 1px solid var(--border);
+  border-bottom: 5px solid var(--crimson);
+
+  overflow: hidden;
+
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.07);
+
+  transition:
+    color 0.35s ease,
+    transform 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.valueCard::before {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  background-color: var(--crimson);
+
+  transform: translateY(101%);
+
+  transition: transform 0.35s ease;
+}
+
+.valueCard:hover {
+  color: var(--white);
+
+  transform: translateY(-9px);
+
+  box-shadow: 0 22px 48px rgba(220, 20, 60, 0.18);
+}
+
+.valueCard:hover::before {
+  transform: translateY(0);
+}
+
+.valueIcon,
+.valueCard h3,
+.valueCard p {
+  position: relative;
+  z-index: 1;
+}
+
+.valueIcon {
+  width: 64px;
+  height: 64px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 28px;
+
+  color: var(--crimson);
+  background-color: rgba(220, 20, 60, 0.08);
+
+  border-radius: 50%;
+}
+
+.valueCard h3 {
+  margin-bottom: 16px;
+
+  color: var(--crimson);
+
+  font-size: 25px;
+  font-weight: 900;
+  text-transform: uppercase;
+
+  transition: color 0.35s ease;
+}
+
+.valueCard p {
+  color: var(--text-gray);
+
+  font-size: 15px;
+  line-height: 1.8;
+
+  transition: color 0.35s ease;
+}
+
+.valueCard:hover h3,
+.valueCard:hover p {
+  color: var(--white);
+}
+
+.valueCard:hover .valueIcon {
+  color: var(--crimson);
+  background-color: var(--white);
+}
+
+/* ========================================
+   CTA
+======================================== */
+
+.ctaSection {
+  padding: 110px 24px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  text-align: center;
+}
+
+.ctaContent {
+  width: min(900px, 100%);
+
+  margin: 0 auto;
+}
+
+.ctaLabel {
+  color: var(--white);
+
+  margin-bottom: 18px;
+}
+
+.ctaContent h2 {
+  font-size: clamp(40px, 5vw, 70px);
+  font-weight: 900;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.ctaContent > p:not(.ctaLabel) {
+  max-width: 720px;
+
+  margin: 25px auto 36px;
+
+  color: rgba(255, 255, 255, 0.85);
+
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.ctaButton {
+  color: var(--crimson);
+  background-color: var(--white);
+  border-color: var(--white);
+}
+
+.ctaButton:hover {
+  color: var(--white);
+  background-color: var(--black);
+  border-color: var(--black);
+
+  transform: translateY(-4px);
+}
+
+/* ========================================
+   ANIMATIONS
+======================================== */
+
+@keyframes aboutTextEntry {
+  from {
+    opacity: 0;
+    transform: translateX(-35px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes aboutVisualEntry {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ========================================
+   TABLETTE
+======================================== */
+
+@media (max-width: 1050px) {
+  .hero {
+    min-height: auto;
+  }
+
+  .heroContainer,
+  .storyContainer {
+    grid-template-columns: 1fr;
+  }
+
+  .heroContent {
+    max-width: 850px;
+  }
+
+  .heroTitle {
+    max-width: 850px;
+
+    font-size: clamp(54px, 8vw, 82px);
+  }
+
+  .heroVisual {
+    width: min(720px, 100%);
+    min-height: 650px;
+
+    margin: 15px auto 0;
+  }
+
+  .storyVisual {
+    min-height: 540px;
+  }
+
+  .storyImage {
+    height: 540px;
+  }
+
+  .storyBadge {
+    right: 20px;
+  }
+
+  .valuesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 720px) {
+  .hero {
+    padding:
+      calc(var(--navbar-height, 88px) + 48px)
+      20px
+      75px;
+
+    background: var(--white);
+  }
+
+  .hero::before {
+    width: 5px;
+  }
+
+  .heroContainer {
+    gap: 55px;
+  }
+
+  .heroLabelLine {
+    width: 34px;
+  }
+
+  .eyebrow {
+    font-size: 10px;
+    letter-spacing: 2.4px;
+  }
+
+  .heroTitle {
+    font-size: clamp(42px, 13vw, 59px);
+    line-height: 0.98;
+    letter-spacing: -1.5px;
+  }
+
+  .heroLead {
+    margin-top: 25px;
+
+    font-size: 17px;
+  }
+
+  .heroText {
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  .serviceList {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .heroActions {
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .ctaButton {
+    width: 100%;
+  }
+
+  .heroVisual {
+    min-height: 500px;
+  }
+
+  .heroImageFrame {
+    top: 0;
+    right: 0;
+    bottom: 65px;
+    left: 0;
+
+    border-radius: 110px 14px 14px 14px;
+  }
+
+  .heroImageFrame::before {
+    border-radius: 100px 7px 7px 7px;
+  }
+
+  .heroDecorText {
+    display: none;
+  }
+
+  .heroExperienceCard {
+    left: 12px;
+    bottom: 22px;
+
+    min-width: 210px;
+
+    padding: 17px 18px;
+  }
+
+  .heroExperienceCard strong {
+    font-size: 27px;
+  }
+
+  .heroMiniCard {
+    right: 10px;
+    bottom: 105px;
+
+    padding: 14px 15px;
+  }
+
+  .storySection,
+  .valuesSection,
+  .ctaSection {
+    padding: 80px 20px;
+  }
+
+  .storyVisual {
+    min-height: 430px;
+  }
+
+  .storyImage {
+    height: 430px;
+
+    border-radius: 15px 100px 15px 15px;
+  }
+
+  .storyBadge {
+    right: 15px;
+    bottom: 20px;
+    left: 15px;
+
+    min-width: 0;
+  }
+
+  .sectionTitle {
+    font-size: 40px;
+  }
+
+  .storyContent > p:not(.sectionLabel) {
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .storyDetails {
+    grid-template-columns: 1fr;
+  }
+
+  .statsSection {
+    padding: 0 20px;
+  }
+
+  .statsContainer {
+    grid-template-columns: 1fr;
+  }
+
+  .statCard {
+    min-height: 145px;
+
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .statCard:last-child {
+    border-bottom: none;
+  }
+
+  .valuesGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .valueCard {
+    min-height: 290px;
+  }
+
+  .ctaContent h2 {
+    font-size: 38px;
+  }
+}
+
+/* ========================================
+   PETITS MOBILES
+======================================== */
+
+@media (max-width: 400px) {
+  .hero {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .heroTitle {
+    font-size: 39px;
+  }
+
+  .heroVisual {
+    min-height: 450px;
+  }
+
+  .heroMiniCard {
+    display: none;
+  }
+
+  .storyVisual,
+  .storyImage {
+    min-height: 370px;
+    height: 370px;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .ctaButton {
+    padding-right: 18px;
+    padding-left: 18px;
+
+    font-size: 10px;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITÉ
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .heroContent,
+  .heroVisual {
+    animation: none;
+  }
+
+  .heroPhoto,
+  .primaryButton,
+  .secondaryButton,
+  .storyDetail,
+  .statCard,
+  .valueCard,
+  .valueCard::before,
+  .ctaButton {
+    transition: none;
+  }
+}

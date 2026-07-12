@@ -1,0 +1,575 @@
+.page {
+  --crimson: #dc143c;
+  --crimson-dark: #a80f2e;
+  --crimson-soft: #f7d9e0;
+  --white: #ffffff;
+  --black: #171717;
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f4;
+  --gray-200: #e8e8e8;
+  --gray-300: #d6d6d6;
+  --gray-500: #707070;
+  --gray-700: #383838;
+
+  width: 100%;
+  min-height: 100vh;
+
+  color: var(--black);
+  background:
+    linear-gradient(
+      135deg,
+      var(--crimson) 0%,
+      var(--crimson-dark) 100%
+    );
+}
+
+.main {
+  width: 100%;
+}
+
+/* ========================================
+   HERO
+======================================== */
+
+.hero {
+  min-height: 390px;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    calc(var(--navbar-height, 108px) + 55px)
+    clamp(24px, 9vw, 150px)
+    70px;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(7, 7, 7, 0.88),
+      rgba(7, 7, 7, 0.5)
+    ),
+    url("/images/trucks-hero.jpeg")
+    center /
+    cover
+    no-repeat;
+
+  border-bottom: 6px solid var(--crimson);
+}
+
+.heroContent {
+  width: min(850px, 100%);
+}
+
+.eyebrow {
+  margin-bottom: 14px;
+
+  color: #ffb5c5;
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0;
+
+  font-size: clamp(44px, 6vw, 82px);
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+
+.hero h1 span {
+  display: block;
+  color: var(--crimson);
+}
+
+.heroContent > p:last-child {
+  max-width: 700px;
+
+  margin-top: 24px;
+
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+/* ========================================
+   SECTION FORMULAIRE
+======================================== */
+
+.formSection {
+  padding: 80px 24px 110px;
+}
+
+.quoteForm {
+  width: min(1080px, 100%);
+
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+
+  margin: 0 auto;
+}
+
+/* ========================================
+   BLOCS
+======================================== */
+
+.formBlock {
+  position: relative;
+
+  min-width: 0;
+
+  margin: 0;
+  padding: 72px 38px 38px;
+
+  background-color: var(--white);
+  border: none;
+  border-radius: 2px;
+
+  box-shadow:
+    0 22px 55px rgba(0, 0, 0, 0.18);
+}
+
+.blockTitle {
+  position: absolute;
+  top: -21px;
+  left: 32px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 13px;
+
+  min-height: 44px;
+
+  padding: 0 18px 0 0;
+
+  color: var(--black);
+  background-color: var(--white);
+
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.blockIcon {
+  width: 44px;
+  height: 44px;
+
+  display: grid;
+  place-items: center;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 8px 22px rgba(220, 20, 60, 0.28);
+}
+
+/* ========================================
+   GRILLES
+======================================== */
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.formGrid label,
+.fullField,
+.dateField,
+.weightField {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.fullField {
+  grid-column: 1 / -1;
+}
+
+/* ========================================
+   LABELS
+======================================== */
+
+.formGrid label > span,
+.fullField > span,
+.dateField > span,
+.weightField > span {
+  color: var(--gray-700);
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.formGrid label > span strong,
+.fullField > span strong,
+.dateField > span strong {
+  color: var(--crimson);
+}
+
+/* ========================================
+   CHAMPS
+======================================== */
+
+.formGrid input,
+.fullField textarea,
+.dateField input,
+.weightField input {
+  width: 100%;
+
+  min-height: 54px;
+
+  padding: 14px 16px;
+
+  color: var(--black);
+  background-color: var(--gray-100);
+
+  border: 1px solid transparent;
+  border-radius: 2px;
+
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+
+  outline: none;
+
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.fullField textarea {
+  min-height: 160px;
+
+  resize: vertical;
+}
+
+.formGrid input::placeholder,
+.fullField textarea::placeholder,
+.dateField input::placeholder,
+.weightField input::placeholder {
+  color: #8a8a8a;
+  opacity: 1;
+}
+
+.formGrid input:hover,
+.fullField textarea:hover,
+.dateField input:hover,
+.weightField input:hover {
+  background-color: var(--gray-50);
+  border-color: var(--gray-300);
+}
+
+.formGrid input:focus,
+.fullField textarea:focus,
+.dateField input:focus,
+.weightField input:focus {
+  background-color: var(--white);
+  border-color: var(--crimson);
+
+  box-shadow:
+    0 0 0 4px rgba(220, 20, 60, 0.1);
+}
+
+/* ========================================
+   DATE ET OPTIONS DE LIVRAISON
+======================================== */
+
+.deliveryRow {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1fr);
+  align-items: end;
+  gap: 28px;
+
+  margin-top: 26px;
+}
+
+.dateLabel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.dateLabel svg {
+  color: var(--crimson);
+}
+
+.deliveryOptions,
+.checkboxGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 28px;
+
+  min-height: 54px;
+}
+
+.checkboxField {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  color: var(--gray-700);
+
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+
+  cursor: pointer;
+}
+
+.checkboxField input {
+  width: 18px;
+  height: 18px;
+
+  margin: 0;
+
+  accent-color: var(--crimson);
+}
+
+/* ========================================
+   MARCHANDISE
+======================================== */
+
+.merchandiseOptions {
+  display: grid;
+  grid-template-columns: 1fr minmax(230px, 0.42fr);
+  align-items: end;
+  gap: 28px;
+
+  margin: 26px 0;
+}
+
+/* ========================================
+   PIED DU FORMULAIRE
+======================================== */
+
+.formFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+}
+
+.formFooter p {
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.submitButton {
+  min-height: 58px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 16px 28px;
+
+  color: var(--crimson);
+  background-color: var(--white);
+
+  border: 2px solid var(--white);
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+
+  cursor: pointer;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.submitButton:hover:not(:disabled) {
+  color: var(--white);
+  background-color: var(--black);
+  border-color: var(--black);
+
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 16px 35px rgba(0, 0, 0, 0.25);
+}
+
+.submitButton svg {
+  transition: transform 0.3s ease;
+}
+
+.submitButton:hover svg {
+  transform: translateX(4px);
+}
+
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* ========================================
+   MESSAGES
+======================================== */
+
+.statusMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  padding: 16px 18px;
+
+  background-color: var(--white);
+
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.successMessage {
+  color: #146c38;
+  border-left: 5px solid #2b9d55;
+}
+
+.errorMessage {
+  color: #8c1d2d;
+  border-left: 5px solid var(--crimson);
+}
+
+/* ========================================
+   TABLETTE
+======================================== */
+
+@media (max-width: 900px) {
+  .formGrid,
+  .deliveryRow,
+  .merchandiseOptions {
+    grid-template-columns: 1fr;
+  }
+
+  .deliveryOptions,
+  .checkboxGroup {
+    min-height: auto;
+  }
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 620px) {
+  .hero {
+    min-height: 400px;
+
+    padding:
+      calc(var(--navbar-height, 88px) + 45px)
+      20px
+      60px;
+
+    background-position: 65% center;
+  }
+
+  .hero h1 {
+    font-size: clamp(39px, 13vw, 56px);
+  }
+
+  .heroContent > p:last-child {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .formSection {
+    padding: 60px 14px 80px;
+  }
+
+  .quoteForm {
+    gap: 32px;
+  }
+
+  .formBlock {
+    padding: 64px 20px 28px;
+  }
+
+  .blockTitle {
+    top: -20px;
+    left: 18px;
+
+    font-size: 15px;
+  }
+
+  .blockIcon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .formGrid {
+    gap: 18px;
+  }
+
+  .deliveryOptions,
+  .checkboxGroup {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .formFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .submitButton {
+    width: 100%;
+  }
+}
+
+/* ========================================
+   PETITS MOBILES
+======================================== */
+
+@media (max-width: 390px) {
+  .hero {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .formBlock {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .blockTitle {
+    max-width: calc(100% - 36px);
+
+    font-size: 13px;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITÉ
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .submitButton,
+  .submitButton svg {
+    transition: none;
+  }
+}

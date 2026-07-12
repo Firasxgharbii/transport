@@ -1,0 +1,540 @@
+.page {
+  --crimson: #dc143c;
+  --crimson-dark: #a80f2e;
+  --white: #ffffff;
+  --black: #171717;
+  --gray: #f5f5f5;
+  --text-gray: #616161;
+  --border: #e4e4e4;
+
+  min-height: 100vh;
+  color: var(--black);
+  background-color: var(--white);
+}
+
+.main {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ========================================
+   HERO
+======================================== */
+
+.hero {
+  min-height: 500px;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    calc(var(--navbar-height, 108px) + 70px)
+    clamp(24px, 9vw, 145px)
+    85px;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(5, 5, 5, 0.9),
+      rgba(5, 5, 5, 0.55)
+    ),
+    url("/images/trucks-hero.jpeg")
+    center /
+    cover
+    no-repeat;
+
+  border-bottom: 6px solid var(--crimson);
+}
+
+.heroContent {
+  width: min(850px, 100%);
+}
+
+.eyebrow {
+  margin-bottom: 17px;
+
+  color: #ff9bb1;
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0;
+
+  font-size: clamp(52px, 7vw, 94px);
+  font-weight: 900;
+  line-height: 0.96;
+  letter-spacing: -2px;
+  text-transform: uppercase;
+}
+
+.heroContent > p:last-child {
+  max-width: 700px;
+
+  margin-top: 27px;
+
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+/* ========================================
+   CONTENU
+======================================== */
+
+.servicesSection {
+  padding: 120px 24px;
+
+  background-color: var(--white);
+}
+
+.servicesContainer {
+  width: min(1280px, 100%);
+
+  display: grid;
+  grid-template-columns: minmax(340px, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: clamp(60px, 8vw, 120px);
+
+  margin: 0 auto;
+}
+
+/* COLONNE GAUCHE */
+
+.introColumn {
+  position: sticky;
+  top: calc(var(--navbar-height, 108px) + 35px);
+}
+
+.sectionLabel {
+  margin-bottom: 15px;
+
+  color: var(--crimson);
+
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.introColumn h2 {
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: clamp(38px, 4.8vw, 64px);
+  font-weight: 900;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.introText {
+  margin-top: 24px;
+
+  color: var(--text-gray);
+
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.introImage {
+  position: relative;
+
+  min-height: 430px;
+
+  margin-top: 38px;
+
+  background:
+    url("/images/about-truck-2.jpeg")
+    center /
+    cover
+    no-repeat;
+
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.15);
+}
+
+.imageBadge {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+
+  display: flex;
+  align-items: center;
+  gap: 13px;
+
+  padding: 17px 19px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  box-shadow: 0 14px 32px rgba(220, 20, 60, 0.25);
+}
+
+.imageBadge > svg {
+  flex-shrink: 0;
+}
+
+.imageBadge span {
+  display: flex;
+  flex-direction: column;
+
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.imageBadge strong {
+  margin-top: 4px;
+
+  font-size: 13px;
+}
+
+/* LISTE DE DROITE */
+
+.servicesList {
+  display: flex;
+  flex-direction: column;
+}
+
+.serviceItem {
+  position: relative;
+
+  display: grid;
+  grid-template-columns: 50px 58px 1fr;
+  align-items: start;
+  gap: 20px;
+
+  padding: 0 0 43px;
+  margin-bottom: 43px;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.serviceItem:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+
+  border-bottom: none;
+}
+
+.serviceNumber {
+  padding-top: 9px;
+
+  color: rgba(220, 20, 60, 0.35);
+
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.serviceIcon {
+  width: 54px;
+  height: 54px;
+
+  display: grid;
+  place-items: center;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow: 0 10px 25px rgba(220, 20, 60, 0.2);
+
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.serviceItem:hover .serviceIcon {
+  background-color: var(--crimson-dark);
+  transform: translateY(-5px);
+}
+
+.serviceContent h2 {
+  margin: 0 0 13px;
+
+  color: var(--black);
+
+  font-size: 27px;
+  font-weight: 800;
+}
+
+.serviceContent p {
+  max-width: 650px;
+
+  color: var(--text-gray);
+
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.regionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 15px;
+
+  color: var(--crimson);
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.regionLink svg {
+  transition: transform 0.3s ease;
+}
+
+.regionLink:hover svg {
+  transform: translateX(4px);
+}
+
+/* ========================================
+   CTA
+======================================== */
+
+.cta {
+  padding: 105px 24px;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--crimson),
+      var(--crimson-dark)
+    );
+
+  text-align: center;
+}
+
+.ctaContent {
+  width: min(900px, 100%);
+
+  margin: 0 auto;
+}
+
+.ctaLabel {
+  margin-bottom: 15px;
+
+  color: rgba(255, 255, 255, 0.76);
+
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.cta h2 {
+  margin: 0;
+
+  font-size: clamp(38px, 5vw, 66px);
+  font-weight: 900;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.ctaActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+
+  margin-top: 36px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 56px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 16px 26px;
+
+  border: 2px solid var(--white);
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.primaryButton {
+  color: var(--crimson);
+  background-color: var(--white);
+}
+
+.primaryButton:hover {
+  color: var(--white);
+  background-color: var(--black);
+
+  border-color: var(--black);
+
+  transform: translateY(-4px);
+}
+
+.secondaryButton {
+  color: var(--white);
+  background-color: transparent;
+}
+
+.secondaryButton:hover {
+  color: var(--black);
+  background-color: var(--white);
+
+  transform: translateY(-4px);
+}
+
+.primaryButton svg {
+  transition: transform 0.3s ease;
+}
+
+.primaryButton:hover svg {
+  transform: translateX(4px);
+}
+
+/* ========================================
+   TABLETTE
+======================================== */
+
+@media (max-width: 1000px) {
+  .servicesContainer {
+    grid-template-columns: 1fr;
+  }
+
+  .introColumn {
+    position: static;
+  }
+
+  .introImage {
+    min-height: 500px;
+  }
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 680px) {
+  .hero {
+    min-height: 440px;
+
+    padding:
+      calc(var(--navbar-height, 88px) + 50px)
+      20px
+      65px;
+
+    background-position: 65% center;
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 14vw, 60px);
+  }
+
+  .heroContent > p:last-child {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .servicesSection {
+    padding: 80px 20px;
+  }
+
+  .introColumn h2 {
+    font-size: 40px;
+  }
+
+  .introImage {
+    min-height: 390px;
+  }
+
+  .serviceItem {
+    grid-template-columns: 44px 1fr;
+    gap: 15px;
+  }
+
+  .serviceNumber {
+    display: none;
+  }
+
+  .serviceIcon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .serviceContent h2 {
+    font-size: 23px;
+  }
+
+  .cta {
+    padding: 80px 20px;
+  }
+
+  .cta h2 {
+    font-size: 38px;
+  }
+
+  .ctaActions {
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    width: 100%;
+  }
+}
+
+/* ========================================
+   PETITS MOBILES
+======================================== */
+
+@media (max-width: 390px) {
+  .hero,
+  .servicesSection,
+  .cta {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .introColumn h2 {
+    font-size: 35px;
+  }
+
+  .serviceItem {
+    grid-template-columns: 1fr;
+  }
+
+  .serviceIcon {
+    margin-bottom: 5px;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITÉ
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .serviceIcon,
+  .regionLink svg,
+  .primaryButton,
+  .secondaryButton,
+  .primaryButton svg {
+    transition: none;
+  }
+}
