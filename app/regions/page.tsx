@@ -1,14 +1,18 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  MapPin,
-} from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import RegionsMapLoader from "./RegionsMapLoader";
+
 import styles from "./region.module.css";
 
-const regions = [
+type Region = {
+  title: string;
+  cities: string[];
+};
+
+const regions: Region[] = [
   {
     title: "Montréal",
     cities: [
@@ -88,6 +92,7 @@ export default function RegionsPage() {
 
       <main className={styles.main}>
         <section className={styles.regionsSection}>
+          {/* EN-TÊTE */}
           <div className={styles.heading}>
             <p className={styles.eyebrow}>
               Notre zone de couverture
@@ -108,6 +113,7 @@ export default function RegionsPage() {
             </p>
           </div>
 
+          {/* CARTES DES RÉGIONS */}
           <div className={styles.regionsGrid}>
             {regions.map((region, index) => (
               <article
@@ -132,7 +138,7 @@ export default function RegionsPage() {
                   {region.cities.map((city) => (
                     <li key={city}>
                       <span className={styles.cityDot} />
-                      {city}
+                      <span>{city}</span>
                     </li>
                   ))}
                 </ul>
@@ -140,6 +146,14 @@ export default function RegionsPage() {
             ))}
           </div>
 
+          {/* CARTE INTERACTIVE */}
+          <section className={styles.mapSection}>
+           
+
+            <RegionsMapLoader />
+          </section>
+
+          {/* BLOC CONTACT */}
           <div className={styles.contactBox}>
             <div>
               <p className={styles.contactLabel}>
