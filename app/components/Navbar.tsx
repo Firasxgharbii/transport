@@ -71,6 +71,13 @@ export default function Navbar() {
             régions-desservies
           </Link>
 
+<Link href="/transport-automobile" onClick={closeMenu}>
+            transport automobile
+          </Link>
+
+          <Link href="/demenagement" onClick={closeMenu}>
+            déménagement
+          </Link>
             <Link href="/contact" onClick={closeMenu}>
             login
           </Link>

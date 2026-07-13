@@ -1,0 +1,1286 @@
+/* =========================================================
+   VARIABLES
+========================================================= */
+
+.page {
+  --crimson: #dc143c;
+  --crimson-dark: #a80f2e;
+  --crimson-light: #f52a53;
+
+  --white: #ffffff;
+  --black: #151515;
+
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f4;
+  --gray-200: #e8e8e8;
+  --gray-300: #d8d8d8;
+  --gray-500: #777777;
+  --gray-600: #606060;
+
+  width: 100%;
+  min-height: 100vh;
+
+  color: var(--black);
+  background-color: var(--white);
+}
+
+.main {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* =========================================================
+   ÉLÉMENTS COMMUNS
+========================================================= */
+
+.eyebrow,
+.sectionLabel {
+  margin: 0 0 18px;
+
+  color: var(--crimson);
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.primaryButton,
+.secondaryButton,
+.servicesButton {
+  min-height: 58px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 17px 29px;
+
+  border: 2px solid transparent;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.hero {
+  position: relative;
+
+  min-height: 780px;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    calc(var(--navbar-height, 108px) + 90px)
+    clamp(24px, 8vw, 135px)
+    110px;
+
+  color: var(--white);
+
+  background:
+    url("/images/transport-auto-remorque.jpeg")
+    center /
+    cover
+    no-repeat;
+}
+
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(7, 7, 7, 0.96) 0%,
+      rgba(7, 7, 7, 0.8) 48%,
+      rgba(7, 7, 7, 0.24) 100%
+    );
+}
+
+.heroContent {
+  position: relative;
+  z-index: 2;
+
+  width: min(1000px, 100%);
+
+  animation: heroEntrance 0.9s ease both;
+}
+
+.hero h1 {
+  max-width: 1050px;
+
+  margin: 0;
+
+  font-size: clamp(54px, 7vw, 105px);
+  font-weight: 900;
+  line-height: 0.94;
+  letter-spacing: -4px;
+  text-wrap: balance;
+  text-transform: uppercase;
+}
+
+.hero h1 span {
+  display: block;
+
+  margin-top: 10px;
+
+  color: var(--crimson);
+}
+
+.heroIntroduction {
+  max-width: 760px;
+
+  margin: 34px 0 0;
+
+  color: rgba(255, 255, 255, 0.84);
+
+  font-size: clamp(17px, 1.5vw, 21px);
+  line-height: 1.8;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  margin-top: 40px;
+}
+
+.primaryButton {
+  color: var(--white);
+  background-color: var(--crimson);
+  border-color: var(--crimson);
+
+  box-shadow:
+    0 16px 36px rgba(220, 20, 60, 0.3);
+}
+
+.primaryButton:hover {
+  background-color: var(--crimson-dark);
+  border-color: var(--crimson-dark);
+
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 22px 45px rgba(220, 20, 60, 0.36);
+}
+
+.primaryButton svg,
+.servicesButton svg {
+  transition: transform 0.3s ease;
+}
+
+.primaryButton:hover svg,
+.servicesButton:hover svg {
+  transform: translateX(4px);
+}
+
+.secondaryButton {
+  color: var(--white);
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.secondaryButton:hover {
+  color: var(--black);
+  background-color: var(--white);
+  border-color: var(--white);
+
+  transform: translateY(-4px);
+}
+
+.heroHighlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+
+  margin-top: 42px;
+}
+
+.heroHighlights span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.heroHighlights svg {
+  color: var(--crimson);
+}
+
+/* =========================================================
+   TITRES DE SECTION
+========================================================= */
+
+.sectionHeading {
+  width: min(950px, 100%);
+
+  margin: 0 auto 75px;
+
+  text-align: center;
+}
+
+.sectionHeading h2,
+.introductionContent h2,
+.servicesHeader h2 {
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: clamp(43px, 5.8vw, 76px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2.5px;
+  text-wrap: balance;
+  text-transform: uppercase;
+}
+
+.sectionHeading h2 span,
+.introductionContent h2 span,
+.servicesHeader h2 span {
+  display: block;
+
+  margin-top: 8px;
+
+  color: var(--crimson);
+}
+
+.sectionDescription {
+  max-width: 700px;
+
+  margin: 28px auto 0;
+
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+/* =========================================================
+   AVANTAGES
+========================================================= */
+
+.advantagesSection {
+  position: relative;
+
+  padding: 130px 24px;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 15% 10%,
+      rgba(220, 20, 60, 0.07),
+      transparent 27%
+    ),
+    var(--gray-100);
+}
+
+.advantagesSection::before {
+  content: "";
+
+  position: absolute;
+  top: -190px;
+  right: -190px;
+
+  width: 450px;
+  height: 450px;
+
+  border: 1px solid rgba(220, 20, 60, 0.1);
+  border-radius: 50%;
+
+  pointer-events: none;
+}
+
+.advantagesGrid {
+  position: relative;
+  z-index: 2;
+
+  width: min(1280px, 100%);
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 30px;
+
+  margin: 0 auto;
+}
+
+.advantageCard {
+  position: relative;
+
+  min-height: 360px;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 38px 32px;
+
+  overflow: hidden;
+
+  background-color: var(--white);
+
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 28px;
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.07);
+
+  transition:
+    color 0.35s ease,
+    background-color 0.35s ease,
+    transform 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.advantageCard::before {
+  content: "";
+
+  position: absolute;
+  top: -100px;
+  right: -100px;
+
+  width: 235px;
+  height: 235px;
+
+  background-color: rgba(220, 20, 60, 0.05);
+
+  border-radius: 50%;
+
+  transition:
+    background-color 0.35s ease,
+    transform 0.35s ease;
+}
+
+.advantageCard:hover {
+  color: var(--white);
+  background-color: var(--crimson);
+
+  transform: translateY(-10px);
+
+  box-shadow:
+    0 28px 58px rgba(220, 20, 60, 0.22);
+}
+
+.advantageCard:hover::before {
+  background-color: rgba(255, 255, 255, 0.1);
+
+  transform: scale(1.15);
+}
+
+.advantageNumber {
+  position: absolute;
+  top: 25px;
+  right: 28px;
+  z-index: 2;
+
+  color: rgba(220, 20, 60, 0.12);
+
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 1;
+
+  transition: color 0.35s ease;
+}
+
+.advantageCard:hover .advantageNumber {
+  color: rgba(255, 255, 255, 0.15);
+}
+
+.advantageIcon,
+.advantageCard h3,
+.advantageCard p {
+  position: relative;
+  z-index: 2;
+}
+
+.advantageIcon {
+  width: 76px;
+  height: 76px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 38px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 15px 32px rgba(220, 20, 60, 0.24);
+
+  transition:
+    color 0.35s ease,
+    background-color 0.35s ease,
+    transform 0.35s ease;
+}
+
+.advantageCard:hover .advantageIcon {
+  color: var(--crimson);
+  background-color: var(--white);
+
+  transform: rotate(-6deg) scale(1.06);
+}
+
+.advantageCard h3 {
+  margin: 0 0 17px;
+
+  color: var(--black);
+
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+
+  transition: color 0.35s ease;
+}
+
+.advantageCard:hover h3 {
+  color: var(--white);
+}
+
+.advantageCard p {
+  margin: 0;
+
+  color: var(--gray-600);
+
+  font-size: 14px;
+  line-height: 1.85;
+
+  transition: color 0.35s ease;
+}
+
+.advantageCard:hover p {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+/* =========================================================
+   INTRODUCTION
+========================================================= */
+
+.introductionSection {
+  padding: 140px 24px;
+
+  background-color: var(--white);
+}
+
+.introductionGrid {
+  width: min(1320px, 100%);
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.92fr)
+    minmax(460px, 1.08fr);
+
+  align-items: center;
+  gap: clamp(65px, 8vw, 125px);
+
+  margin: 0 auto;
+}
+
+.introductionContent {
+  width: 100%;
+  max-width: 650px;
+
+  margin: 0;
+  padding: 0;
+
+  justify-self: start;
+  text-align: left;
+}
+
+.introductionContent .sectionLabel,
+.introductionContent h2,
+.introductionLead,
+.introductionContent > p:not(.sectionLabel):not(.introductionLead),
+.introductionPoints,
+.introductionPoints span {
+  text-align: left;
+}
+
+.introductionContent h2 {
+  width: 100%;
+  max-width: 650px;
+}
+
+.introductionLead,
+.introductionContent > p:not(.sectionLabel):not(.introductionLead),
+.introductionPoints {
+  width: 100%;
+  max-width: 620px;
+}
+
+.introductionLead {
+  margin: 34px 0 0;
+
+  color: #292929;
+
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.8;
+}
+
+.introductionContent > p:not(.sectionLabel):not(.introductionLead) {
+  margin: 23px 0 0;
+
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.introductionPoints {
+  display: grid;
+  gap: 13px;
+
+  margin-top: 34px;
+}
+
+.introductionPoints div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  min-height: 52px;
+
+  padding: 13px 16px;
+
+  background-color: var(--gray-100);
+
+  border-radius: 14px;
+
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.introductionPoints div:hover {
+  background-color: #fff0f3;
+
+  transform: translateX(5px);
+}
+
+.introductionPoints svg {
+  flex-shrink: 0;
+
+  color: var(--crimson);
+}
+
+.introductionPoints span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.introductionVisual {
+  position: relative;
+
+  min-height: 650px;
+
+  overflow: visible;
+  justify-self: end;
+}
+
+.introductionImage {
+  z-index: 2;
+
+  object-fit: cover;
+
+  border-radius: 34px;
+
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.18);
+
+  transition: transform 0.55s ease;
+}
+
+.introductionVisual:hover .introductionImage {
+  transform: scale(1.025);
+}
+
+.imageFrame {
+  position: absolute;
+  top: 35px;
+  right: -32px;
+  bottom: -32px;
+  left: 35px;
+  z-index: 1;
+
+  border: 3px solid var(--crimson);
+  border-radius: 34px;
+}
+
+.imageBadge {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  padding: 19px 22px;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--crimson),
+      var(--crimson-dark)
+    );
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 18px 42px rgba(220, 20, 60, 0.32);
+}
+
+.imageBadge svg {
+  flex-shrink: 0;
+}
+
+.imageBadge span {
+  display: flex;
+  flex-direction: column;
+
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.imageBadge strong {
+  margin-top: 4px;
+
+  font-size: 13px;
+}
+
+/* =========================================================
+   SERVICES CIRCULAIRES
+========================================================= */
+
+.servicesSection {
+  position: relative;
+
+  padding: 140px 24px;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(220, 20, 60, 0.11),
+      transparent 31%
+    ),
+    linear-gradient(
+      180deg,
+      #f8f8f8 0%,
+      #eeeeee 100%
+    );
+}
+
+.servicesSection::before {
+  content: "";
+
+  position: absolute;
+  bottom: -240px;
+  left: -210px;
+
+  width: 530px;
+  height: 530px;
+
+  border: 1px solid rgba(220, 20, 60, 0.1);
+  border-radius: 50%;
+
+  pointer-events: none;
+}
+
+.servicesHeader {
+  position: relative;
+  z-index: 2;
+
+  width: min(1280px, 100%);
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.1fr)
+    minmax(320px, 0.9fr);
+
+  align-items: end;
+  gap: 80px;
+
+  margin: 0 auto 85px;
+}
+
+.servicesIntro {
+  max-width: 540px;
+
+  margin: 0;
+
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.servicesGrid {
+  position: relative;
+  z-index: 2;
+
+  width: min(1320px, 100%);
+
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 38px 24px;
+
+  margin: 0 auto;
+}
+
+.serviceCircle {
+  position: relative;
+
+  width: 100%;
+  aspect-ratio: 1;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 34px;
+
+  overflow: hidden;
+
+  background-color: var(--white);
+
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 50%;
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.08);
+
+  text-align: center;
+
+  transition:
+    color 0.4s ease,
+    background-color 0.4s ease,
+    border-color 0.4s ease,
+    transform 0.4s ease,
+    box-shadow 0.4s ease;
+}
+
+.serviceCircle::before {
+  content: "";
+
+  position: absolute;
+  inset: 11px;
+
+  border: 1px solid rgba(220, 20, 60, 0.14);
+  border-radius: 50%;
+
+  transition:
+    border-color 0.4s ease,
+    transform 0.4s ease;
+}
+
+.serviceCircle::after {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      145deg,
+      var(--crimson-light),
+      var(--crimson-dark)
+    );
+
+  border-radius: 50%;
+
+  opacity: 0;
+
+  transition: opacity 0.4s ease;
+}
+
+.serviceCircle:hover {
+  color: var(--white);
+
+  border-color: transparent;
+
+  transform: translateY(-12px) scale(1.03);
+
+  box-shadow:
+    0 28px 58px rgba(220, 20, 60, 0.25);
+}
+
+.serviceCircle:hover::before {
+  border-color: rgba(255, 255, 255, 0.28);
+
+  transform: scale(0.95);
+}
+
+.serviceCircle:hover::after {
+  opacity: 1;
+}
+
+.serviceNumber,
+.serviceIcon,
+.serviceCircle h3,
+.serviceArrow {
+  position: relative;
+  z-index: 2;
+}
+
+.serviceNumber {
+  position: absolute;
+  top: 23px;
+  right: 34px;
+
+  color: rgba(220, 20, 60, 0.18);
+
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 1px;
+
+  transition: color 0.4s ease;
+}
+
+.serviceCircle:hover .serviceNumber {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.serviceIcon {
+  width: 69px;
+  height: 69px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 23px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 13px 30px rgba(220, 20, 60, 0.25);
+
+  transition:
+    color 0.4s ease,
+    background-color 0.4s ease,
+    transform 0.4s ease;
+}
+
+.serviceCircle:hover .serviceIcon {
+  color: var(--crimson);
+  background-color: var(--white);
+
+  transform: rotate(-8deg) scale(1.08);
+}
+
+.serviceCircle h3 {
+  max-width: 210px;
+
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: clamp(13px, 1.1vw, 16px);
+  font-weight: 900;
+  line-height: 1.4;
+  text-wrap: balance;
+  text-transform: uppercase;
+
+  transition: color 0.4s ease;
+}
+
+.serviceCircle:hover h3 {
+  color: var(--white);
+}
+
+.serviceArrow {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  margin-top: 19px;
+
+  color: var(--crimson);
+  background-color: rgba(220, 20, 60, 0.08);
+
+  border-radius: 50%;
+
+  opacity: 0;
+  transform: translateY(6px);
+
+  transition:
+    color 0.4s ease,
+    background-color 0.4s ease,
+    opacity 0.4s ease,
+    transform 0.4s ease;
+}
+
+.serviceCircle:hover .serviceArrow {
+  color: var(--crimson);
+  background-color: var(--white);
+
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.servicesAction {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  justify-content: center;
+
+  margin-top: 70px;
+}
+
+.servicesButton {
+  color: var(--white);
+  background-color: var(--crimson);
+  border-color: var(--crimson);
+
+  box-shadow:
+    0 15px 35px rgba(220, 20, 60, 0.24);
+}
+
+.servicesButton:hover {
+  background-color: var(--black);
+  border-color: var(--black);
+
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 21px 44px rgba(0, 0, 0, 0.2);
+}
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes heroEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(38px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   ÉCRANS INTERMÉDIAIRES
+========================================================= */
+
+@media (max-width: 1200px) {
+  .servicesGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1050px) {
+  .advantagesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .introductionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .introductionContent {
+    max-width: 760px;
+    justify-self: start;
+  }
+
+  .introductionContent h2,
+  .introductionLead,
+  .introductionContent > p:not(.sectionLabel):not(.introductionLead),
+  .introductionPoints {
+    max-width: 760px;
+  }
+
+  .introductionVisual {
+    width: 100%;
+    min-height: 600px;
+    justify-self: stretch;
+  }
+
+  .servicesGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .servicesHeader {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .servicesIntro {
+    max-width: 750px;
+  }
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 680px) {
+  .hero {
+    min-height: 700px;
+
+    padding:
+      calc(var(--navbar-height, 88px) + 65px)
+      20px
+      85px;
+
+    background-position: 58% center;
+  }
+
+  .heroOverlay {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(7, 7, 7, 0.96),
+        rgba(7, 7, 7, 0.72)
+      );
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 13vw, 60px);
+    letter-spacing: -2px;
+  }
+
+  .heroIntroduction {
+    font-size: 16px;
+    line-height: 1.72;
+  }
+
+  .heroActions {
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .servicesButton {
+    width: 100%;
+  }
+
+  .heroHighlights {
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .advantagesSection,
+  .introductionSection,
+  .servicesSection {
+    padding: 85px 20px;
+  }
+
+  .sectionHeading {
+    margin-bottom: 50px;
+  }
+
+  .sectionHeading h2,
+  .introductionContent h2,
+  .servicesHeader h2 {
+    font-size: 39px;
+    letter-spacing: -1.2px;
+  }
+
+  .advantagesGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .advantageCard {
+    min-height: auto;
+
+    padding: 32px 26px;
+
+    border-radius: 22px;
+  }
+
+  .advantageIcon {
+    margin-bottom: 29px;
+  }
+
+  .introductionContent {
+    max-width: 100%;
+  }
+
+  .introductionContent h2,
+  .introductionLead,
+  .introductionContent > p:not(.sectionLabel):not(.introductionLead),
+  .introductionPoints {
+    max-width: 100%;
+  }
+
+  .introductionLead {
+    font-size: 17px;
+  }
+
+  .introductionVisual {
+    min-height: 430px;
+  }
+
+  .imageFrame {
+    top: 18px;
+    right: -14px;
+    bottom: -14px;
+    left: 18px;
+  }
+
+  .servicesHeader {
+    margin-bottom: 55px;
+  }
+
+  .servicesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 16px;
+  }
+
+  .serviceCircle {
+    padding: 24px;
+  }
+
+  .serviceIcon {
+    width: 58px;
+    height: 58px;
+
+    margin-bottom: 17px;
+  }
+
+  .serviceCircle h3 {
+    font-size: 12px;
+  }
+
+  .serviceArrow {
+    display: none;
+  }
+
+  .serviceNumber {
+    top: 20px;
+    right: 25px;
+
+    font-size: 12px;
+  }
+
+  .servicesAction {
+    margin-top: 50px;
+  }
+}
+
+/* =========================================================
+   PETITS MOBILES
+========================================================= */
+
+@media (max-width: 440px) {
+  .hero,
+  .advantagesSection,
+  .introductionSection,
+  .servicesSection {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .hero h1 {
+    font-size: 38px;
+  }
+
+  .sectionHeading h2,
+  .introductionContent h2,
+  .servicesHeader h2 {
+    font-size: 33px;
+  }
+
+  .introductionVisual {
+    min-height: 350px;
+  }
+
+  .imageBadge {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+
+    justify-content: center;
+  }
+
+  .servicesGrid {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+
+  .serviceCircle {
+    width: min(285px, 100%);
+
+    justify-self: center;
+
+    padding: 38px;
+  }
+
+  .serviceCircle h3 {
+    font-size: 15px;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .heroContent {
+    animation: none;
+  }
+
+  .primaryButton,
+  .primaryButton svg,
+  .secondaryButton,
+  .advantageCard,
+  .advantageCard::before,
+  .advantageIcon,
+  .introductionPoints div,
+  .introductionImage,
+  .serviceCircle,
+  .serviceCircle::before,
+  .serviceCircle::after,
+  .serviceNumber,
+  .serviceIcon,
+  .serviceCircle h3,
+  .serviceArrow,
+  .servicesButton,
+  .servicesButton svg {
+    transition: none;
+  }
+}

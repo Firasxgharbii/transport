@@ -1,0 +1,1144 @@
+/* =========================================================
+   VARIABLES
+========================================================= */
+
+.page {
+  --crimson: #dc143c;
+  --crimson-dark: #a80f2e;
+  --crimson-light: #f52a53;
+
+  --white: #ffffff;
+  --black: #151515;
+
+  --gray-50: #fafafa;
+  --gray-100: #f4f4f4;
+  --gray-200: #e8e8e8;
+  --gray-300: #d7d7d7;
+  --gray-500: #767676;
+  --gray-600: #606060;
+
+  width: 100%;
+  min-height: 100vh;
+
+  color: var(--black);
+  background-color: var(--white);
+}
+
+.main {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* =========================================================
+   ÉLÉMENTS COMMUNS
+========================================================= */
+
+.eyebrow,
+.sectionLabel,
+.ctaLabel {
+  margin: 0 0 18px;
+
+  color: var(--crimson);
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.primaryButton,
+.secondaryButton,
+.ctaPrimaryButton,
+.ctaSecondaryButton {
+  min-height: 58px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 17px 29px;
+
+  border: 2px solid transparent;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.hero {
+  position: relative;
+
+  min-height: 780px;
+
+  display: flex;
+  align-items: center;
+
+  padding:
+    calc(var(--navbar-height, 108px) + 90px)
+    clamp(24px, 8vw, 135px)
+    110px;
+
+  color: var(--white);
+
+  background:
+    url("/images/demenagement-hero.jpeg")
+    center /
+    cover
+    no-repeat;
+}
+
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(7, 7, 7, 0.96) 0%,
+      rgba(7, 7, 7, 0.8) 48%,
+      rgba(7, 7, 7, 0.24) 100%
+    );
+}
+
+.heroContent {
+  position: relative;
+  z-index: 2;
+
+  width: min(1000px, 100%);
+
+  animation: heroEntrance 0.9s ease both;
+}
+
+.hero h1 {
+  max-width: 1100px;
+
+  margin: 0;
+
+  font-size: clamp(54px, 7vw, 105px);
+  font-weight: 900;
+  line-height: 0.94;
+  letter-spacing: -4px;
+  text-wrap: balance;
+  text-transform: uppercase;
+}
+
+.hero h1 span {
+  display: block;
+
+  margin-top: 10px;
+
+  color: var(--crimson);
+}
+
+.heroDescription {
+  max-width: 760px;
+
+  margin: 34px 0 0;
+
+  color: rgba(255, 255, 255, 0.86);
+
+  font-size: clamp(17px, 1.5vw, 21px);
+  line-height: 1.8;
+}
+
+.heroActions,
+.ctaActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  margin-top: 40px;
+}
+
+.primaryButton {
+  color: var(--white);
+  background-color: var(--crimson);
+  border-color: var(--crimson);
+
+  box-shadow:
+    0 16px 36px rgba(220, 20, 60, 0.3);
+}
+
+.primaryButton:hover {
+  background-color: var(--crimson-dark);
+  border-color: var(--crimson-dark);
+
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 22px 45px rgba(220, 20, 60, 0.36);
+}
+
+.primaryButton svg,
+.ctaPrimaryButton svg {
+  transition: transform 0.3s ease;
+}
+
+.primaryButton:hover svg,
+.ctaPrimaryButton:hover svg {
+  transform: translateX(4px);
+}
+
+.secondaryButton {
+  color: var(--white);
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.secondaryButton:hover {
+  color: var(--black);
+  background-color: var(--white);
+  border-color: var(--white);
+
+  transform: translateY(-4px);
+}
+
+.heroHighlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+
+  margin-top: 42px;
+}
+
+.heroHighlights span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  color: rgba(255, 255, 255, 0.82);
+
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.heroHighlights svg {
+  color: var(--crimson);
+}
+
+/* =========================================================
+   TITRES
+========================================================= */
+
+.sectionHeading {
+  width: min(950px, 100%);
+
+  margin: 0 auto 75px;
+
+  text-align: center;
+}
+
+.sectionHeading h2,
+.introductionContent h2,
+.servicesHeader h2 {
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: clamp(43px, 5.8vw, 76px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2.5px;
+  text-wrap: balance;
+  text-transform: uppercase;
+}
+
+.sectionHeading h2 span,
+.introductionContent h2 span,
+.servicesHeader h2 span {
+  display: block;
+
+  margin-top: 8px;
+
+  color: var(--crimson);
+}
+
+.sectionHeading > p:last-child {
+  max-width: 740px;
+
+  margin: 28px auto 0;
+
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+/* =========================================================
+   INTRODUCTION
+========================================================= */
+
+.introductionSection {
+  padding: 140px 24px;
+
+  background-color: var(--white);
+}
+
+.introductionGrid {
+  width: min(1320px, 100%);
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.92fr)
+    minmax(460px, 1.08fr);
+
+  align-items: center;
+  gap: clamp(65px, 8vw, 125px);
+
+  margin: 0 auto;
+}
+
+.introductionContent {
+  width: 100%;
+  max-width: 650px;
+
+  justify-self: start;
+  text-align: left;
+}
+
+.introductionLead {
+  margin: 34px 0 0;
+
+  color: #292929;
+
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.8;
+}
+
+.introductionContent > p:not(.sectionLabel):not(.introductionLead) {
+  margin: 23px 0 0;
+
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.commitmentList {
+  display: grid;
+  gap: 13px;
+
+  margin-top: 34px;
+}
+
+.commitmentList div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  min-height: 54px;
+
+  padding: 14px 17px;
+
+  background-color: var(--gray-100);
+
+  border-radius: 14px;
+
+  transition:
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.commitmentList div:hover {
+  background-color: #fff0f3;
+
+  transform: translateX(5px);
+}
+
+.commitmentList svg {
+  flex-shrink: 0;
+
+  color: var(--crimson);
+}
+
+.commitmentList span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.introductionVisual {
+  position: relative;
+
+  min-height: 650px;
+
+  justify-self: end;
+
+  overflow: visible;
+}
+
+.introductionImage {
+  z-index: 2;
+
+  object-fit: cover;
+
+  border-radius: 34px;
+
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.18);
+
+  transition: transform 0.55s ease;
+}
+
+.introductionVisual:hover .introductionImage {
+  transform: scale(1.025);
+}
+
+.imageFrame {
+  position: absolute;
+  top: 35px;
+  right: -32px;
+  bottom: -32px;
+  left: 35px;
+  z-index: 1;
+
+  border: 3px solid var(--crimson);
+  border-radius: 34px;
+}
+
+.imageBadge {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  padding: 19px 22px;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--crimson),
+      var(--crimson-dark)
+    );
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 18px 42px rgba(220, 20, 60, 0.32);
+}
+
+.imageBadge svg {
+  flex-shrink: 0;
+}
+
+.imageBadge span {
+  display: flex;
+  flex-direction: column;
+
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.imageBadge strong {
+  margin-top: 4px;
+
+  font-size: 13px;
+}
+
+/* =========================================================
+   SERVICES
+========================================================= */
+
+.servicesSection {
+  position: relative;
+
+  padding: 140px 24px;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(220, 20, 60, 0.1),
+      transparent 31%
+    ),
+    linear-gradient(
+      180deg,
+      #f8f8f8 0%,
+      #eeeeee 100%
+    );
+}
+
+.servicesSection::before {
+  content: "";
+
+  position: absolute;
+  bottom: -240px;
+  left: -210px;
+
+  width: 530px;
+  height: 530px;
+
+  border: 1px solid rgba(220, 20, 60, 0.1);
+  border-radius: 50%;
+
+  pointer-events: none;
+}
+
+.servicesHeader {
+  position: relative;
+  z-index: 2;
+
+  width: min(1280px, 100%);
+
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.1fr)
+    minmax(320px, 0.9fr);
+
+  align-items: end;
+  gap: 80px;
+
+  margin: 0 auto 85px;
+}
+
+.servicesDescription {
+  max-width: 540px;
+
+  margin: 0;
+
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.servicesGrid {
+  position: relative;
+  z-index: 2;
+
+  width: min(1280px, 100%);
+
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+
+  margin: 0 auto;
+}
+
+.serviceCard {
+  position: relative;
+
+  min-height: 330px;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 34px 29px;
+
+  overflow: hidden;
+
+  background-color: var(--white);
+
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 28px;
+
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.08);
+
+  transition:
+    color 0.35s ease,
+    background-color 0.35s ease,
+    transform 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.serviceCard::before {
+  content: "";
+
+  position: absolute;
+  top: -100px;
+  right: -100px;
+
+  width: 235px;
+  height: 235px;
+
+  background-color: rgba(220, 20, 60, 0.05);
+
+  border-radius: 50%;
+
+  transition:
+    background-color 0.35s ease,
+    transform 0.35s ease;
+}
+
+.serviceCard:hover {
+  color: var(--white);
+  background-color: var(--crimson);
+
+  transform: translateY(-10px);
+
+  box-shadow:
+    0 28px 58px rgba(220, 20, 60, 0.22);
+}
+
+.serviceCard:hover::before {
+  background-color: rgba(255, 255, 255, 0.1);
+
+  transform: scale(1.15);
+}
+
+.serviceNumber {
+  position: absolute;
+  top: 24px;
+  right: 27px;
+  z-index: 2;
+
+  color: rgba(220, 20, 60, 0.13);
+
+  font-size: 54px;
+  font-weight: 900;
+  line-height: 1;
+
+  transition: color 0.35s ease;
+}
+
+.serviceCard:hover .serviceNumber {
+  color: rgba(255, 255, 255, 0.14);
+}
+
+.serviceIcon,
+.serviceCard h3,
+.serviceCard p,
+.serviceArrow {
+  position: relative;
+  z-index: 2;
+}
+
+.serviceIcon {
+  width: 74px;
+  height: 74px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 37px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 15px 32px rgba(220, 20, 60, 0.24);
+
+  transition:
+    color 0.35s ease,
+    background-color 0.35s ease,
+    transform 0.35s ease;
+}
+
+.serviceCard:hover .serviceIcon {
+  color: var(--crimson);
+  background-color: var(--white);
+
+  transform: rotate(-6deg) scale(1.06);
+}
+
+.serviceCard h3 {
+  margin: 0 0 16px;
+
+  color: var(--black);
+
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-transform: uppercase;
+
+  transition: color 0.35s ease;
+}
+
+.serviceCard:hover h3 {
+  color: var(--white);
+}
+
+.serviceCard p {
+  margin: 0;
+
+  color: var(--gray-600);
+
+  font-size: 14px;
+  line-height: 1.8;
+
+  transition: color 0.35s ease;
+}
+
+.serviceCard:hover p {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.serviceArrow {
+  width: 41px;
+  height: 41px;
+
+  display: grid;
+  place-items: center;
+
+  margin-top: auto;
+  padding-top: 22px;
+
+  color: var(--crimson);
+
+  opacity: 0;
+
+  transition:
+    color 0.35s ease,
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.serviceCard:hover .serviceArrow {
+  color: var(--white);
+
+  opacity: 1;
+  transform: translateX(5px);
+}
+
+/* =========================================================
+   AVANTAGES
+========================================================= */
+
+.advantagesSection {
+  position: relative;
+
+  padding: 135px 24px;
+
+  overflow: hidden;
+
+  background-color: var(--white);
+}
+
+.advantagesGrid {
+  width: min(1250px, 100%);
+
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+
+  margin: 0 auto;
+}
+
+.advantageCard {
+  position: relative;
+
+  min-height: 350px;
+
+  padding: 37px 31px;
+
+  overflow: hidden;
+
+  background-color: var(--gray-100);
+
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 50px 50px 20px 20px;
+
+  transition:
+    background-color 0.35s ease,
+    transform 0.35s ease,
+    box-shadow 0.35s ease;
+}
+
+.advantageCard:hover {
+  background-color: var(--white);
+
+  transform: translateY(-8px);
+
+  box-shadow:
+    0 24px 55px rgba(0, 0, 0, 0.12);
+}
+
+.advantageNumber {
+  position: absolute;
+  top: 25px;
+  right: 27px;
+
+  color: rgba(220, 20, 60, 0.13);
+
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.advantageIcon {
+  width: 76px;
+  height: 76px;
+
+  display: grid;
+  place-items: center;
+
+  margin-bottom: 39px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 15px 32px rgba(220, 20, 60, 0.24);
+}
+
+.advantageCard h3 {
+  margin: 0 0 17px;
+
+  color: var(--black);
+
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.advantageCard p {
+  margin: 0;
+
+  color: var(--gray-600);
+
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+/* =========================================================
+   CTA
+========================================================= */
+
+.ctaSection {
+  position: relative;
+
+  padding: 130px 24px;
+
+  overflow: hidden;
+
+  color: var(--white);
+
+  background:
+    linear-gradient(
+      135deg,
+      var(--crimson) 0%,
+      var(--crimson-dark) 100%
+    );
+
+  text-align: center;
+}
+
+.ctaSection::before {
+  content: "";
+
+  position: absolute;
+  top: -170px;
+  right: -160px;
+
+  width: 470px;
+  height: 470px;
+
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 50%;
+}
+
+.ctaContent {
+  position: relative;
+  z-index: 2;
+
+  width: min(950px, 100%);
+
+  margin: 0 auto;
+}
+
+.ctaLabel {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.ctaContent h2 {
+  margin: 0;
+
+  font-size: clamp(42px, 5.8vw, 76px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2.5px;
+  text-transform: uppercase;
+}
+
+.ctaContent > p:not(.ctaLabel) {
+  max-width: 720px;
+
+  margin: 27px auto 0;
+
+  color: rgba(255, 255, 255, 0.84);
+
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.ctaActions {
+  justify-content: center;
+}
+
+.ctaPrimaryButton {
+  color: var(--crimson);
+  background-color: var(--white);
+  border-color: var(--white);
+}
+
+.ctaPrimaryButton:hover {
+  color: var(--white);
+  background-color: var(--black);
+  border-color: var(--black);
+
+  transform: translateY(-4px);
+}
+
+.ctaSecondaryButton {
+  color: var(--white);
+  background-color: transparent;
+  border-color: var(--white);
+}
+
+.ctaSecondaryButton:hover {
+  color: var(--black);
+  background-color: var(--white);
+
+  transform: translateY(-4px);
+}
+
+/* =========================================================
+   ANIMATION
+========================================================= */
+
+@keyframes heroEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(38px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   TABLETTE
+========================================================= */
+
+@media (max-width: 1100px) {
+  .servicesGrid,
+  .advantagesGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1000px) {
+  .introductionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .introductionContent {
+    max-width: 760px;
+  }
+
+  .introductionVisual {
+    width: 100%;
+    min-height: 600px;
+
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 900px) {
+  .servicesHeader {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .servicesDescription {
+    max-width: 760px;
+  }
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 680px) {
+  .hero {
+    min-height: 700px;
+
+    padding:
+      calc(var(--navbar-height, 88px) + 65px)
+      20px
+      85px;
+
+    background-position: 58% center;
+  }
+
+  .heroOverlay {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(7, 7, 7, 0.96),
+        rgba(7, 7, 7, 0.72)
+      );
+  }
+
+  .hero h1 {
+    font-size: clamp(42px, 13vw, 60px);
+    letter-spacing: -2px;
+  }
+
+  .heroDescription {
+    font-size: 16px;
+    line-height: 1.72;
+  }
+
+  .heroActions,
+  .ctaActions {
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .ctaPrimaryButton,
+  .ctaSecondaryButton {
+    width: 100%;
+  }
+
+  .heroHighlights {
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .introductionSection,
+  .servicesSection,
+  .advantagesSection,
+  .ctaSection {
+    padding: 85px 20px;
+  }
+
+  .sectionHeading {
+    margin-bottom: 50px;
+  }
+
+  .sectionHeading h2,
+  .introductionContent h2,
+  .servicesHeader h2,
+  .ctaContent h2 {
+    font-size: 39px;
+    letter-spacing: -1.2px;
+  }
+
+  .introductionLead {
+    font-size: 17px;
+  }
+
+  .introductionVisual {
+    min-height: 430px;
+  }
+
+  .imageFrame {
+    top: 18px;
+    right: -14px;
+    bottom: -14px;
+    left: 18px;
+  }
+
+  .servicesHeader {
+    margin-bottom: 55px;
+  }
+
+  .servicesGrid,
+  .advantagesGrid {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .serviceCard,
+  .advantageCard {
+    min-height: auto;
+  }
+}
+
+/* =========================================================
+   PETITS MOBILES
+========================================================= */
+
+@media (max-width: 440px) {
+  .hero,
+  .introductionSection,
+  .servicesSection,
+  .advantagesSection,
+  .ctaSection {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .hero h1 {
+    font-size: 38px;
+  }
+
+  .sectionHeading h2,
+  .introductionContent h2,
+  .servicesHeader h2,
+  .ctaContent h2 {
+    font-size: 33px;
+  }
+
+  .introductionVisual {
+    min-height: 350px;
+  }
+
+  .imageBadge {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+
+    justify-content: center;
+  }
+}
+
+/* =========================================================
+   ACCESSIBILITÉ
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .heroContent {
+    animation: none;
+  }
+
+  .primaryButton,
+  .primaryButton svg,
+  .secondaryButton,
+  .commitmentList div,
+  .introductionImage,
+  .serviceCard,
+  .serviceCard::before,
+  .serviceIcon,
+  .serviceArrow,
+  .advantageCard,
+  .ctaPrimaryButton,
+  .ctaPrimaryButton svg,
+  .ctaSecondaryButton {
+    transition: none;
+  }
+}
