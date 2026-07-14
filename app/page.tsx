@@ -4,6 +4,8 @@ import {
   Truck,
   Container,
   ClipboardList,
+  CarFront,
+  Boxes,
 } from "lucide-react";
 
 import Navbar from "./components/Navbar";
@@ -26,6 +28,14 @@ const services = [
     title: "Préparation de commande",
     icon: ClipboardList,
   },
+  {
+    title: "Transport automobile",
+    icon: CarFront,
+  },
+  {
+    title: "Déménagement",
+    icon: Boxes,
+  },
 ];
 
 export default function HomePage() {
@@ -34,7 +44,9 @@ export default function HomePage() {
       <Navbar />
 
       <main>
-        {/* HERO */}
+        {/* ========================================
+            HERO
+        ======================================== */}
         <section id="top" className="hero">
           <div className="hero-overlay" />
 
@@ -68,7 +80,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* SERVICES */}
+        {/* ========================================
+            SERVICES
+        ======================================== */}
         <section
           id="services"
           className="services-section"
@@ -106,7 +120,9 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* CONTACT */}
+        {/* ========================================
+            CONTACT
+        ======================================== */}
         <section
           id="contact"
           className="contact-section"

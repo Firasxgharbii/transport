@@ -1,7 +1,43 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+
+const navigationLinks = [
+  {
+    label: "Accueil",
+    href: "/",
+  },
+  {
+    label: "À propos",
+    href: "/about",
+  },
+  {
+    label: "Services",
+    href: "/services",
+  },
+  {
+    label: "Contact",
+    href: "/contact",
+  },
+  {
+    label: "Régions desservies",
+    href: "/regions",
+  },
+  {
+    label: "Transport automobile",
+    href: "/transport-automobile",
+  },
+  {
+    label: "Déménagement",
+    href: "/demenagement",
+  },
+  {
+    label: "Login",
+    href: "/login",
+  },
+];
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -24,18 +60,30 @@ export default function Navbar() {
           onClick={closeMenu}
           aria-label="Retour à l’accueil"
         >
-          <span className="logo-box">T1</span>
-          <span className="logo-text">Transport</span>
+          <span className="navbar-logo-wrapper">
+            <Image
+              src="/images/logo1.jpg"
+              alt="Glory Solutions"
+              width={140}
+              height={70}
+              priority
+              className="navbar-logo-image"
+            />
+          </span>
         </Link>
 
-        {/* MENU MOBILE */}
+        {/* BOUTON DU MENU MOBILE */}
         <button
           type="button"
           className={`menu-button ${
             menuOpen ? "menu-button-open" : ""
           }`}
           onClick={toggleMenu}
-          aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-label={
+            menuOpen
+              ? "Fermer le menu"
+              : "Ouvrir le menu"
+          }
           aria-expanded={menuOpen}
           aria-controls="main-navigation"
         >
@@ -51,38 +99,16 @@ export default function Navbar() {
             menuOpen ? "nav-links-open" : ""
           }`}
         >
-          <Link href="/" onClick={closeMenu}>
-            Accueil
-          </Link>
+          {navigationLinks.map((link) => (
+            <Link
+              key={link.label}
+              href={link.href}
+              onClick={closeMenu}
+            >
+              {link.label}
+            </Link>
+          ))}
 
-          <Link href="/about" onClick={closeMenu}>
-            À propos
-          </Link>
-
-          <Link href="/services" onClick={closeMenu}>
-            Services
-          </Link>
-
-          <Link href="/contact" onClick={closeMenu}>
-            Contact
-          </Link>
-
-           <Link href="/regions" onClick={closeMenu}>
-            régions-desservies
-          </Link>
-
-<Link href="/transport-automobile" onClick={closeMenu}>
-            transport automobile
-          </Link>
-
-          <Link href="/demenagement" onClick={closeMenu}>
-            déménagement
-          </Link>
-            <Link href="/contact" onClick={closeMenu}>
-            login
-          </Link>
-
-  
           <Link
             href="/quote"
             className="mobile-quote-button"
@@ -92,7 +118,7 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        {/* BOUTON DESKTOP */}
+        {/* BOUTON SOUMISSION DESKTOP */}
         <Link
           href="/quote"
           className="quote-button"

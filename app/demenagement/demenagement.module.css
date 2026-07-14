@@ -1,27 +1,17 @@
-/* =========================================================
-   VARIABLES
-========================================================= */
-
 .page {
   --crimson: #dc143c;
   --crimson-dark: #a80f2e;
-  --crimson-light: #f52a53;
-
   --white: #ffffff;
   --black: #151515;
-
-  --gray-50: #fafafa;
-  --gray-100: #f4f4f4;
-  --gray-200: #e8e8e8;
-  --gray-300: #d7d7d7;
-  --gray-500: #767676;
-  --gray-600: #606060;
+  --gray-light: #f5f5f5;
+  --gray-text: #656565;
+  --border: #e7e7e7;
 
   width: 100%;
   min-height: 100vh;
 
   color: var(--black);
-  background-color: var(--white);
+  background: var(--white);
 }
 
 .main {
@@ -29,77 +19,30 @@
   overflow: hidden;
 }
 
-/* =========================================================
-   ÉLÉMENTS COMMUNS
-========================================================= */
-
-.eyebrow,
-.sectionLabel,
-.ctaLabel {
-  margin: 0 0 18px;
-
-  color: var(--crimson);
-
-  font-size: 12px;
-  font-weight: 900;
-  line-height: 1.4;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-}
-
-.primaryButton,
-.secondaryButton,
-.ctaPrimaryButton,
-.ctaSecondaryButton {
-  min-height: 58px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 11px;
-
-  padding: 17px 29px;
-
-  border: 2px solid transparent;
-
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-
-  transition:
-    color 0.3s ease,
-    background-color 0.3s ease,
-    border-color 0.3s ease,
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-}
-
-/* =========================================================
+/* ========================================
    HERO
-========================================================= */
+======================================== */
 
 .hero {
   position: relative;
 
-  min-height: 780px;
+  min-height: 760px;
 
   display: flex;
-  align-items: center;
+  align-items: flex-end;
 
   padding:
-    calc(var(--navbar-height, 108px) + 90px)
-    clamp(24px, 8vw, 135px)
-    110px;
+    calc(var(--navbar-height, 108px) + 80px)
+    clamp(24px, 8vw, 140px)
+    90px;
 
   color: var(--white);
 
-  background:
-    url("/images/demenagement-hero.jpeg")
-    center /
-    cover
-    no-repeat;
+  background-image:
+    url("/images/demenagement-hero.jpeg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .heroOverlay {
@@ -109,9 +52,9 @@
   background:
     linear-gradient(
       90deg,
-      rgba(7, 7, 7, 0.96) 0%,
-      rgba(7, 7, 7, 0.8) 48%,
-      rgba(7, 7, 7, 0.24) 100%
+      rgba(0, 0, 0, 0.82) 0%,
+      rgba(0, 0, 0, 0.58) 45%,
+      rgba(0, 0, 0, 0.18) 100%
     );
 }
 
@@ -119,91 +62,100 @@
   position: relative;
   z-index: 2;
 
-  width: min(1000px, 100%);
+  width: min(850px, 100%);
+}
 
-  animation: heroEntrance 0.9s ease both;
+.eyebrow {
+  margin-bottom: 16px;
+
+  color: #ff9eb3;
+
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  text-transform: uppercase;
 }
 
 .hero h1 {
-  max-width: 1100px;
-
   margin: 0;
 
-  font-size: clamp(54px, 7vw, 105px);
+  font-size: clamp(55px, 7vw, 105px);
   font-weight: 900;
   line-height: 0.94;
-  letter-spacing: -4px;
-  text-wrap: balance;
+  letter-spacing: -3px;
   text-transform: uppercase;
 }
 
 .hero h1 span {
   display: block;
 
-  margin-top: 10px;
-
   color: var(--crimson);
 }
 
 .heroDescription {
-  max-width: 760px;
+  max-width: 680px;
 
-  margin: 34px 0 0;
+  margin-top: 30px;
 
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba(255, 255, 255, 0.88);
 
-  font-size: clamp(17px, 1.5vw, 21px);
+  font-size: clamp(16px, 1.4vw, 20px);
   line-height: 1.8;
 }
 
-.heroActions,
-.ctaActions {
+.heroActions {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
 
-  margin-top: 40px;
+  margin-top: 35px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 58px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+
+  padding: 17px 27px;
+
+  border: 2px solid transparent;
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+
+  transition:
+    transform 0.3s ease,
+    color 0.3s ease,
+    background 0.3s ease,
+    border-color 0.3s ease;
 }
 
 .primaryButton {
   color: var(--white);
-  background-color: var(--crimson);
-  border-color: var(--crimson);
-
-  box-shadow:
-    0 16px 36px rgba(220, 20, 60, 0.3);
+  background: var(--crimson);
 }
 
 .primaryButton:hover {
-  background-color: var(--crimson-dark);
-  border-color: var(--crimson-dark);
-
+  background: var(--crimson-dark);
   transform: translateY(-4px);
-
-  box-shadow:
-    0 22px 45px rgba(220, 20, 60, 0.36);
-}
-
-.primaryButton svg,
-.ctaPrimaryButton svg {
-  transition: transform 0.3s ease;
-}
-
-.primaryButton:hover svg,
-.ctaPrimaryButton:hover svg {
-  transform: translateX(4px);
 }
 
 .secondaryButton {
   color: var(--white);
-  background-color: transparent;
-  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
+
+  border-color: var(--white);
 }
 
 .secondaryButton:hover {
-  color: var(--black);
-  background-color: var(--white);
-  border-color: var(--white);
+  color: var(--crimson);
+  background: var(--white);
 
   transform: translateY(-4px);
 }
@@ -213,229 +165,212 @@
   flex-wrap: wrap;
   gap: 20px 32px;
 
-  margin-top: 42px;
+  margin-top: 32px;
 }
 
 .heroHighlights span {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
 
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.9);
 
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .heroHighlights svg {
   color: var(--crimson);
 }
 
-/* =========================================================
-   TITRES
-========================================================= */
+/* ========================================
+   ÉTIQUETTES DES SECTIONS
+======================================== */
 
-.sectionHeading {
-  width: min(950px, 100%);
+.sectionLabel {
+  margin-bottom: 15px;
 
-  margin: 0 auto 75px;
+  color: var(--crimson);
 
-  text-align: center;
-}
-
-.sectionHeading h2,
-.introductionContent h2,
-.servicesHeader h2 {
-  margin: 0;
-
-  color: var(--black);
-
-  font-size: clamp(43px, 5.8vw, 76px);
+  font-size: 12px;
   font-weight: 900;
-  line-height: 1;
-  letter-spacing: -2.5px;
-  text-wrap: balance;
+  letter-spacing: 3px;
   text-transform: uppercase;
 }
 
-.sectionHeading h2 span,
-.introductionContent h2 span,
-.servicesHeader h2 span {
-  display: block;
-
-  margin-top: 8px;
-
-  color: var(--crimson);
-}
-
-.sectionHeading > p:last-child {
-  max-width: 740px;
-
-  margin: 28px auto 0;
-
-  color: var(--gray-600);
-
-  font-size: 16px;
-  line-height: 1.85;
-}
-
-/* =========================================================
+/* ========================================
    INTRODUCTION
-========================================================= */
+======================================== */
 
 .introductionSection {
-  padding: 140px 24px;
-
-  background-color: var(--white);
+  padding:
+    120px
+    clamp(24px, 8vw, 140px);
 }
 
 .introductionGrid {
-  width: min(1320px, 100%);
+  width: min(1400px, 100%);
 
   display: grid;
   grid-template-columns:
-    minmax(0, 0.92fr)
-    minmax(460px, 1.08fr);
-
+    minmax(0, 0.95fr)
+    minmax(460px, 1.05fr);
   align-items: center;
-  gap: clamp(65px, 8vw, 125px);
+  gap: clamp(70px, 9vw, 150px);
 
   margin: 0 auto;
 }
 
 .introductionContent {
-  width: 100%;
-  max-width: 650px;
-
-  justify-self: start;
-  text-align: left;
+  min-width: 0;
 }
 
-.introductionLead {
-  margin: 34px 0 0;
+.introductionContent h2 {
+  margin: 0 0 35px;
 
-  color: #292929;
+  font-size: clamp(43px, 5.5vw, 78px);
+  font-weight: 900;
+  line-height: 0.96;
+  letter-spacing: -3px;
+  text-transform: uppercase;
+}
 
-  font-size: 19px;
-  font-weight: 750;
+.introductionContent h2 span {
+  display: block;
+
+  color: var(--crimson);
+}
+
+.introductionContent > p {
+  max-width: 650px;
+
+  margin-bottom: 22px;
+
+  color: var(--gray-text);
+
+  font-size: 16px;
   line-height: 1.8;
 }
 
-.introductionContent > p:not(.sectionLabel):not(.introductionLead) {
-  margin: 23px 0 0;
+.introductionContent .introductionLead {
+  color: var(--black);
 
-  color: var(--gray-600);
-
-  font-size: 16px;
-  line-height: 1.9;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.7;
 }
 
 .commitmentList {
-  display: grid;
-  gap: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 
   margin-top: 34px;
 }
 
-.commitmentList div {
+.commitmentItem {
+  width: 100%;
+
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
 
-  min-height: 54px;
+  padding: 17px 18px;
 
-  padding: 14px 17px;
+  color: var(--black);
+  background: var(--gray-light);
 
-  background-color: var(--gray-100);
+  border-left: 4px solid transparent;
+  border-radius: 9px;
 
-  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 800;
 
   transition:
-    background-color 0.3s ease,
-    transform 0.3s ease;
+    border-color 0.3s ease,
+    transform 0.3s ease,
+    background 0.3s ease;
 }
 
-.commitmentList div:hover {
-  background-color: #fff0f3;
+.commitmentItem:hover {
+  background: #f0f0f0;
+  border-left-color: var(--crimson);
 
-  transform: translateX(5px);
+  transform: translateX(7px);
 }
 
-.commitmentList svg {
+.commitmentItem svg {
   flex-shrink: 0;
 
   color: var(--crimson);
 }
 
-.commitmentList span {
-  font-size: 13px;
-  font-weight: 800;
-}
+/* ========================================
+   IMAGE D’INTRODUCTION
+======================================== */
 
 .introductionVisual {
   position: relative;
 
   min-height: 650px;
 
-  justify-self: end;
+  overflow: hidden;
 
-  overflow: visible;
+  background: #eeeeee;
 }
 
 .introductionImage {
-  z-index: 2;
-
   object-fit: cover;
-
-  border-radius: 34px;
-
-  box-shadow:
-    0 30px 70px rgba(0, 0, 0, 0.18);
-
-  transition: transform 0.55s ease;
+  object-position: center;
 }
 
-.introductionVisual:hover .introductionImage {
-  transform: scale(1.025);
+.imageOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+
+  background:
+    linear-gradient(
+      180deg,
+      transparent 45%,
+      rgba(0, 0, 0, 0.28) 100%
+    );
 }
 
 .imageFrame {
   position: absolute;
   top: 35px;
-  right: -32px;
-  bottom: -32px;
+  right: 35px;
+  bottom: 35px;
   left: 35px;
-  z-index: 1;
+  z-index: 2;
 
-  border: 3px solid var(--crimson);
-  border-radius: 34px;
+  border: 2px solid rgba(255, 255, 255, 0.78);
+
+  pointer-events: none;
 }
 
 .imageBadge {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
+  right: 35px;
+  bottom: 35px;
   z-index: 3;
+
+  min-width: 220px;
 
   display: flex;
   align-items: center;
   gap: 15px;
 
-  padding: 19px 22px;
+  padding: 20px;
 
   color: var(--white);
+  background: var(--crimson);
 
-  background:
-    linear-gradient(
-      135deg,
-      var(--crimson),
-      var(--crimson-dark)
-    );
-
-  border-radius: 18px;
+  border-radius: 13px;
 
   box-shadow:
-    0 18px 42px rgba(220, 20, 60, 0.32);
+    0 22px 55px rgba(220, 20, 60, 0.35);
 }
 
 .imageBadge svg {
@@ -445,98 +380,75 @@
 .imageBadge span {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 
-  font-size: 10px;
-  line-height: 1.4;
-  letter-spacing: 0.6px;
+  font-size: 11px;
+  line-height: 1.3;
   text-transform: uppercase;
 }
 
 .imageBadge strong {
-  margin-top: 4px;
-
-  font-size: 13px;
+  font-size: 14px;
 }
 
-/* =========================================================
+/* ========================================
    SERVICES
-========================================================= */
+======================================== */
 
 .servicesSection {
-  position: relative;
+  padding:
+    120px
+    clamp(24px, 8vw, 140px);
 
-  padding: 140px 24px;
-
-  overflow: hidden;
-
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(220, 20, 60, 0.1),
-      transparent 31%
-    ),
-    linear-gradient(
-      180deg,
-      #f8f8f8 0%,
-      #eeeeee 100%
-    );
+  background: #101010;
 }
 
-.servicesSection::before {
-  content: "";
+.servicesContainer {
+  width: min(1400px, 100%);
 
-  position: absolute;
-  bottom: -240px;
-  left: -210px;
-
-  width: 530px;
-  height: 530px;
-
-  border: 1px solid rgba(220, 20, 60, 0.1);
-  border-radius: 50%;
-
-  pointer-events: none;
+  margin: 0 auto;
 }
 
 .servicesHeader {
-  position: relative;
-  z-index: 2;
-
-  width: min(1280px, 100%);
-
   display: grid;
-  grid-template-columns:
-    minmax(0, 1.1fr)
-    minmax(320px, 0.9fr);
-
+  grid-template-columns: 1.1fr 0.9fr;
   align-items: end;
-  gap: 80px;
+  gap: 70px;
 
-  margin: 0 auto 85px;
+  margin-bottom: 70px;
+}
+
+.servicesHeader h2 {
+  margin: 0;
+
+  color: var(--white);
+
+  font-size: clamp(43px, 5vw, 72px);
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -3px;
+  text-transform: uppercase;
+}
+
+.servicesHeader h2 span {
+  display: block;
+
+  color: var(--crimson);
 }
 
 .servicesDescription {
-  max-width: 540px;
+  max-width: 600px;
 
-  margin: 0;
-
-  color: var(--gray-600);
+  color: rgba(255, 255, 255, 0.66);
 
   font-size: 16px;
-  line-height: 1.9;
+  line-height: 1.8;
 }
 
 .servicesGrid {
-  position: relative;
-  z-index: 2;
-
-  width: min(1280px, 100%);
-
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px;
-
-  margin: 0 auto;
+  gap: 20px;
 }
 
 .serviceCard {
@@ -547,480 +459,180 @@
   display: flex;
   flex-direction: column;
 
-  padding: 34px 29px;
+  padding: 31px;
+
+  color: var(--white);
+  background: #191919;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
 
   overflow: hidden;
 
-  background-color: var(--white);
-
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 28px;
-
-  box-shadow:
-    0 18px 42px rgba(0, 0, 0, 0.08);
-
   transition:
-    color 0.35s ease,
-    background-color 0.35s ease,
-    transform 0.35s ease,
-    box-shadow 0.35s ease;
+    transform 0.3s ease,
+    background 0.3s ease,
+    border-color 0.3s ease;
 }
 
 .serviceCard::before {
   content: "";
 
   position: absolute;
-  top: -100px;
-  right: -100px;
+  top: 0;
+  left: 0;
 
-  width: 235px;
-  height: 235px;
+  width: 0;
+  height: 4px;
 
-  background-color: rgba(220, 20, 60, 0.05);
+  background: var(--crimson);
 
-  border-radius: 50%;
-
-  transition:
-    background-color 0.35s ease,
-    transform 0.35s ease;
+  transition: width 0.3s ease;
 }
 
 .serviceCard:hover {
-  color: var(--white);
-  background-color: var(--crimson);
+  background: #222222;
+  border-color: rgba(220, 20, 60, 0.55);
 
-  transform: translateY(-10px);
-
-  box-shadow:
-    0 28px 58px rgba(220, 20, 60, 0.22);
+  transform: translateY(-8px);
 }
 
 .serviceCard:hover::before {
-  background-color: rgba(255, 255, 255, 0.1);
-
-  transform: scale(1.15);
+  width: 100%;
 }
 
 .serviceNumber {
   position: absolute;
   top: 24px;
-  right: 27px;
-  z-index: 2;
+  right: 25px;
 
-  color: rgba(220, 20, 60, 0.13);
+  color: rgba(255, 255, 255, 0.24);
 
-  font-size: 54px;
+  font-size: 13px;
   font-weight: 900;
-  line-height: 1;
-
-  transition: color 0.35s ease;
-}
-
-.serviceCard:hover .serviceNumber {
-  color: rgba(255, 255, 255, 0.14);
-}
-
-.serviceIcon,
-.serviceCard h3,
-.serviceCard p,
-.serviceArrow {
-  position: relative;
-  z-index: 2;
+  letter-spacing: 2px;
 }
 
 .serviceIcon {
-  width: 74px;
-  height: 74px;
+  width: 62px;
+  height: 62px;
 
   display: grid;
   place-items: center;
 
-  margin-bottom: 37px;
+  margin-bottom: 38px;
 
   color: var(--white);
-  background-color: var(--crimson);
+  background: var(--crimson);
 
-  border-radius: 50%;
+  border-radius: 4px;
 
   box-shadow:
-    0 15px 32px rgba(220, 20, 60, 0.24);
-
-  transition:
-    color 0.35s ease,
-    background-color 0.35s ease,
-    transform 0.35s ease;
-}
-
-.serviceCard:hover .serviceIcon {
-  color: var(--crimson);
-  background-color: var(--white);
-
-  transform: rotate(-6deg) scale(1.06);
+    0 15px 35px rgba(220, 20, 60, 0.22);
 }
 
 .serviceCard h3 {
-  margin: 0 0 16px;
-
-  color: var(--black);
+  margin-bottom: 16px;
 
   font-size: 20px;
   font-weight: 900;
   line-height: 1.25;
   text-transform: uppercase;
-
-  transition: color 0.35s ease;
-}
-
-.serviceCard:hover h3 {
-  color: var(--white);
 }
 
 .serviceCard p {
-  margin: 0;
-
-  color: var(--gray-600);
+  color: rgba(255, 255, 255, 0.62);
 
   font-size: 14px;
-  line-height: 1.8;
-
-  transition: color 0.35s ease;
-}
-
-.serviceCard:hover p {
-  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.7;
 }
 
 .serviceArrow {
-  width: 41px;
-  height: 41px;
+  width: 42px;
+  height: 42px;
 
   display: grid;
   place-items: center;
 
   margin-top: auto;
-  padding-top: 22px;
+  padding-top: 25px;
 
   color: var(--crimson);
 
-  opacity: 0;
-
-  transition:
-    color 0.35s ease,
-    opacity 0.35s ease,
-    transform 0.35s ease;
+  transition: transform 0.3s ease;
 }
 
 .serviceCard:hover .serviceArrow {
-  color: var(--white);
-
-  opacity: 1;
-  transform: translateX(5px);
+  transform: translateX(7px);
 }
 
-/* =========================================================
-   AVANTAGES
-========================================================= */
-
-.advantagesSection {
-  position: relative;
-
-  padding: 135px 24px;
-
-  overflow: hidden;
-
-  background-color: var(--white);
-}
-
-.advantagesGrid {
-  width: min(1250px, 100%);
-
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px;
-
-  margin: 0 auto;
-}
-
-.advantageCard {
-  position: relative;
-
-  min-height: 350px;
-
-  padding: 37px 31px;
-
-  overflow: hidden;
-
-  background-color: var(--gray-100);
-
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 50px 50px 20px 20px;
-
-  transition:
-    background-color 0.35s ease,
-    transform 0.35s ease,
-    box-shadow 0.35s ease;
-}
-
-.advantageCard:hover {
-  background-color: var(--white);
-
-  transform: translateY(-8px);
-
-  box-shadow:
-    0 24px 55px rgba(0, 0, 0, 0.12);
-}
-
-.advantageNumber {
-  position: absolute;
-  top: 25px;
-  right: 27px;
-
-  color: rgba(220, 20, 60, 0.13);
-
-  font-size: 52px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.advantageIcon {
-  width: 76px;
-  height: 76px;
-
-  display: grid;
-  place-items: center;
-
-  margin-bottom: 39px;
-
-  color: var(--white);
-  background-color: var(--crimson);
-
-  border-radius: 50%;
-
-  box-shadow:
-    0 15px 32px rgba(220, 20, 60, 0.24);
-}
-
-.advantageCard h3 {
-  margin: 0 0 17px;
-
-  color: var(--black);
-
-  font-size: 21px;
-  font-weight: 900;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
-.advantageCard p {
-  margin: 0;
-
-  color: var(--gray-600);
-
-  font-size: 14px;
-  line-height: 1.85;
-}
-
-/* =========================================================
-   CTA
-========================================================= */
-
-.ctaSection {
-  position: relative;
-
-  padding: 130px 24px;
-
-  overflow: hidden;
-
-  color: var(--white);
-
-  background:
-    linear-gradient(
-      135deg,
-      var(--crimson) 0%,
-      var(--crimson-dark) 100%
-    );
-
-  text-align: center;
-}
-
-.ctaSection::before {
-  content: "";
-
-  position: absolute;
-  top: -170px;
-  right: -160px;
-
-  width: 470px;
-  height: 470px;
-
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 50%;
-}
-
-.ctaContent {
-  position: relative;
-  z-index: 2;
-
-  width: min(950px, 100%);
-
-  margin: 0 auto;
-}
-
-.ctaLabel {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.ctaContent h2 {
-  margin: 0;
-
-  font-size: clamp(42px, 5.8vw, 76px);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -2.5px;
-  text-transform: uppercase;
-}
-
-.ctaContent > p:not(.ctaLabel) {
-  max-width: 720px;
-
-  margin: 27px auto 0;
-
-  color: rgba(255, 255, 255, 0.84);
-
-  font-size: 17px;
-  line-height: 1.8;
-}
-
-.ctaActions {
-  justify-content: center;
-}
-
-.ctaPrimaryButton {
-  color: var(--crimson);
-  background-color: var(--white);
-  border-color: var(--white);
-}
-
-.ctaPrimaryButton:hover {
-  color: var(--white);
-  background-color: var(--black);
-  border-color: var(--black);
-
-  transform: translateY(-4px);
-}
-
-.ctaSecondaryButton {
-  color: var(--white);
-  background-color: transparent;
-  border-color: var(--white);
-}
-
-.ctaSecondaryButton:hover {
-  color: var(--black);
-  background-color: var(--white);
-
-  transform: translateY(-4px);
-}
-
-/* =========================================================
-   ANIMATION
-========================================================= */
-
-@keyframes heroEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(38px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* =========================================================
+/* ========================================
    TABLETTE
-========================================================= */
+======================================== */
 
-@media (max-width: 1100px) {
-  .servicesGrid,
-  .advantagesGrid {
+@media (max-width: 1150px) {
+  .introductionGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 55px;
+  }
+
+  .servicesGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 900px) {
+  .hero {
+    min-height: 700px;
+
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
   .introductionGrid {
     grid-template-columns: 1fr;
   }
 
-  .introductionContent {
-    max-width: 760px;
-  }
-
   .introductionVisual {
-    width: 100%;
     min-height: 600px;
-
-    justify-self: stretch;
   }
-}
 
-@media (max-width: 900px) {
   .servicesHeader {
     grid-template-columns: 1fr;
-    gap: 28px;
-  }
-
-  .servicesDescription {
-    max-width: 760px;
+    gap: 25px;
   }
 }
 
-/* =========================================================
+/* ========================================
    MOBILE
-========================================================= */
+======================================== */
 
-@media (max-width: 680px) {
+@media (max-width: 620px) {
   .hero {
-    min-height: 700px;
+    min-height: 690px;
 
     padding:
-      calc(var(--navbar-height, 88px) + 65px)
+      calc(var(--navbar-height, 88px) + 55px)
       20px
-      85px;
+      60px;
 
-    background-position: 58% center;
-  }
-
-  .heroOverlay {
-    background:
-      linear-gradient(
-        90deg,
-        rgba(7, 7, 7, 0.96),
-        rgba(7, 7, 7, 0.72)
-      );
+    background-position: 62% center;
   }
 
   .hero h1 {
-    font-size: clamp(42px, 13vw, 60px);
+    font-size: clamp(48px, 14vw, 68px);
     letter-spacing: -2px;
   }
 
   .heroDescription {
-    font-size: 16px;
-    line-height: 1.72;
+    font-size: 15px;
   }
 
-  .heroActions,
-  .ctaActions {
+  .heroActions {
     flex-direction: column;
   }
 
   .primaryButton,
-  .secondaryButton,
-  .ctaPrimaryButton,
-  .ctaSecondaryButton {
+  .secondaryButton {
     width: 100%;
   }
 
@@ -1030,115 +642,81 @@
   }
 
   .introductionSection,
-  .servicesSection,
-  .advantagesSection,
-  .ctaSection {
-    padding: 85px 20px;
+  .servicesSection {
+    padding:
+      80px
+      20px;
   }
 
-  .sectionHeading {
-    margin-bottom: 50px;
-  }
-
-  .sectionHeading h2,
   .introductionContent h2,
-  .servicesHeader h2,
-  .ctaContent h2 {
-    font-size: 39px;
-    letter-spacing: -1.2px;
-  }
-
-  .introductionLead {
-    font-size: 17px;
+  .servicesHeader h2 {
+    font-size: clamp(40px, 12vw, 55px);
+    letter-spacing: -2px;
   }
 
   .introductionVisual {
-    min-height: 430px;
+    min-height: 460px;
   }
 
   .imageFrame {
     top: 18px;
-    right: -14px;
-    bottom: -14px;
+    right: 18px;
+    bottom: 18px;
     left: 18px;
   }
 
-  .servicesHeader {
-    margin-bottom: 55px;
+  .imageBadge {
+    right: 18px;
+    bottom: 18px;
+    left: 18px;
+
+    min-width: 0;
   }
 
-  .servicesGrid,
-  .advantagesGrid {
+  .servicesGrid {
     grid-template-columns: 1fr;
-    gap: 22px;
   }
 
-  .serviceCard,
-  .advantageCard {
-    min-height: auto;
+  .serviceCard {
+    min-height: 300px;
   }
 }
 
-/* =========================================================
+/* ========================================
    PETITS MOBILES
-========================================================= */
+======================================== */
 
-@media (max-width: 440px) {
+@media (max-width: 390px) {
   .hero,
   .introductionSection,
-  .servicesSection,
-  .advantagesSection,
-  .ctaSection {
+  .servicesSection {
     padding-right: 16px;
     padding-left: 16px;
   }
 
   .hero h1 {
-    font-size: 38px;
-  }
-
-  .sectionHeading h2,
-  .introductionContent h2,
-  .servicesHeader h2,
-  .ctaContent h2 {
-    font-size: 33px;
+    font-size: 44px;
   }
 
   .introductionVisual {
-    min-height: 350px;
+    min-height: 400px;
   }
 
-  .imageBadge {
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
-
-    justify-content: center;
+  .serviceCard {
+    padding: 26px;
   }
 }
 
-/* =========================================================
+/* ========================================
    ACCESSIBILITÉ
-========================================================= */
+======================================== */
 
 @media (prefers-reduced-motion: reduce) {
-  .heroContent {
-    animation: none;
-  }
-
   .primaryButton,
-  .primaryButton svg,
   .secondaryButton,
-  .commitmentList div,
-  .introductionImage,
+  .commitmentItem,
   .serviceCard,
-  .serviceCard::before,
-  .serviceIcon,
-  .serviceArrow,
-  .advantageCard,
-  .ctaPrimaryButton,
-  .ctaPrimaryButton svg,
-  .ctaSecondaryButton {
+  .serviceArrow {
     transition: none;
   }
 }

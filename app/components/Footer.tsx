@@ -1,11 +1,12 @@
+import Image from "next/image";
 import Link from "next/link";
+
 import {
   ArrowUp,
   ArrowUpRight,
   Mail,
   MapPin,
   Phone,
-  Truck,
 } from "lucide-react";
 
 const navigationLinks = [
@@ -28,6 +29,8 @@ const services = [
   "Entreposage",
   "Déchargement de conteneur",
   "Préparation de commande",
+  "Transport automobile",
+  "Déménagement",
 ];
 
 export default function Footer() {
@@ -39,15 +42,24 @@ export default function Footer() {
 
       <div className="footer-container">
         <div className="footer-grid">
-          {/* ENTREPRISE */}
+          {/* ========================================
+              ENTREPRISE
+          ======================================== */}
           <section className="footer-brand footer-entry footer-entry-1">
             <Link
               href="/#top"
               className="footer-logo"
               aria-label="Retour à l’accueil"
             >
-              <span className="footer-logo-icon">
-                <Truck size={28} strokeWidth={1.8} />
+              <span className="footer-logo-image-wrapper">
+                <Image
+                  src="/images/logo1.jpg"
+                  alt="Logo Glory Solutions"
+                  width={70}
+                  height={70}
+                  className="footer-logo-image"
+                  priority
+                />
               </span>
 
               <span className="footer-logo-text">
@@ -61,13 +73,22 @@ export default function Footer() {
               l’entreposage et la livraison du dernier kilomètre.
             </p>
 
-            <Link href="/#contact" className="footer-main-button">
+            <Link
+              href="/#contact"
+              className="footer-main-button"
+            >
               Demander une soumission
-              <ArrowUpRight size={18} aria-hidden="true" />
+
+              <ArrowUpRight
+                size={18}
+                aria-hidden="true"
+              />
             </Link>
           </section>
 
-          {/* NAVIGATION */}
+          {/* ========================================
+              NAVIGATION
+          ======================================== */}
           <section className="footer-column footer-entry footer-entry-2">
             <span className="footer-number">01</span>
 
@@ -78,15 +99,24 @@ export default function Footer() {
               aria-label="Navigation du pied de page"
             >
               {navigationLinks.map((link) => (
-                <Link key={link.label} href={link.href}>
+                <Link
+                  key={link.label}
+                  href={link.href}
+                >
                   <span>{link.label}</span>
-                  <ArrowUpRight size={15} aria-hidden="true" />
+
+                  <ArrowUpRight
+                    size={15}
+                    aria-hidden="true"
+                  />
                 </Link>
               ))}
             </nav>
           </section>
 
-          {/* SERVICES */}
+          {/* ========================================
+              SERVICES
+          ======================================== */}
           <section className="footer-column footer-entry footer-entry-3">
             <span className="footer-number">02</span>
 
@@ -94,12 +124,16 @@ export default function Footer() {
 
             <ul className="footer-services">
               {services.map((service) => (
-                <li key={service}>{service}</li>
+                <li key={service}>
+                  {service}
+                </li>
               ))}
             </ul>
           </section>
 
-          {/* CONTACT */}
+          {/* ========================================
+              CONTACT
+          ======================================== */}
           <section className="footer-column footer-entry footer-entry-4">
             <span className="footer-number">03</span>
 
@@ -108,7 +142,10 @@ export default function Footer() {
             <address className="footer-contact">
               <div className="footer-contact-row">
                 <span className="footer-contact-icon">
-                  <MapPin size={18} aria-hidden="true" />
+                  <MapPin
+                    size={18}
+                    aria-hidden="true"
+                  />
                 </span>
 
                 <div>
@@ -122,7 +159,10 @@ export default function Footer() {
                 className="footer-contact-row"
               >
                 <span className="footer-contact-icon">
-                  <Mail size={18} aria-hidden="true" />
+                  <Mail
+                    size={18}
+                    aria-hidden="true"
+                  />
                 </span>
 
                 <span>info@glorysolutions.ca</span>
@@ -133,7 +173,10 @@ export default function Footer() {
                 className="footer-contact-row"
               >
                 <span className="footer-contact-icon">
-                  <Phone size={18} aria-hidden="true" />
+                  <Phone
+                    size={18}
+                    aria-hidden="true"
+                  />
                 </span>
 
                 <span>+1 (514) 000-0000</span>
@@ -142,6 +185,9 @@ export default function Footer() {
           </section>
         </div>
 
+        {/* ========================================
+            BAS DU FOOTER
+        ======================================== */}
         <div className="footer-bottom">
           <p>
             © {year} Glory Solutions. Tous droits réservés.
@@ -157,9 +203,16 @@ export default function Footer() {
             </Link>
           </div>
 
-          <Link href="/#top" className="footer-top-button">
+          <Link
+            href="/#top"
+            className="footer-top-button"
+          >
             Retour en haut
-            <ArrowUp size={16} aria-hidden="true" />
+
+            <ArrowUp
+              size={16}
+              aria-hidden="true"
+            />
           </Link>
         </div>
       </div>

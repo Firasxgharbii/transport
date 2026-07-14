@@ -7,12 +7,9 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  Clock3,
   Home,
   PackageCheck,
-  ShieldCheck,
   Sofa,
-  Sparkles,
   Truck,
   Users,
 } from "lucide-react";
@@ -73,33 +70,6 @@ const movingServices = [
   },
 ];
 
-const advantages = [
-  {
-    title: "Professionnalisme",
-    description:
-      "Notre équipe travaille avec rigueur, courtoisie et respect à chaque étape de votre déménagement.",
-    icon: Users,
-  },
-  {
-    title: "Protection de vos biens",
-    description:
-      "Vos meubles, appareils et objets fragiles sont manipulés avec le plus grand soin.",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Ponctualité",
-    description:
-      "Nous respectons les horaires convenus et organisons chaque intervention efficacement.",
-    icon: Clock3,
-  },
-  {
-    title: "Service personnalisé",
-    description:
-      "Chaque déménagement est organisé selon vos besoins, votre horaire et votre situation.",
-    icon: Sparkles,
-  },
-];
-
 const commitments = [
   "Équipe professionnelle et courtoise",
   "Protection des meubles et objets fragiles",
@@ -113,12 +83,16 @@ export default function MovingPage() {
       <Navbar />
 
       <main className={styles.main}>
-        {/* HERO */}
+        {/* ========================================
+            HERO
+        ======================================== */}
         <section className={styles.hero}>
           <div className={styles.heroOverlay} />
 
           <div className={styles.heroContent}>
-            <p className={styles.eyebrow}>Glory Solutions</p>
+            <p className={styles.eyebrow}>
+              Glory Solutions
+            </p>
 
             <h1>
               Déménagez
@@ -131,8 +105,12 @@ export default function MovingPage() {
             </p>
 
             <div className={styles.heroActions}>
-              <Link href="/quote" className={styles.primaryButton}>
+              <Link
+                href="/quote"
+                className={styles.primaryButton}
+              >
                 Demander une soumission
+
                 <ArrowRight
                   size={18}
                   strokeWidth={2}
@@ -140,31 +118,48 @@ export default function MovingPage() {
                 />
               </Link>
 
-              <Link href="/contact" className={styles.secondaryButton}>
+              <Link
+                href="/contact"
+                className={styles.secondaryButton}
+              >
                 Nous contacter
               </Link>
             </div>
 
             <div className={styles.heroHighlights}>
               <span>
-                <Check size={18} aria-hidden="true" />
+                <Check
+                  size={18}
+                  aria-hidden="true"
+                />
+
                 Soumission gratuite
               </span>
 
               <span>
-                <Check size={18} aria-hidden="true" />
+                <Check
+                  size={18}
+                  aria-hidden="true"
+                />
+
                 Service professionnel
               </span>
 
               <span>
-                <Check size={18} aria-hidden="true" />
+                <Check
+                  size={18}
+                  aria-hidden="true"
+                />
+
                 Partout au Québec
               </span>
             </div>
           </div>
         </section>
 
-        {/* INTRODUCTION */}
+        {/* ========================================
+            INTRODUCTION
+        ======================================== */}
         <section className={styles.introductionSection}>
           <div className={styles.introductionGrid}>
             <div className={styles.introductionContent}>
@@ -184,10 +179,10 @@ export default function MovingPage() {
               </p>
 
               <p>
-                Qu’il s’agisse d’un appartement, d’une maison, d’un condo, d’un
-                bureau ou d’un local commercial, notre équipe prend en charge
-                votre déménagement avec rigueur, efficacité et le plus grand
-                soin.
+                Qu’il s’agisse d’un appartement, d’une maison, d’un condo,
+                d’un bureau ou d’un local commercial, notre équipe prend en
+                charge votre déménagement avec rigueur, efficacité et le plus
+                grand soin.
               </p>
 
               <p>
@@ -198,7 +193,10 @@ export default function MovingPage() {
 
               <div className={styles.commitmentList}>
                 {commitments.map((commitment) => (
-                  <div key={commitment}>
+                  <div
+                    key={commitment}
+                    className={styles.commitmentItem}
+                  >
                     <CheckCircle2
                       size={21}
                       strokeWidth={2}
@@ -216,10 +214,11 @@ export default function MovingPage() {
                 src="/images/demenagement-service.jpeg"
                 alt="Service professionnel de déménagement Glory Solutions"
                 fill
-                priority
                 sizes="(max-width: 1000px) 100vw, 50vw"
                 className={styles.introductionImage}
               />
+
+              <div className={styles.imageOverlay} />
 
               <div className={styles.imageFrame} />
 
@@ -239,141 +238,65 @@ export default function MovingPage() {
           </div>
         </section>
 
-        {/* SERVICES */}
+        {/* ========================================
+            SERVICES
+        ======================================== */}
         <section className={styles.servicesSection}>
-          <div className={styles.servicesHeader}>
-            <div>
-              <p className={styles.sectionLabel}>Nos services</p>
+          <div className={styles.servicesContainer}>
+            <div className={styles.servicesHeader}>
+              <div>
+                <p className={styles.sectionLabel}>
+                  Nos services
+                </p>
 
-              <h2>
-                Des solutions adaptées
-                <span>à tous vos besoins</span>
-              </h2>
+                <h2>
+                  Des solutions adaptées
+                  <span>à tous vos besoins</span>
+                </h2>
+              </div>
+
+              <p className={styles.servicesDescription}>
+                Nous proposons des services de déménagement complets pour les
+                particuliers, les entreprises, les commerces et les
+                gestionnaires immobiliers.
+              </p>
             </div>
 
-            <p className={styles.servicesDescription}>
-              Nous proposons des services de déménagement complets pour les
-              particuliers, les entreprises, les commerces et les gestionnaires
-              immobiliers.
-            </p>
-          </div>
+            <div className={styles.servicesGrid}>
+              {movingServices.map((service, index) => {
+                const Icon = service.icon;
 
-          <div className={styles.servicesGrid}>
-            {movingServices.map((service, index) => {
-              const Icon = service.icon;
+                return (
+                  <article
+                    key={service.title}
+                    className={styles.serviceCard}
+                  >
+                    <span className={styles.serviceNumber}>
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
 
-              return (
-                <article
-                  key={service.title}
-                  className={styles.serviceCard}
-                >
-                  <span className={styles.serviceNumber}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
+                    <span className={styles.serviceIcon}>
+                      <Icon
+                        size={30}
+                        strokeWidth={1.7}
+                        aria-hidden="true"
+                      />
+                    </span>
 
-                  <span className={styles.serviceIcon}>
-                    <Icon
-                      size={30}
-                      strokeWidth={1.7}
-                      aria-hidden="true"
-                    />
-                  </span>
+                    <h3>{service.title}</h3>
 
-                  <h3>{service.title}</h3>
+                    <p>{service.description}</p>
 
-                  <p>{service.description}</p>
-
-                  <span className={styles.serviceArrow}>
-                    <ArrowRight
-                      size={19}
-                      strokeWidth={2}
-                      aria-hidden="true"
-                    />
-                  </span>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* AVANTAGES */}
-        <section className={styles.advantagesSection}>
-          <div className={styles.sectionHeading}>
-            <p className={styles.sectionLabel}>
-              Pourquoi choisir Glory Solutions ?
-            </p>
-
-            <h2>
-              Une équipe qui prend soin
-              <span>de chaque détail</span>
-            </h2>
-
-            <p>
-              Notre priorité est de protéger vos biens, de respecter les délais
-              convenus et de vous offrir une expérience simple et entièrement
-              prise en charge.
-            </p>
-          </div>
-
-          <div className={styles.advantagesGrid}>
-            {advantages.map((advantage, index) => {
-              const Icon = advantage.icon;
-
-              return (
-                <article
-                  key={advantage.title}
-                  className={styles.advantageCard}
-                >
-                  <span className={styles.advantageNumber}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-
-                  <span className={styles.advantageIcon}>
-                    <Icon
-                      size={31}
-                      strokeWidth={1.7}
-                      aria-hidden="true"
-                    />
-                  </span>
-
-                  <h3>{advantage.title}</h3>
-
-                  <p>{advantage.description}</p>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* CTA */}
-        <section className={styles.ctaSection}>
-          <div className={styles.ctaContent}>
-            <p className={styles.ctaLabel}>
-              Votre prochain déménagement
-            </p>
-
-            <h2>
-              Commencez cette nouvelle étape en toute tranquillité
-            </h2>
-
-            <p>
-              Obtenez une soumission rapide et gratuite pour votre déménagement
-              résidentiel ou commercial.
-            </p>
-
-            <div className={styles.ctaActions}>
-              <Link href="/quote" className={styles.ctaPrimaryButton}>
-                Obtenir une soumission
-                <ArrowRight
-                  size={18}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-              </Link>
-
-              <Link href="/contact" className={styles.ctaSecondaryButton}>
-                Parler à notre équipe
-              </Link>
+                    <span className={styles.serviceArrow}>
+                      <ArrowRight
+                        size={19}
+                        strokeWidth={2}
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>

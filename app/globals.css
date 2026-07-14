@@ -35,8 +35,9 @@ a {
 button {
   font: inherit;
 }
-
-/* NAVBAR */
+/* ========================================
+   NAVBAR
+======================================== */
 
 .navbar {
   position: fixed;
@@ -49,6 +50,7 @@ button {
 
   color: var(--white);
   background: var(--crimson);
+
   box-shadow: 0 5px 18px rgba(0, 0, 0, 0.18);
 }
 
@@ -59,36 +61,42 @@ button {
   display: flex;
   align-items: center;
 
-  padding-left: clamp(24px, 7vw, 110px);
+  padding-left: clamp(24px, 6vw, 100px);
 }
+
+/* ========================================
+   LOGO IMAGE
+======================================== */
 
 .logo {
   flex-shrink: 0;
 
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 7px;
+  justify-content: flex-start;
+
+  width: 125px;
+  height: 80px;
+
+  overflow: visible;
 }
 
-.logo-box {
-  width: 58px;
-  height: 48px;
 
-  display: grid;
-  place-items: center;
+.navbar-logo-image {
+  width: 110px;
+  height: 70px;
 
-  border: 2px solid var(--white);
+  display: block;
 
-  font-size: 21px;
-  font-weight: 900;
+  object-fit: contain;
+  object-position: center;
+
+  border: none;
 }
 
-.logo-text {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 3px;
-}
+/* ========================================
+   NAVIGATION DESKTOP
+======================================== */
 
 .nav-links {
   flex: 1;
@@ -96,9 +104,11 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: clamp(25px, 4vw, 65px);
 
-  padding: 0 clamp(30px, 5vw, 75px);
+  gap: clamp(16px, 2vw, 36px);
+
+  padding-right: clamp(20px, 3vw, 45px);
+  padding-left: clamp(20px, 3vw, 45px);
 }
 
 .nav-links a {
@@ -106,8 +116,13 @@ button {
 
   padding: 12px 0;
 
-  font-size: 12px;
+  color: var(--white);
+
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.3;
+
+  text-align: center;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -131,22 +146,29 @@ button {
   width: 100%;
 }
 
+/* ========================================
+   BOUTON SOUMISSION
+======================================== */
+
 .quote-button {
   align-self: stretch;
+  flex-shrink: 0;
 
-  min-width: 195px;
+  min-width: 170px;
 
   display: flex;
   align-items: center;
   justify-content: center;
 
-  padding: 0 28px;
+  padding: 0 24px;
 
   color: var(--crimson);
   background: var(--white);
 
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
+
+  text-align: center;
   text-transform: uppercase;
 
   transition:
@@ -163,14 +185,21 @@ button {
   display: none;
 }
 
+/* ========================================
+   BOUTON MENU MOBILE
+======================================== */
+
 .menu-button {
   display: none;
 
   width: 44px;
   height: 44px;
 
+  padding: 0;
+
   border: none;
   background: transparent;
+
   cursor: pointer;
 }
 
@@ -201,6 +230,119 @@ button {
   transform: translateY(-8px) rotate(-45deg);
 }
 
+/* ========================================
+   TABLETTE ET MENU MOBILE
+======================================== */
+
+@media (max-width: 1200px) {
+  :root {
+    --navbar-height: 88px;
+  }
+
+  .navbar-container {
+    justify-content: space-between;
+
+    padding-right: 25px;
+    padding-left: 25px;
+  }
+
+  .logo {
+    width: 120px;
+    height: 66px;
+  }
+
+  .menu-button {
+    display: block;
+  }
+
+  .quote-button {
+    display: none;
+  }
+
+  .nav-links {
+    position: fixed;
+    top: var(--navbar-height);
+    right: -100%;
+
+    width: min(380px, 100%);
+    height: calc(100vh - var(--navbar-height));
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+
+    gap: 0;
+
+    padding: 30px;
+
+    background: var(--crimson-dark);
+
+    overflow-y: auto;
+
+    transition: right 0.35s ease;
+  }
+
+  .nav-links-open {
+    right: 0;
+  }
+
+  .nav-links a {
+    width: 100%;
+
+    padding: 18px 5px;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+
+    font-size: 12px;
+    text-align: left;
+  }
+
+  .nav-links a::after {
+    display: none;
+  }
+
+  .mobile-quote-button {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+
+    margin-top: 24px;
+    padding: 18px !important;
+
+    color: var(--crimson) !important;
+    background: var(--white);
+
+    border-bottom: none !important;
+
+    text-align: center !important;
+  }
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 520px) {
+  .navbar-container {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .logo {
+    width: 100px;
+    height: 56px;
+  }
+
+  .navbar-logo-image {
+    object-fit: contain;
+  }
+
+  .nav-links {
+    width: 100%;
+  }
+}
+
 /* HERO */
 
 .hero {
@@ -209,12 +351,11 @@ button {
   min-height: 100vh;
 
   display: flex;
-  align-items: center;
+  align-items: flex-end;
 
-  padding:
-    calc(var(--navbar-height) + 70px)
-    clamp(24px, 13vw, 220px)
-    80px;
+  padding-left: 40px;
+  padding-right: 40px;
+  padding-bottom: 40px;
 
   color: var(--white);
 
@@ -222,6 +363,19 @@ button {
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  max-width: 850px;
+
+  margin-left: 0;
+  margin-bottom: 0;
+
+  text-align: left;
 }
 
 .hero-overlay {
@@ -251,12 +405,7 @@ button {
     );
 }
 
-.hero-content {
-  position: relative;
-  z-index: 2;
 
-  width: min(760px, 100%);
-}
 
 .hero-subtitle {
   margin-bottom: 12px;
@@ -302,6 +451,15 @@ button {
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
+  gap: 16px;
+
+  margin-top: 35px;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 16px;
 
   margin-top: 35px;
@@ -770,14 +928,11 @@ button {
     letter-spacing: 2px;
   }
 }
-
 /* ========================================
    FOOTER
 ======================================== */
 
 .site-footer {
-  --footer-background: #101010;
-  --footer-surface: #181818;
   --footer-border: rgba(255, 255, 255, 0.12);
   --footer-text: rgba(255, 255, 255, 0.75);
   --footer-muted: rgba(255, 255, 255, 0.5);
@@ -790,13 +945,13 @@ button {
 
   background:
     radial-gradient(
-      circle at 5% 20%,
-      rgba(220, 20, 60, 0.16),
-      transparent 30%
+      circle at 0% 20%,
+      rgba(220, 20, 60, 0.18),
+      transparent 32%
     ),
     linear-gradient(
       135deg,
-      #0c0c0c 0%,
+      #0b0b0b 0%,
       #111111 55%,
       #171717 100%
     );
@@ -818,34 +973,45 @@ button {
   );
 }
 
+/* ========================================
+   CONTENEUR PRINCIPAL
+======================================== */
+
 .footer-container {
-  width: min(1450px, 100%);
+  width: 100%;
+  max-width: none;
 
-  margin: 0 auto;
+  margin: 0;
 
-  padding:
-    90px
-    clamp(24px, 6vw, 90px)
-    30px;
+  padding-top: 90px;
+  padding-right: clamp(35px, 5vw, 90px);
+  padding-bottom: 30px;
+  padding-left: clamp(35px, 5vw, 80px);
 }
 
 /* ========================================
-   GRILLE
+   GRILLE DU FOOTER
 ======================================== */
 
 .footer-grid {
+  width: 100%;
+
   display: grid;
   grid-template-columns:
-    minmax(280px, 1.5fr)
-    repeat(3, minmax(170px, 1fr));
+    minmax(320px, 1.45fr)
+    minmax(170px, 0.75fr)
+    minmax(230px, 0.95fr)
+    minmax(250px, 1fr);
 
-  gap: clamp(45px, 5vw, 85px);
+  align-items: start;
+
+  gap: clamp(40px, 5vw, 85px);
 
   padding-bottom: 75px;
 }
 
 /* ========================================
-   ANIMATION CSS
+   ANIMATIONS
 ======================================== */
 
 .footer-entry {
@@ -883,19 +1049,32 @@ button {
 }
 
 /* ========================================
-   MARQUE
+   PARTIE GLORY SOLUTIONS
 ======================================== */
 
 .footer-brand {
-  max-width: 390px;
+  width: 100%;
+  max-width: 410px;
+
+  justify-self: start;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  margin: 0;
+  padding: 0;
+
+  text-align: left;
 }
 
 .footer-logo {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 15px;
 
-  margin-bottom: 26px;
+  margin: 0 0 26px 0;
 }
 
 .footer-logo-icon {
@@ -908,7 +1087,7 @@ button {
   place-items: center;
 
   color: #ffffff;
-  background-color: #dc143c;
+  background: #dc143c;
 
   border-radius: 5px;
 
@@ -918,7 +1097,9 @@ button {
 .footer-logo-text {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
 
+  text-align: left;
   line-height: 0.95;
   text-transform: uppercase;
 }
@@ -938,12 +1119,16 @@ button {
 }
 
 .footer-description {
+  width: 100%;
   max-width: 370px;
+
+  margin: 0;
 
   color: var(--footer-text);
 
   font-size: 16px;
   line-height: 1.8;
+  text-align: left;
 }
 
 .footer-main-button {
@@ -955,16 +1140,21 @@ button {
   gap: 12px;
 
   margin-top: 31px;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+
   padding: 15px 22px;
 
   color: #ffffff;
-  background-color: #dc143c;
+  background: #dc143c;
 
   border: 1px solid #dc143c;
 
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 1.4px;
+  text-align: left;
   text-transform: uppercase;
 
   transition:
@@ -976,7 +1166,7 @@ button {
 
 .footer-main-button:hover {
   color: #dc143c;
-  background-color: #ffffff;
+  background: #ffffff;
 
   transform: translateY(-4px);
 
@@ -992,11 +1182,16 @@ button {
 }
 
 /* ========================================
-   TITRES DES COLONNES
+   COLONNES
 ======================================== */
 
 .footer-column {
+  width: 100%;
   min-width: 0;
+
+  justify-self: start;
+
+  text-align: left;
 }
 
 .footer-number {
@@ -1022,6 +1217,7 @@ button {
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 3px;
+  text-align: left;
   text-transform: uppercase;
 }
 
@@ -1035,7 +1231,7 @@ button {
   width: 38px;
   height: 2px;
 
-  background-color: #dc143c;
+  background: #dc143c;
 }
 
 /* ========================================
@@ -1043,9 +1239,13 @@ button {
 ======================================== */
 
 .footer-navigation {
+  width: 100%;
+
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+
+  text-align: left;
 }
 
 .footer-navigation a {
@@ -1064,6 +1264,7 @@ button {
   border-bottom: 1px solid transparent;
 
   font-size: 15px;
+  text-align: left;
 
   transition:
     color 0.25s ease,
@@ -1097,19 +1298,28 @@ button {
 }
 
 /* ========================================
-   SERVICES
+   LISTE DES SERVICES
 ======================================== */
 
 .footer-services {
+  width: 100%;
+
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 15px;
 
+  margin: 0;
+  padding: 0;
+
   list-style: none;
+  text-align: left;
 }
 
 .footer-services li {
   position: relative;
+
+  width: 100%;
 
   padding-left: 18px;
 
@@ -1117,6 +1327,7 @@ button {
 
   font-size: 15px;
   line-height: 1.5;
+  text-align: left;
 }
 
 .footer-services li::before {
@@ -1129,9 +1340,302 @@ button {
   width: 6px;
   height: 6px;
 
-  background-color: #dc143c;
+  background: #dc143c;
 
   border-radius: 50%;
+}
+
+/* ========================================
+   CONTACT
+======================================== */
+
+.footer-contact {
+  width: 100%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 19px;
+
+  margin: 0;
+
+  font-style: normal;
+  text-align: left;
+}
+
+.footer-contact-row {
+  width: 100%;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 13px;
+
+  color: var(--footer-text);
+
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: left;
+
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+a.footer-contact-row:hover {
+  color: #ffffff;
+  transform: translateX(5px);
+}
+
+.footer-contact-icon {
+  flex-shrink: 0;
+
+  width: 36px;
+  height: 36px;
+
+  display: grid;
+  place-items: center;
+
+  color: #dc143c;
+  background: rgba(220, 20, 60, 0.11);
+
+  border: 1px solid rgba(220, 20, 60, 0.25);
+  border-radius: 50%;
+}
+
+.footer-contact-row strong {
+  display: block;
+
+  color: rgba(255, 255, 255, 0.85);
+
+  font-weight: 500;
+}
+
+.footer-contact-row small {
+  display: block;
+
+  margin-top: 2px;
+
+  color: var(--footer-muted);
+
+  font-size: 13px;
+}
+
+/* ========================================
+   BAS DU FOOTER
+======================================== */
+
+.footer-bottom {
+  width: 100%;
+  min-height: 76px;
+
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 30px;
+
+  padding-top: 27px;
+
+  border-top: 1px solid var(--footer-border);
+
+  color: var(--footer-muted);
+
+  font-size: 13px;
+}
+
+.footer-bottom > p {
+  justify-self: start;
+
+  text-align: left;
+}
+
+.footer-legal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 25px;
+}
+
+.footer-legal a {
+  transition: color 0.25s ease;
+}
+
+.footer-legal a:hover {
+  color: #ffffff;
+}
+
+.footer-top-button {
+  justify-self: end;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  color: rgba(255, 255, 255, 0.76);
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.footer-top-button:hover {
+  color: #dc143c;
+  transform: translateY(-4px);
+}
+
+/* ========================================
+   TABLETTE
+======================================== */
+
+@media (max-width: 1100px) {
+  .footer-container {
+    padding-right: 35px;
+    padding-left: 35px;
+  }
+
+  .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 60px 50px;
+  }
+
+  .footer-brand {
+    max-width: 500px;
+  }
+
+  .footer-bottom {
+    grid-template-columns: 1fr auto;
+  }
+
+  .footer-legal {
+    display: none;
+  }
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 680px) {
+  .footer-container {
+    padding-top: 60px;
+    padding-right: 22px;
+    padding-bottom: 25px;
+    padding-left: 22px;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+
+    gap: 48px;
+
+    padding-bottom: 55px;
+  }
+
+  .footer-brand {
+    width: 100%;
+    max-width: 100%;
+
+    align-items: flex-start;
+
+    text-align: left;
+  }
+
+  .footer-logo {
+    justify-content: flex-start;
+  }
+
+  .footer-logo-icon {
+    width: 52px;
+    height: 52px;
+  }
+
+  .footer-logo-text strong {
+    font-size: 21px;
+  }
+
+  .footer-logo-text span {
+    font-size: 26px;
+  }
+
+  .footer-description {
+    width: 100%;
+    max-width: 100%;
+
+    font-size: 15px;
+    text-align: left;
+  }
+
+  .footer-main-button {
+    width: auto;
+
+    justify-content: flex-start;
+
+    margin-left: 0;
+  }
+
+  .footer-column {
+    text-align: left;
+  }
+
+  .footer-bottom {
+    grid-template-columns: 1fr;
+    justify-items: start;
+
+    gap: 18px;
+
+    text-align: left;
+  }
+
+  .footer-bottom > p {
+    justify-self: start;
+  }
+
+  .footer-top-button {
+    justify-self: start;
+  }
+}
+
+/* ========================================
+   TRÈS PETIT MOBILE
+======================================== */
+
+@media (max-width: 420px) {
+  .footer-container {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .footer-logo {
+    gap: 12px;
+  }
+
+  .footer-main-button {
+    width: 100%;
+
+    justify-content: center;
+
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+}
+
+/* ========================================
+   ACCESSIBILITÉ
+======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .footer-entry {
+    opacity: 1;
+
+    animation: none;
+    transform: none;
+  }
 }
 
 /* ========================================

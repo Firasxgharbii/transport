@@ -1,11 +1,13 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  CarFront,
   Clock3,
   Construction,
   Home,
   PackageCheck,
   Route,
+  Sofa,
   Truck,
   UsersRound,
 } from "lucide-react";
@@ -51,6 +53,22 @@ const services = [
       "Nous proposons également un service de manutention pour les livraisons qui nécessitent d’être déchargées à la main.",
     icon: UsersRound,
   },
+  {
+    title: "Transport automobile",
+    description:
+      "Nous assurons le transport sécuritaire de véhicules pour les particuliers, les concessionnaires et les entreprises. Chaque automobile est prise en charge avec soin, selon un processus structuré et adapté à la distance à parcourir.",
+    icon: CarFront,
+    href: "/transport-automobile",
+    linkLabel: "Découvrir le transport automobile",
+  },
+  {
+    title: "Déménagement",
+    description:
+      "Nous offrons un service de déménagement résidentiel et commercial fiable, organisé et adapté à vos besoins. Notre équipe prend soin de vos meubles et de vos biens pendant le chargement, le transport et le déchargement.",
+    icon: Sofa,
+    href: "/demenagement",
+    linkLabel: "Découvrir le service de déménagement",
+  },
 ];
 
 export default function ServicesPage() {
@@ -59,7 +77,9 @@ export default function ServicesPage() {
       <Navbar />
 
       <main className={styles.main}>
-        {/* HERO */}
+        {/* ========================================
+            HERO
+        ======================================== */}
         <section className={styles.hero}>
           <div className={styles.heroContent}>
             <p className={styles.eyebrow}>
@@ -75,9 +95,12 @@ export default function ServicesPage() {
           </div>
         </section>
 
-        {/* CONTENU */}
+        {/* ========================================
+            CONTENU DES SERVICES
+        ======================================== */}
         <section className={styles.servicesSection}>
           <div className={styles.servicesContainer}>
+            {/* COLONNE D’INTRODUCTION */}
             <div className={styles.introColumn}>
               <p className={styles.sectionLabel}>
                 Une solution pour chaque besoin
@@ -94,7 +117,10 @@ export default function ServicesPage() {
 
               <div className={styles.introImage}>
                 <div className={styles.imageBadge}>
-                  <PackageCheck size={26} aria-hidden="true" />
+                  <PackageCheck
+                    size={26}
+                    aria-hidden="true"
+                  />
 
                   <span>
                     Livraison sécurisée
@@ -104,6 +130,7 @@ export default function ServicesPage() {
               </div>
             </div>
 
+            {/* LISTE DES SERVICES */}
             <div className={styles.servicesList}>
               {services.map((service, index) => {
                 const Icon = service.icon;
@@ -136,7 +163,23 @@ export default function ServicesPage() {
                           className={styles.regionLink}
                         >
                           Voir les régions desservies
-                          <ArrowRight size={16} aria-hidden="true" />
+                          <ArrowRight
+                            size={16}
+                            aria-hidden="true"
+                          />
+                        </Link>
+                      )}
+
+                      {service.href && service.linkLabel && (
+                        <Link
+                          href={service.href}
+                          className={styles.regionLink}
+                        >
+                          {service.linkLabel}
+                          <ArrowRight
+                            size={16}
+                            aria-hidden="true"
+                          />
                         </Link>
                       )}
                     </div>
@@ -147,7 +190,9 @@ export default function ServicesPage() {
           </div>
         </section>
 
-        {/* CTA */}
+        {/* ========================================
+            CTA
+        ======================================== */}
         <section className={styles.cta}>
           <div className={styles.ctaContent}>
             <p className={styles.ctaLabel}>
@@ -164,7 +209,10 @@ export default function ServicesPage() {
                 className={styles.primaryButton}
               >
                 Demander une soumission
-                <ArrowRight size={18} aria-hidden="true" />
+                <ArrowRight
+                  size={18}
+                  aria-hidden="true"
+                />
               </Link>
 
               <Link

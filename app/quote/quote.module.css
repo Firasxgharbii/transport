@@ -1,3 +1,6 @@
+
+
+
 .page {
   --crimson: #dc143c;
   --crimson-dark: #a80f2e;
@@ -15,6 +18,7 @@
   min-height: 100vh;
 
   color: var(--black);
+
   background:
     linear-gradient(
       135deg,
@@ -51,9 +55,8 @@
       rgba(7, 7, 7, 0.5)
     ),
     url("/images/trucks-hero.jpeg")
-    center /
-    cover
-    no-repeat;
+      center / cover
+      no-repeat;
 
   border-bottom: 6px solid var(--crimson);
 }
@@ -85,6 +88,7 @@
 
 .hero h1 span {
   display: block;
+
   color: var(--crimson);
 }
 
@@ -130,6 +134,7 @@
   padding: 72px 38px 38px;
 
   background-color: var(--white);
+
   border: none;
   border-radius: 2px;
 
@@ -223,15 +228,15 @@
 }
 
 /* ========================================
-   CHAMPS
+   CHAMPS INPUT, TEXTAREA ET SELECT
 ======================================== */
 
 .formGrid input,
+.formGrid select,
 .fullField textarea,
 .dateField input,
 .weightField input {
   width: 100%;
-
   min-height: 54px;
 
   padding: 14px 16px;
@@ -254,6 +259,25 @@
     box-shadow 0.25s ease;
 }
 
+.formGrid select {
+  appearance: none;
+
+  padding-right: 46px;
+
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--gray-700) 50%),
+    linear-gradient(135deg, var(--gray-700) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) 50%,
+    calc(100% - 14px) 50%;
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+
+  cursor: pointer;
+}
+
 .fullField textarea {
   min-height: 160px;
 
@@ -265,10 +289,12 @@
 .dateField input::placeholder,
 .weightField input::placeholder {
   color: #8a8a8a;
+
   opacity: 1;
 }
 
 .formGrid input:hover,
+.formGrid select:hover,
 .fullField textarea:hover,
 .dateField input:hover,
 .weightField input:hover {
@@ -277,6 +303,7 @@
 }
 
 .formGrid input:focus,
+.formGrid select:focus,
 .fullField textarea:focus,
 .dateField input:focus,
 .weightField input:focus {
@@ -288,12 +315,44 @@
 }
 
 /* ========================================
-   DATE ET OPTIONS DE LIVRAISON
+   SERVICE SÉLECTIONNÉ
+======================================== */
+
+.serviceSelection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-top: 22px;
+  padding: 16px 18px;
+
+  color: var(--white);
+  background-color: var(--crimson);
+
+  border-left: 5px solid var(--crimson-dark);
+
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+
+  box-shadow:
+    0 12px 28px rgba(220, 20, 60, 0.2);
+}
+
+.serviceSelection svg {
+  flex-shrink: 0;
+}
+
+/* ========================================
+   DATE ET OPTIONS
 ======================================== */
 
 .deliveryRow {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1fr);
+  grid-template-columns:
+    minmax(280px, 1fr)
+    minmax(360px, 1fr);
   align-items: end;
   gap: 28px;
 
@@ -320,6 +379,10 @@
   min-height: 54px;
 }
 
+.checkboxGroup {
+  margin-top: 25px;
+}
+
 .checkboxField {
   display: inline-flex;
   align-items: center;
@@ -338,6 +401,8 @@
   width: 18px;
   height: 18px;
 
+  flex-shrink: 0;
+
   margin: 0;
 
   accent-color: var(--crimson);
@@ -349,7 +414,9 @@
 
 .merchandiseOptions {
   display: grid;
-  grid-template-columns: 1fr minmax(230px, 0.42fr);
+  grid-template-columns:
+    1fr
+    minmax(230px, 0.42fr);
   align-items: end;
   gap: 28px;
 
@@ -425,6 +492,7 @@
 
 .submitButton:disabled {
   cursor: not-allowed;
+
   opacity: 0.65;
 }
 
@@ -447,11 +515,13 @@
 
 .successMessage {
   color: #146c38;
+
   border-left: 5px solid #2b9d55;
 }
 
 .errorMessage {
   color: #8c1d2d;
+
   border-left: 5px solid var(--crimson);
 }
 
@@ -529,6 +599,13 @@
   .checkboxGroup {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .serviceSelection {
+    align-items: flex-start;
+
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   .formFooter {
