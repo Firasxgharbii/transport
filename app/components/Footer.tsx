@@ -193,15 +193,7 @@ export default function Footer() {
             © {year} Glory Solutions. Tous droits réservés.
           </p>
 
-          <div className="footer-legal">
-            <Link href="/politique-confidentialite">
-              Politique de confidentialité
-            </Link>
-
-            <Link href="/conditions-utilisation">
-              Conditions d’utilisation
-            </Link>
-          </div>
+       
 
           <Link
             href="/#top"
