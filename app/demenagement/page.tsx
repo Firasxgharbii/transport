@@ -255,11 +255,7 @@ export default function MovingPage() {
                 </h2>
               </div>
 
-              <p className={styles.servicesDescription}>
-                Nous proposons des services de déménagement complets pour les
-                particuliers, les entreprises, les commerces et les
-                gestionnaires immobiliers.
-              </p>
+             
             </div>
 
             <div className={styles.servicesGrid}>

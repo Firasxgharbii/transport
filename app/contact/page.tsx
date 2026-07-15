@@ -26,36 +26,14 @@ type Status = {
 };
 
 const offices: Office[] = [
-  {
-    city: "Toronto",
-    phone: "416-365-1515",
-    address:
-      "20 Maud Street, Suite 102, Toronto, Ontario, M5V 2M5",
-  },
+
   {
     city: "Montréal",
-    phone: "514-875-1515",
+    phone: "514-553-6762",
     address:
-      "1323 Rue Saint-Jacques, Montréal, Québec, H3C 4K2",
+      "5975 Av. de l'authion Montréal, QC H1M 2W3",
   },
-  {
-    city: "Ottawa",
-    phone: "613-228-1020",
-    address:
-      "323 Coventry Road, Suite L025, Ottawa, Ontario, K1K 3X6",
-  },
-  {
-    city: "Waterloo",
-    phone: "519-744-6729",
-    address:
-      "681 Keats Way, Waterloo, Ontario, N2T 2X2",
-  },
-  {
-    city: "Kirkland",
-    phone: "514-694-9583",
-    address:
-      "16 637 boulevard Hymus, Kirkland, Québec, H9H 4R9",
-  },
+  
 ];
 
 function OfficeItem({
@@ -205,28 +183,13 @@ export default function ContactPage() {
                   <p>
                     <strong>Sans frais :</strong>{" "}
                     <a href="tel:18886751515">
-                      1-888-675-1515
+                      514-553-6762
                     </a>
                   </p>
                 </div>
 
                 {/* FAX */}
-                <div className={styles.infoRow}>
-                  <div className={styles.iconCircle}>
-                    <Printer
-                      size={20}
-                      strokeWidth={1.8}
-                      aria-hidden="true"
-                    />
-                  </div>
-
-                  <p>
-                    <strong>Fax :</strong>{" "}
-                    <a href="tel:18888752145">
-                      1-888-875-2145
-                    </a>
-                  </p>
-                </div>
+               
 
                 {/* COURRIEL */}
                 <div className={styles.infoRow}>
@@ -243,7 +206,7 @@ export default function ContactPage() {
                       href="mailto:info@glorysolutions.ca"
                       className={styles.emailLink}
                     >
-                      info@glorysolutions.ca
+                      contact@glorysolutions.ca
                     </a>
                   </p>
                 </div>
