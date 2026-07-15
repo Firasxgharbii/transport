@@ -53,7 +53,7 @@ export default function Footer() {
             >
               <span className="footer-logo-image-wrapper">
                 <Image
-                  src="/images/logo1.jpg"
+                  src="/images/logo1.png"
                   alt="Logo Glory Solutions"
                   width={70}
                   height={70}
