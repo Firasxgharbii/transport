@@ -155,7 +155,7 @@ export default function Footer() {
               </div>
 
               <a
-                href="mailto:info@glorysolutions.ca"
+                href="mailto:contact@glorysolutions.ca"
                 className="footer-contact-row"
               >
                 <span className="footer-contact-icon">
@@ -165,7 +165,7 @@ export default function Footer() {
                   />
                 </span>
 
-                <span>info@glorysolutions.ca</span>
+                <span>contact@glorysolutions.ca</span>
               </a>
 
               <a
@@ -179,7 +179,7 @@ export default function Footer() {
                   />
                 </span>
 
-                <span>+1 (514) 000-0000</span>
+                <span>+1 (514) 553-6762</span>
               </a>
             </address>
           </section>
