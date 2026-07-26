@@ -65,7 +65,8 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   "http://localhost:3000",
   "http://127.0.0.1:3000",
-  "http://192.168.2.22:3000",
+  "https://transport-platform.vercel.app",
+
 ].filter(Boolean);
 
 const corsOptions = {
