@@ -1,45 +1,107 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useState,
+} from "react";
+import {
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
+
 import styles from "./reset-password.module.css";
 
-export default function ResetPasswordPage() {
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://192.168.2.22:5000";
+
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const token = searchParams.get("token");
+  const token =
+    searchParams.get("token") || "";
 
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [password, setPassword] =
+    useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [
+    confirmPassword,
+    setConfirmPassword,
+  ] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const validatePassword = () => {
+    if (!token) {
+      return "Le lien de réinitialisation est invalide.";
+    }
+
+    if (!password || !confirmPassword) {
+      return "Veuillez remplir tous les champs.";
+    }
+
+    if (password.length < 8) {
+      return "Le mot de passe doit contenir au moins 8 caractères.";
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      return "Le mot de passe doit contenir une majuscule.";
+    }
+
+    if (!/[a-z]/.test(password)) {
+      return "Le mot de passe doit contenir une minuscule.";
+    }
+
+    if (!/[0-9]/.test(password)) {
+      return "Le mot de passe doit contenir un chiffre.";
+    }
+
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      return "Le mot de passe doit contenir un caractère spécial.";
+    }
+
+    if (password !== confirmPassword) {
+      return "Les mots de passe ne correspondent pas.";
+    }
+
+    return "";
+  };
+
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
 
     setError("");
     setSuccess("");
 
-    if (!password || !confirmPassword) {
-      return setError("Veuillez remplir tous les champs.");
+    const validationError =
+      validatePassword();
+
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
-    if (password !== confirmPassword) {
-      return setError("Les mots de passe ne correspondent pas.");
-    }
+    setLoading(true);
 
     try {
-      setLoading(true);
-
       const response = await fetch(
-        "http://localhost:5000/api/auth/reset-password",
+        `${API_URL}/api/auth/reset-password`,
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
           body: JSON.stringify({
             token,
@@ -48,72 +110,142 @@ export default function ResetPasswordPage() {
         }
       );
 
-      const data = await response.json();
+      let data: {
+        success?: boolean;
+        message?: string;
+      } = {};
 
-      if (!response.ok) {
-        throw new Error(data.message);
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
       }
 
-      setSuccess("Mot de passe modifié avec succès.");
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Impossible de modifier le mot de passe."
+        );
+      }
 
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
-    } catch (err: any) {
-      setError(err.message || "Erreur.");
+      setSuccess(
+        data.message ||
+          "Votre mot de passe a été modifié avec succès."
+      );
+
+      setPassword("");
+      setConfirmPassword("");
+
+      window.setTimeout(() => {
+        router.replace("/login");
+      }, 2200);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur est survenue."
+      );
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <main className={styles.container}>
-      <div className={styles.card}>
+      <section className={styles.card}>
         <h1>Nouveau mot de passe</h1>
 
         <p>
-          Choisissez un nouveau mot de passe pour votre compte Glory
+          Choisissez un nouveau mot de passe
+          sécurisé pour votre compte Glory
           Solutions.
         </p>
 
-        <form onSubmit={handleSubmit}>
-
+        <form
+          className={styles.form}
+          onSubmit={handleSubmit}
+          noValidate
+        >
           <input
+            className={styles.input}
             type="password"
             placeholder="Nouveau mot de passe"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) =>
+              setPassword(event.target.value)
+            }
+            autoComplete="new-password"
+            disabled={loading}
           />
 
           <input
+            className={styles.input}
             type="password"
             placeholder="Confirmer le mot de passe"
             value={confirmPassword}
-            onChange={(e) =>
-              setConfirmPassword(e.target.value)
+            onChange={(event) =>
+              setConfirmPassword(
+                event.target.value
+              )
             }
+            autoComplete="new-password"
+            disabled={loading}
           />
 
           {error && (
-            <div className={styles.error}>
+            <div
+              className={styles.error}
+              role="alert"
+            >
               {error}
             </div>
           )}
 
           {success && (
-            <div className={styles.success}>
+            <div
+              className={styles.success}
+              role="status"
+            >
               {success}
             </div>
           )}
 
-          <button disabled={loading}>
+          <button
+            type="submit"
+            className={styles.submitButton}
+            disabled={loading || !token}
+          >
             {loading
-              ? "Modification..."
+              ? "Modification en cours..."
               : "Modifier le mot de passe"}
           </button>
-
         </form>
-      </div>
+      </section>
     </main>
+  );
+}
+
+function ResetPasswordLoading() {
+  return (
+    <main className={styles.container}>
+      <section className={styles.card}>
+        <h1>Chargement...</h1>
+
+        <p>
+          Vérification du lien de
+          réinitialisation.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={<ResetPasswordLoading />}
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
