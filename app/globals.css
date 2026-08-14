@@ -1453,7 +1453,11 @@ a.footer-contact-row:hover {
 
     align-items: flex-end;
 
-    background-position: 48% center;
+    /* Image dédiée au mobile pour éviter le gros recadrage du logo */
+    background-image: url("/images/trucks-hero-mobile.jpeg");
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: cover;
   }
 
   .hero-overlay {

@@ -16,51 +16,92 @@ const regions: Region[] = [
   {
     title: "Montréal",
     cities: [
+      "Montréal",
       "Anjou",
       "Baie-d’Urfé",
       "Beaconsfield",
       "Côte-Saint-Luc",
       "Dollard-des-Ormeaux",
       "Dorval",
-      "Île-Bizard",
       "Kirkland",
       "Lachine",
       "LaSalle",
       "Mont-Royal",
       "Montréal-Nord",
       "Pierrefonds",
-      "Pointe-aux-Trembles",
       "Pointe-Claire",
+      "Pointe-aux-Trembles",
       "Rivière-des-Prairies",
       "Saint-Laurent",
       "Saint-Léonard",
       "Sainte-Anne-de-Bellevue",
-      "Senneville",
       "Verdun",
       "Westmount",
     ],
   },
+
   {
-    title: "Rive-Nord",
+    title: "Laval",
+    cities: [
+      "Laval",
+      "Chomedey",
+      "Duvernay",
+      "Fabreville",
+      "Laval-des-Rapides",
+      "Laval-Ouest",
+      "Pont-Viau",
+      "Sainte-Dorothée",
+      "Sainte-Rose",
+      "Vimont",
+    ],
+  },
+
+  {
+    title: "Rive-Nord & Laurentides",
     cities: [
       "Blainville",
-      "Bois-des-Filion",
       "Boisbriand",
-      "Charlemagne",
-      "Laval",
+      "Bois-des-Filion",
+      "Deux-Montagnes",
+      "Lachute",
       "Lorraine",
       "Mirabel",
-      "Repentigny",
+      "Oka",
+      "Pointe-Calumet",
+      "Prévost",
       "Rosemère",
+      "Saint-Colomban",
       "Saint-Eustache",
+      "Saint-Hippolyte",
       "Saint-Jérôme",
-      "Sainte-Dorothée",
+      "Saint-Sauveur",
+      "Sainte-Adèle",
+      "Sainte-Anne-des-Plaines",
+      "Sainte-Marthe-sur-le-Lac",
       "Sainte-Thérèse",
+    ],
+  },
+
+  {
+    title: "Lanaudière",
+    cities: [
+      "Berthierville",
+      "Charlemagne",
+      "Joliette",
+      "L’Assomption",
+      "L’Épiphanie",
+      "Mascouche",
+      "Rawdon",
+      "Repentigny",
+      "Saint-Charles-Borromée",
+      "Saint-Lin-Laurentides",
+      "Saint-Roch-de-l’Achigan",
       "Terrebonne",
     ],
   },
+
   {
-    title: "Rive-Sud",
+    title: "Rive-Sud & Montérégie",
     cities: [
       "Beloeil",
       "Boucherville",
@@ -68,6 +109,8 @@ const regions: Region[] = [
       "Candiac",
       "Carignan",
       "Chambly",
+      "Châteauguay",
+      "Delson",
       "Greenfield Park",
       "La Prairie",
       "Longueuil",
@@ -76,11 +119,53 @@ const regions: Region[] = [
       "Saint-Amable",
       "Saint-Basile-le-Grand",
       "Saint-Bruno-de-Montarville",
+      "Saint-Constant",
       "Saint-Hubert",
+      "Saint-Jean-sur-Richelieu",
       "Saint-Lambert",
       "Saint-Mathieu-de-Beloeil",
       "Sainte-Catherine",
       "Sainte-Julie",
+      "Saint-Hyacinthe",
+      "Sorel-Tracy",
+      "Varennes",
+    ],
+  },
+
+  {
+    title: "Outaouais & Ottawa",
+    cities: [
+      "Gatineau",
+      "Hull",
+      "Aylmer",
+      "Chelsea",
+      "Cantley",
+      "Ottawa",
+      "Kanata",
+      "Nepean",
+      "Orléans",
+      "Barrhaven",
+    ],
+  },
+
+  {
+    title: "Autres régions du Québec",
+    cities: [
+      "Drummondville",
+      "Trois-Rivières",
+      "Sherbrooke",
+      "Québec",
+      "Lévis",
+      "Victoriaville",
+      "Granby",
+      "Saguenay",
+      "Alma",
+      "Rimouski",
+      "Rivière-du-Loup",
+      "Baie-Comeau",
+      "Sept-Îles",
+      "Rouyn-Noranda",
+      "Val-d’Or",
     ],
   },
 ];
@@ -91,8 +176,11 @@ export default function RegionsPage() {
       <Navbar />
 
       <main className={styles.main}>
+        {/* ============================================
+            INTRODUCTION
+        ============================================ */}
+
         <section className={styles.regionsSection}>
-          {/* EN-TÊTE */}
           <div className={styles.heading}>
             <p className={styles.eyebrow}>
               Notre zone de couverture
@@ -102,34 +190,32 @@ export default function RegionsPage() {
 
             <div className={styles.divider} />
 
-            <p className={styles.introduction}>
-              Notre équipe dessert Montréal ainsi que plusieurs secteurs de la
-              Rive-Nord et de la Rive-Sud. Nous pouvons également répondre à
-              certains besoins dans des régions plus éloignées.
-            </p>
 
-            <p className={styles.subText}>
-              Découvrez les principaux secteurs couverts par Glory Solutions.
-            </p>
+          
           </div>
 
-          {/* CARTES DES RÉGIONS */}
+          {/* ============================================
+              RÉGIONS
+          ============================================ */}
+
           <div className={styles.regionsGrid}>
             {regions.map((region, index) => (
               <article
                 key={region.title}
                 className={styles.regionCard}
               >
-                <div className={styles.regionNumber}>
-                  {String(index + 1).padStart(2, "0")}
-                </div>
+                <div className={styles.regionTop}>
+                  <span className={styles.regionNumber}>
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
 
-                <div className={styles.regionIcon}>
-                  <MapPin
-                    size={24}
-                    strokeWidth={1.8}
-                    aria-hidden="true"
-                  />
+                  <span className={styles.regionIcon}>
+                    <MapPin
+                      size={22}
+                      strokeWidth={1.8}
+                      aria-hidden="true"
+                    />
+                  </span>
                 </div>
 
                 <h2>{region.title}</h2>
@@ -145,15 +231,56 @@ export default function RegionsPage() {
               </article>
             ))}
           </div>
+        </section>
 
-          {/* CARTE INTERACTIVE */}
-          <section className={styles.mapSection}>
-           
+        {/* ============================================
+            CARTE — PLEINE LARGEUR
+        ============================================ */}
 
+        <section className={styles.mapSection}>
+          <div className={styles.mapHeading}>
+            <p className={styles.mapEyebrow}>
+              Couverture géographique
+            </p>
+
+            <h2>
+              Notre réseau
+              <br />
+              de livraison
+            </h2>
+
+          </div>
+
+          <div className={styles.mapContainer}>
             <RegionsMapLoader />
-          </section>
+          </div>
+        </section>
 
-          {/* BLOC CONTACT */}
+        {/* ============================================
+            CONTACT / CTA
+        ============================================ */}
+
+        <section className={styles.bottomSection}>
+          <div className={styles.contactBox}>
+            <div>
+              <p className={styles.contactLabel}>
+                Transport hors Québec
+              </p>
+
+              <h2>
+                Ontario et autres provinces disponibles sur demande
+              </h2>
+            </div>
+
+            <Link
+              href="/quote"
+              className={styles.contactButton}
+            >
+              Demander une soumission
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          </div>
+
           <div className={styles.contactBox}>
             <div>
               <p className={styles.contactLabel}>
@@ -170,12 +297,7 @@ export default function RegionsPage() {
               className={styles.contactButton}
             >
               Nous contacter
-
-              <ArrowRight
-                size={18}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
+              <ArrowRight size={18} aria-hidden="true" />
             </Link>
           </div>
         </section>

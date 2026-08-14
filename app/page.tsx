@@ -1,15 +1,21 @@
 import Link from "next/link";
+
 import {
   Boxes,
   CarFront,
   ClipboardList,
   Container,
+  Snowflake,
   Truck,
   Warehouse,
 } from "lucide-react";
 
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
+
+/* =========================================
+   SERVICES
+========================================= */
 
 const services = [
   {
@@ -36,6 +42,10 @@ const services = [
     title: "Déménagement",
     icon: Boxes,
   },
+  {
+    title: "Température contrôlée",
+    icon: Snowflake,
+  },
 ];
 
 export default function HomePage() {
@@ -48,7 +58,10 @@ export default function HomePage() {
             HERO
         ======================================== */}
         <section id="top" className="hero">
-          <div className="hero-overlay" aria-hidden="true" />
+          <div
+            className="hero-overlay"
+            aria-hidden="true"
+          />
 
           <div className="hero-content">
             <p className="hero-subtitle">
@@ -58,11 +71,15 @@ export default function HomePage() {
             <h1>Transport</h1>
 
             <p className="hero-description">
-              Chez GLORY SOLUTIONS, nous offrons des services professionnels de
-              transport, de déménagement et de logistique adaptés aux besoins
-              des particuliers et des entreprises. Nous nous engageons à
-              fournir un service fiable, rapide et sécuritaire, avec une
-              attention particulière à la satisfaction de nos clients.
+              Chez GLORY SOLUTIONS, nous offrons des
+              services professionnels de transport,
+              de déménagement et de logistique adaptés
+              aux besoins des particuliers et des
+              entreprises. Nous nous engageons à
+              fournir un service fiable, rapide et
+              sécuritaire, avec une attention
+              particulière à la satisfaction de nos
+              clients.
             </p>
 
             <div className="hero-actions">

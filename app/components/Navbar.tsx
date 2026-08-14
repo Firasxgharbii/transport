@@ -12,6 +12,7 @@ const navigationLinks = [
   { label: "Régions desservies", href: "/regions" },
   { label: "Transport automobile", href: "/transport-automobile" },
   { label: "Déménagement", href: "/demenagement" },
+  {label: "Température contrôlée", href: "/temperature-controlee"},
   { label: "Login", href: "/login" },
 ];
 

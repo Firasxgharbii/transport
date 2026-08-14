@@ -1420,3 +1420,267 @@
     animation: none;
   }
 }
+
+/* =========================================================
+   GLORY SOLUTIONS
+   LOGO SEUL SUR LA CARTE
+========================================================= */
+
+.logoOnlyMarkerRoot {
+  width: 48px !important;
+  height: 48px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  outline: 0 !important;
+
+  overflow: visible !important;
+}
+
+/* =========================================================
+   STRUCTURE DU LOGO
+========================================================= */
+
+.logoOnlyMarker {
+  position: relative;
+
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+
+  transform-origin: center center;
+
+  filter:
+    drop-shadow(
+      0 5px 5px
+      rgba(0, 0, 0, 0.26)
+    );
+
+  transition:
+    transform 0.25s ease,
+    filter 0.25s ease;
+}
+
+/* =========================================================
+   IMAGE DU LOGO
+========================================================= */
+
+.logoOnlyMarker img {
+  display: block !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  max-width: none !important;
+  max-height: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  object-fit: contain !important;
+
+  background: transparent !important;
+  border: 0 !important;
+
+  pointer-events: none;
+}
+
+/* =========================================================
+   HALO MODERNE AU SURVOL
+========================================================= */
+
+.logoOnlyMarker::before {
+  content: "";
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+
+  width: 38px;
+  height: 38px;
+
+  background:
+    rgba(
+      220,
+      20,
+      60,
+      0.1
+    );
+
+  border-radius: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  opacity: 0;
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.logoOnlyMarkerRoot:hover
+.logoOnlyMarker {
+  transform:
+    translateY(-5px)
+    scale(1.18);
+
+  filter:
+    drop-shadow(
+      0 9px 7px
+      rgba(0, 0, 0, 0.3)
+    );
+}
+
+.logoOnlyMarkerRoot:hover
+.logoOnlyMarker::before {
+  opacity: 1;
+
+  transform:
+    translate(-50%, -50%)
+    scale(1.5);
+}
+
+/* =========================================================
+   LOGO DANS LA LÉGENDE
+========================================================= */
+
+.mapLegendLogo {
+  width: 22px;
+  height: 22px;
+
+  display: block;
+
+  object-fit: contain;
+
+  filter:
+    drop-shadow(
+      0 2px 3px
+      rgba(0, 0, 0, 0.25)
+    );
+}
+
+/* =========================================================
+   POPUP MODERNE
+========================================================= */
+
+.popupLogoModern {
+  width: 50px;
+  height: 50px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 4px;
+
+  background: transparent;
+}
+
+.popupLogoModern img {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  object-fit: contain;
+
+  filter:
+    drop-shadow(
+      0 3px 4px
+      rgba(0, 0, 0, 0.18)
+    );
+}
+
+/* =========================================================
+   POINT DE RÉFÉRENCE
+========================================================= */
+
+.popupReference {
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+
+  margin:
+    0
+    0
+    15px;
+
+  padding:
+    11px
+    13px;
+
+  color: #777777;
+  background: #f7f7f7;
+
+  border-left:
+    3px solid
+    var(--crimson);
+
+  font-size: 9px;
+  font-weight: 700;
+
+  letter-spacing: 1px;
+
+  text-transform: uppercase;
+}
+
+.popupReference strong {
+  color: var(--black);
+
+  font-size: 13px;
+  font-weight: 900;
+
+  letter-spacing: 0;
+
+  text-transform: none;
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 680px) {
+  .logoOnlyMarkerRoot {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .logoOnlyMarker {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mapLegendLogo {
+    width: 19px;
+    height: 19px;
+  }
+}
+
+/* =========================================================
+   PETITS TÉLÉPHONES
+========================================================= */
+
+@media (max-width: 390px) {
+  .logoOnlyMarkerRoot {
+    width: 35px !important;
+    height: 35px !important;
+  }
+
+  .logoOnlyMarker {
+    width: 35px;
+    height: 35px;
+  }
+}

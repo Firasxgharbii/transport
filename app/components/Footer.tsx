@@ -31,6 +31,7 @@ const services = [
   "Préparation de commande",
   "Transport automobile",
   "Déménagement",
+  "Temperature contrôlée",
 ];
 
 export default function Footer() {

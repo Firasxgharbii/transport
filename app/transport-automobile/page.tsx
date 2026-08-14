@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Truck,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -19,56 +20,119 @@ import Footer from "../components/Footer";
 
 import styles from "./transport-automobile.module.css";
 
-const automobileServices = [
-  "Transport de voitures",
-  "VUS et camionnettes",
-  "Véhicules de luxe",
-  "Véhicules électriques",
-  "Véhicules achetés aux encans",
-  "Transfert entre concessionnaires",
-  "Livraison directement chez le client",
-  "Transport pour garages et ateliers mécaniques",
-  "Transport pour compagnies d’assurance",
-  "Véhicules accidentés ou non roulants",
+type Advantage = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+};
+
+type AutomobileService = {
+  title: string;
+  description: string;
+};
+
+const automobileServices: AutomobileService[] = [
+  {
+    title: "Transport de voitures",
+    description:
+      "Transport sécuritaire de véhicules personnels ou commerciaux partout au Québec.",
+  },
+  {
+    title: "VUS et camionnettes",
+    description:
+      "Prise en charge adaptée aux véhicules plus volumineux, VUS et camionnettes.",
+  },
+  {
+    title: "Véhicules de luxe",
+    description:
+      "Manipulation soignée et service adapté aux véhicules haut de gamme.",
+  },
+  {
+    title: "Véhicules électriques",
+    description:
+      "Transport professionnel des véhicules électriques avec équipement approprié.",
+  },
+  {
+    title: "Véhicules achetés aux encans",
+    description:
+      "Ramassage et livraison de véhicules provenant d'encans automobiles.",
+  },
+  {
+    title: "Transfert entre concessionnaires",
+    description:
+      "Déplacement rapide de véhicules entre différents concessionnaires.",
+  },
+  {
+    title: "Livraison chez le client",
+    description:
+      "Livraison directement à l'adresse résidentielle ou commerciale du client.",
+  },
+  {
+    title: "Garages et ateliers mécaniques",
+    description:
+      "Transport de véhicules vers ou depuis garages, ateliers et centres de service.",
+  },
+  {
+    title: "Compagnies d’assurance",
+    description:
+      "Solutions de transport adaptées aux dossiers d'assurance et de réclamation.",
+  },
+  {
+    title: "Véhicules non roulants",
+    description:
+      "Prise en charge de véhicules accidentés, en panne ou non fonctionnels.",
+  },
 ];
 
-const advantages = [
+const advantages: Advantage[] = [
   {
     title: "Sécurité avant tout",
     description:
-      "Chaque véhicule est solidement arrimé avec un équipement professionnel afin d’assurer un transport sans risque.",
+      "Chaque véhicule est arrimé avec un équipement professionnel afin d’assurer un transport fiable et sécuritaire.",
     icon: ShieldCheck,
   },
   {
     title: "Service rapide",
     description:
-      "Nous planifions chaque transport afin de respecter les délais convenus et d’assurer une livraison efficace.",
+      "Chaque transport est planifié avec attention afin de respecter les délais convenus et d’assurer une livraison efficace.",
     icon: Clock3,
   },
   {
     title: "Tarification transparente",
     description:
-      "Vous recevez une soumission claire et compétitive avant le transport, sans frais cachés.",
+      "Vous recevez une soumission claire avant le transport avec une tarification expliquée dès le départ.",
     icon: BadgeDollarSign,
   },
   {
     title: "Transport assuré",
     description:
-      "Nos transports sont couverts par une assurance responsabilité pour une tranquillité d’esprit complète.",
+      "Nos opérations sont couvertes afin de vous offrir davantage de tranquillité d’esprit pendant le déplacement.",
     icon: CheckCircle2,
   },
   {
     title: "Communication",
     description:
-      "Vous êtes informé de l’évolution du transport jusqu’à la livraison de votre véhicule.",
+      "Notre équipe demeure disponible pour vous informer de l’évolution de votre transport jusqu’à la livraison.",
     icon: Headphones,
   },
   {
     title: "Service personnalisé",
     description:
-      "Nous adaptons notre service à vos besoins, qu’il s’agisse d’un seul véhicule ou d’une flotte complète.",
+      "Nous adaptons notre service selon vos besoins, qu’il s’agisse d’un véhicule individuel ou d’une flotte.",
     icon: Users,
   },
+];
+
+const heroHighlights = [
+  "Service assuré",
+  "Livraison sécuritaire",
+  "Prix compétitifs",
+];
+
+const introductionPoints = [
+  "Transport professionnel et assuré",
+  "Équipement adapté à votre véhicule",
+  "Service disponible partout au Québec",
 ];
 
 export default function AutomobileTransportPage() {
@@ -77,117 +141,87 @@ export default function AutomobileTransportPage() {
       <Navbar />
 
       <main className={styles.main}>
-        {/* HERO */}
         <section className={styles.hero}>
-          <div className={styles.heroOverlay} />
+          <div className={styles.heroOverlay} aria-hidden="true" />
 
-          <div className={styles.heroContent}>
-            <p className={styles.eyebrow}>
-              Glory Solutions
-            </p>
+          <div className={styles.heroInner}>
+            <div className={styles.heroContent}>
+              <p className={styles.eyebrow}>Glory Solutions</p>
 
-            <h1>
-              Transport automobile
-              <span>partout au Québec</span>
-            </h1>
+              <h1>
+                Transport automobile
+                <span>partout au Québec</span>
+              </h1>
 
-            <p className={styles.heroIntroduction}>
-              Votre partenaire de confiance pour le transport sécuritaire de
-              voitures, de VUS, de camionnettes et de véhicules spécialisés.
-            </p>
+              <p className={styles.heroIntroduction}>
+                Une solution professionnelle pour le transport sécuritaire de
+                voitures, VUS, camionnettes et véhicules spécialisés.
+              </p>
 
-            <div className={styles.heroActions}>
-              <Link
-                href="/quote"
-                className={styles.primaryButton}
-              >
-                Demander une soumission
+              <div className={styles.heroActions}>
+                <Link href="/quote" className={styles.primaryButton}>
+                  Demander une soumission
+                  <ArrowRight size={18} aria-hidden="true" />
+                </Link>
 
-                <ArrowRight
-                  size={18}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-              </Link>
+                <Link href="/contact" className={styles.secondaryButton}>
+                  Nous contacter
+                </Link>
+              </div>
 
-              <Link
-                href="/contact"
-                className={styles.secondaryButton}
-              >
-                Nous contacter
-              </Link>
-            </div>
-
-            <div className={styles.heroHighlights}>
-              <span>
-                <Check size={18} aria-hidden="true" />
-                Service assuré
-              </span>
-
-              <span>
-                <Check size={18} aria-hidden="true" />
-                Livraison sécuritaire
-              </span>
-
-              <span>
-                <Check size={18} aria-hidden="true" />
-                Prix compétitifs
-              </span>
+              <div className={styles.heroHighlights}>
+                {heroHighlights.map((item) => (
+                  <span key={item}>
+                    <Check size={17} aria-hidden="true" />
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* AVANTAGES */}
         <section className={styles.advantagesSection}>
-          <div className={styles.sectionHeading}>
-            <p className={styles.sectionLabel}>
-              Pourquoi nous choisir ?
-            </p>
+          <div className={styles.container}>
+            <div className={styles.sectionHeading}>
+              <p className={styles.sectionLabel}>Pourquoi nous choisir ?</p>
 
-            <h2>
-              Le transport automobile
-              <span>en toute confiance</span>
-            </h2>
+              <h2>
+                Le transport automobile
+                <span>en toute confiance</span>
+              </h2>
 
-            <p className={styles.sectionDescription}>
-              Une équipe professionnelle, une communication claire et une
-              solution adaptée à chaque véhicule.
-            </p>
-          </div>
+             
+            </div>
 
-          <div className={styles.advantagesGrid}>
-            {advantages.map((advantage, index) => {
-              const Icon = advantage.icon;
+            <div className={styles.advantagesGrid}>
+              {advantages.map((advantage, index) => {
+                const Icon = advantage.icon;
 
-              return (
-                <article
-                  key={advantage.title}
-                  className={styles.advantageCard}
-                >
-                  <span className={styles.advantageNumber}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
+                return (
+                  <article
+                    key={advantage.title}
+                    className={styles.advantageCard}
+                  >
+                    <span className={styles.advantageNumber}>
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
 
-                  <span className={styles.advantageIcon}>
-                    <Icon
-                      size={31}
-                      strokeWidth={1.7}
-                      aria-hidden="true"
-                    />
-                  </span>
+                    <div className={styles.advantageIcon}>
+                      <Icon size={27} strokeWidth={1.8} aria-hidden="true" />
+                    </div>
 
-                  <h3>{advantage.title}</h3>
-
-                  <p>{advantage.description}</p>
-                </article>
-              );
-            })}
+                    <h3>{advantage.title}</h3>
+                    <p>{advantage.description}</p>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </section>
 
-        {/* INTRODUCTION */}
         <section className={styles.introductionSection}>
-          <div className={styles.introductionGrid}>
+          <div className={`${styles.container} ${styles.introductionGrid}`}>
             <div className={styles.introductionContent}>
               <p className={styles.sectionLabel}>
                 Une solution professionnelle
@@ -199,61 +233,40 @@ export default function AutomobileTransportPage() {
               </h2>
 
               <p className={styles.introductionLead}>
-                Glory Solutions offre un service fiable de transport de
-                véhicules pour les particuliers, les concessionnaires, les
-                encans, les compagnies d’assurance et les entreprises.
+                Glory Solutions offre un service de transport automobile
+                destiné aux particuliers, concessionnaires, encans, garages,
+                compagnies d’assurance et entreprises.
               </p>
 
               <p>
-                Que votre véhicule soit neuf, usagé, en panne ou non
-                immatriculé, notre équipe s’assure qu’il soit transporté
-                rapidement, en toute sécurité et dans les meilleurs délais.
-              </p>
-
-              <p>
-                Nous prenons en charge différents types de véhicules en offrant
-                un service ponctuel, professionnel et assuré partout au Québec.
-                Votre véhicule est traité avec le même soin que s’il était le
-                nôtre.
+                Que votre véhicule soit neuf, usagé, en panne, accidenté ou non
+                immatriculé, notre équipe organise son transport avec soin afin
+                de vous offrir une solution simple, efficace et sécuritaire.
               </p>
 
               <div className={styles.introductionPoints}>
-                <div>
-                  <CheckCircle2 size={21} aria-hidden="true" />
-                  <span>Transport professionnel et assuré</span>
-                </div>
-
-                <div>
-                  <CheckCircle2 size={21} aria-hidden="true" />
-                  <span>Équipement adapté à votre véhicule</span>
-                </div>
-
-                <div>
-                  <CheckCircle2 size={21} aria-hidden="true" />
-                  <span>Service partout au Québec</span>
-                </div>
+                {introductionPoints.map((point) => (
+                  <div key={point}>
+                    <CheckCircle2 size={20} aria-hidden="true" />
+                    <span>{point}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
             <div className={styles.introductionVisual}>
               <Image
                 src="/images/transport-auto-remorque.jpeg"
-                alt="Camionnette Glory Solutions avec une remorque de transport"
+                alt="Transport automobile Glory Solutions"
                 fill
-                priority
                 sizes="(max-width: 1000px) 100vw, 50vw"
                 className={styles.introductionImage}
               />
 
-              <div className={styles.imageFrame} />
+              <div className={styles.imageFrame} aria-hidden="true" />
 
               <div className={styles.imageBadge}>
-                <Truck
-                  size={27}
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
-
+                <Truck size={26} aria-hidden="true" />
                 <span>
                   Transport professionnel
                   <strong>Partout au Québec</strong>
@@ -263,71 +276,66 @@ export default function AutomobileTransportPage() {
           </div>
         </section>
 
-        {/* SERVICES */}
         <section className={styles.servicesSection}>
-          <div className={styles.servicesHeader}>
-            <div>
-              <p className={styles.sectionLabel}>
-                Nos services
-              </p>
+          <div className={styles.container}>
+            <div className={styles.servicesHeader}>
+              <div className={styles.servicesHeading}>
+                <p className={styles.sectionLabel}>Nos services</p>
 
-              <h2>
-                Nous transportons
-                <span>tous types de véhicules</span>
-              </h2>
+                <h2>
+                  Nous transportons
+                  <span>tous types de véhicules</span>
+                </h2>
+              </div>
+
+              <div className={styles.servicesIntroWrap}>
+                <p>
+                  Nos solutions sont adaptées aux particuliers,
+                  concessionnaires, garages, assureurs, entreprises et
+                  gestionnaires de flotte.
+                </p>
+
+                <Link href="/quote" className={styles.textLink}>
+                  Obtenir une soumission
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
             </div>
 
-            <p className={styles.servicesIntro}>
-              Une solution professionnelle adaptée aux particuliers,
-              concessionnaires, entreprises, garages, assureurs et gestionnaires
-              de flotte.
-            </p>
-          </div>
+            <div className={styles.servicesGrid}>
+              {automobileServices.map((service, index) => (
+                <article key={service.title} className={styles.serviceCard}>
+                  <div className={styles.serviceTop}>
+                    <span className={styles.serviceNumber}>
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
 
-          <div className={styles.servicesGrid}>
-            {automobileServices.map((service, index) => (
-              <article
-                key={service}
-                className={styles.serviceCircle}
-              >
-                <span className={styles.serviceNumber}>
-                  {String(index + 1).padStart(2, "0")}
-                </span>
+                    <div className={styles.serviceIcon}>
+                      <Car size={27} strokeWidth={1.8} aria-hidden="true" />
+                    </div>
+                  </div>
 
-                <span className={styles.serviceIcon}>
-                  <Car
-                    size={30}
-                    strokeWidth={1.7}
-                    aria-hidden="true"
-                  />
-                </span>
+                  <div className={styles.serviceBody}>
+                    <h3>{service.title}</h3>
+                    <p>{service.description}</p>
+                  </div>
 
-                <h3>{service}</h3>
+                  <div className={styles.serviceFooter}>
+                    <span>En savoir plus</span>
+                    <span className={styles.serviceArrow}>
+                      <ArrowRight size={18} aria-hidden="true" />
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
 
-                <span className={styles.serviceArrow}>
-                  <ArrowRight
-                    size={20}
-                    strokeWidth={2}
-                    aria-hidden="true"
-                  />
-                </span>
-              </article>
-            ))}
-          </div>
-
-          <div className={styles.servicesAction}>
-            <Link
-              href="/quote"
-              className={styles.servicesButton}
-            >
-              Demander une soumission
-
-              <ArrowRight
-                size={18}
-                strokeWidth={2}
-                aria-hidden="true"
-              />
-            </Link>
+            <div className={styles.servicesAction}>
+              <Link href="/quote" className={styles.servicesButton}>
+                Demander une soumission
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </section>
       </main>

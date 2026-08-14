@@ -1,11 +1,22 @@
+/* =========================================================
+   VARIABLES
+========================================================= */
+
 .page {
   --crimson: #dc143c;
   --crimson-dark: #a80f2e;
+  --crimson-soft: #fff1f4;
+
   --white: #ffffff;
   --black: #151515;
-  --gray-light: #f5f5f5;
-  --gray-text: #656565;
-  --border: #e7e7e7;
+
+  --gray-900: #222222;
+  --gray-700: #505050;
+  --gray-600: #696969;
+  --gray-300: #d8d8d8;
+  --gray-200: #e8e8e8;
+  --gray-100: #f5f5f5;
+  --gray-50: #fafafa;
 
   width: 100%;
   min-height: 100vh;
@@ -19,9 +30,102 @@
   overflow: hidden;
 }
 
-/* ========================================
+.container {
+  width: min(1320px, calc(100% - 48px));
+  margin-inline: auto;
+}
+
+/* =========================================================
+   COMMON
+========================================================= */
+
+.eyebrow,
+.sectionLabel {
+  margin: 0 0 18px;
+
+  color: var(--crimson);
+
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.primaryButton,
+.secondaryButton,
+.servicesButton {
+  min-height: 58px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  padding: 0 28px;
+
+  border: 1px solid transparent;
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-decoration: none;
+  text-transform: uppercase;
+
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    background-color 0.28s ease,
+    color 0.28s ease,
+    border-color 0.28s ease;
+}
+
+.primaryButton,
+.servicesButton {
+  color: var(--white);
+  background: var(--crimson);
+  border-color: var(--crimson);
+
+  box-shadow: 0 14px 34px rgba(220, 20, 60, 0.22);
+}
+
+.primaryButton:hover,
+.servicesButton:hover {
+  background: var(--crimson-dark);
+  border-color: var(--crimson-dark);
+
+  transform: translateY(-3px);
+
+  box-shadow: 0 20px 40px rgba(220, 20, 60, 0.28);
+}
+
+.primaryButton svg,
+.servicesButton svg {
+  transition: transform 0.28s ease;
+}
+
+.primaryButton:hover svg,
+.servicesButton:hover svg {
+  transform: translateX(4px);
+}
+
+.secondaryButton {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.secondaryButton:hover {
+  color: var(--black);
+  background: var(--white);
+  border-color: var(--white);
+
+  transform: translateY(-3px);
+}
+
+/* =========================================================
    HERO
-======================================== */
+========================================================= */
 
 .hero {
   position: relative;
@@ -29,20 +133,14 @@
   min-height: 760px;
 
   display: flex;
-  align-items: flex-end;
-
-  padding:
-    calc(var(--navbar-height, 108px) + 80px)
-    clamp(24px, 8vw, 140px)
-    90px;
+  align-items: center;
 
   color: var(--white);
 
-  background-image:
-    url("/images/demenagement-hero.jpeg");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
+  background:
+    url("/images/demenagement-hero.jpeg")
+    center / cover
+    no-repeat;
 }
 
 .heroOverlay {
@@ -52,120 +150,75 @@
   background:
     linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.82) 0%,
-      rgba(0, 0, 0, 0.58) 45%,
-      rgba(0, 0, 0, 0.18) 100%
+      rgba(8, 8, 8, 0.95) 0%,
+      rgba(8, 8, 8, 0.8) 42%,
+      rgba(8, 8, 8, 0.34) 72%,
+      rgba(8, 8, 8, 0.13) 100%
     );
 }
 
-.heroContent {
+.heroInner {
   position: relative;
   z-index: 2;
 
-  width: min(850px, 100%);
+  width: min(1320px, calc(100% - 48px));
+  margin-inline: auto;
+
+  padding-top: calc(var(--navbar-height, 110px) + 45px);
+  padding-bottom: 70px;
 }
 
-.eyebrow {
-  margin-bottom: 16px;
+.heroContent {
+  width: min(850px, 100%);
 
-  color: #ff9eb3;
-
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: 4px;
-  text-transform: uppercase;
+  animation: heroEntrance 0.85s ease both;
 }
 
 .hero h1 {
+  max-width: 900px;
+
   margin: 0;
 
-  font-size: clamp(55px, 7vw, 105px);
-  font-weight: 900;
+  font-size: clamp(56px, 7vw, 104px);
+  font-weight: 950;
   line-height: 0.94;
-  letter-spacing: -3px;
+  letter-spacing: -4px;
   text-transform: uppercase;
 }
 
 .hero h1 span {
   display: block;
 
+  margin-top: 12px;
+
   color: var(--crimson);
 }
 
 .heroDescription {
-  max-width: 680px;
+  max-width: 710px;
 
-  margin-top: 30px;
+  margin: 30px 0 0;
 
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(255, 255, 255, 0.85);
 
-  font-size: clamp(16px, 1.4vw, 20px);
-  line-height: 1.8;
+  font-size: clamp(17px, 1.5vw, 21px);
+  line-height: 1.75;
 }
 
 .heroActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
 
-  margin-top: 35px;
-}
-
-.primaryButton,
-.secondaryButton {
-  min-height: 58px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 11px;
-
-  padding: 17px 27px;
-
-  border: 2px solid transparent;
-
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-
-  transition:
-    transform 0.3s ease,
-    color 0.3s ease,
-    background 0.3s ease,
-    border-color 0.3s ease;
-}
-
-.primaryButton {
-  color: var(--white);
-  background: var(--crimson);
-}
-
-.primaryButton:hover {
-  background: var(--crimson-dark);
-  transform: translateY(-4px);
-}
-
-.secondaryButton {
-  color: var(--white);
-  background: rgba(255, 255, 255, 0.08);
-
-  border-color: var(--white);
-}
-
-.secondaryButton:hover {
-  color: var(--crimson);
-  background: var(--white);
-
-  transform: translateY(-4px);
+  margin-top: 38px;
 }
 
 .heroHighlights {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px 32px;
+  gap: 15px 28px;
 
-  margin-top: 32px;
+  margin-top: 34px;
 }
 
 .heroHighlights span {
@@ -173,7 +226,7 @@
   align-items: center;
   gap: 8px;
 
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.84);
 
   font-size: 13px;
   font-weight: 700;
@@ -183,120 +236,104 @@
   color: var(--crimson);
 }
 
-/* ========================================
-   ÉTIQUETTES DES SECTIONS
-======================================== */
-
-.sectionLabel {
-  margin-bottom: 15px;
-
-  color: var(--crimson);
-
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-}
-
-/* ========================================
+/* =========================================================
    INTRODUCTION
-======================================== */
+========================================================= */
 
 .introductionSection {
-  padding:
-    120px
-    clamp(24px, 8vw, 140px);
+  padding: 130px 0;
+
+  background: var(--white);
 }
 
 .introductionGrid {
-  width: min(1400px, 100%);
-
   display: grid;
   grid-template-columns:
     minmax(0, 0.95fr)
-    minmax(460px, 1.05fr);
-  align-items: center;
-  gap: clamp(70px, 9vw, 150px);
+    minmax(480px, 1.05fr);
 
-  margin: 0 auto;
+  align-items: center;
+
+  gap: clamp(60px, 8vw, 110px);
 }
 
 .introductionContent {
-  min-width: 0;
+  max-width: 620px;
 }
 
-.introductionContent h2 {
-  margin: 0 0 35px;
+.introductionContent h2,
+.servicesHeading h2 {
+  margin: 0;
 
-  font-size: clamp(43px, 5.5vw, 78px);
-  font-weight: 900;
-  line-height: 0.96;
-  letter-spacing: -3px;
+  color: var(--black);
+
+  font-size: clamp(44px, 5vw, 74px);
+  font-weight: 950;
+  line-height: 0.98;
+  letter-spacing: -2.6px;
   text-transform: uppercase;
 }
 
-.introductionContent h2 span {
+.introductionContent h2 span,
+.servicesHeading h2 span {
   display: block;
+
+  margin-top: 9px;
 
   color: var(--crimson);
 }
 
-.introductionContent > p {
-  max-width: 650px;
+.introductionLead {
+  margin: 30px 0 0;
 
-  margin-bottom: 22px;
+  color: var(--gray-900);
 
-  color: var(--gray-text);
-
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.75;
 }
 
-.introductionContent .introductionLead {
-  color: var(--black);
+.introductionContent > p:not(.sectionLabel):not(.introductionLead) {
+  margin: 20px 0 0;
 
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.7;
+  color: var(--gray-600);
+
+  font-size: 16px;
+  line-height: 1.85;
 }
 
 .commitmentList {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 12px;
 
-  margin-top: 34px;
+  margin-top: 32px;
 }
 
 .commitmentItem {
-  width: 100%;
-
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 12px;
 
-  padding: 17px 18px;
+  min-height: 52px;
 
-  color: var(--black);
-  background: var(--gray-light);
+  padding: 14px 16px;
 
-  border-left: 4px solid transparent;
-  border-radius: 9px;
+  background: var(--gray-100);
 
-  font-size: 14px;
-  font-weight: 800;
+  border: 1px solid transparent;
+  border-radius: 12px;
 
   transition:
-    border-color 0.3s ease,
-    transform 0.3s ease,
-    background 0.3s ease;
+    transform 0.28s ease,
+    background-color 0.28s ease,
+    border-color 0.28s ease;
 }
 
 .commitmentItem:hover {
-  background: #f0f0f0;
-  border-left-color: var(--crimson);
+  background: var(--crimson-soft);
+  border-color: rgba(220, 20, 60, 0.12);
 
-  transform: translateX(7px);
+  transform: translateX(5px);
 }
 
 .commitmentItem svg {
@@ -305,144 +342,174 @@
   color: var(--crimson);
 }
 
-/* ========================================
-   IMAGE D’INTRODUCTION
-======================================== */
+.commitmentItem span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* =========================================================
+   INTRO IMAGE
+========================================================= */
 
 .introductionVisual {
   position: relative;
 
-  min-height: 650px;
-
-  overflow: hidden;
-
-  background: #eeeeee;
+  min-height: 610px;
 }
 
 .introductionImage {
+  z-index: 1;
+
   object-fit: cover;
-  object-position: center;
+
+  border-radius: 28px;
+
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.15);
 }
 
 .imageOverlay {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
 
   background:
     linear-gradient(
       180deg,
-      transparent 45%,
+      transparent 48%,
       rgba(0, 0, 0, 0.28) 100%
     );
+
+  border-radius: 28px;
+
+  pointer-events: none;
 }
 
 .imageFrame {
   position: absolute;
-  top: 35px;
-  right: 35px;
-  bottom: 35px;
-  left: 35px;
-  z-index: 2;
+  top: 28px;
+  right: -26px;
+  bottom: -26px;
+  left: 28px;
+  z-index: 0;
 
-  border: 2px solid rgba(255, 255, 255, 0.78);
+  border: 2px solid var(--crimson);
+  border-radius: 28px;
 
   pointer-events: none;
 }
 
 .imageBadge {
   position: absolute;
-  right: 35px;
-  bottom: 35px;
+  right: 22px;
+  bottom: 22px;
   z-index: 3;
-
-  min-width: 220px;
 
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 14px;
 
-  padding: 20px;
+  padding: 17px 20px;
 
   color: var(--white);
   background: var(--crimson);
 
-  border-radius: 13px;
+  border-radius: 15px;
 
-  box-shadow:
-    0 22px 55px rgba(220, 20, 60, 0.35);
-}
-
-.imageBadge svg {
-  flex-shrink: 0;
+  box-shadow: 0 16px 36px rgba(220, 20, 60, 0.3);
 }
 
 .imageBadge span {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 10px;
+  line-height: 1.35;
+  letter-spacing: 0.7px;
   text-transform: uppercase;
 }
 
 .imageBadge strong {
-  font-size: 14px;
+  margin-top: 4px;
+
+  font-size: 13px;
 }
 
-/* ========================================
+/* =========================================================
    SERVICES
-======================================== */
+========================================================= */
 
 .servicesSection {
-  padding:
-    120px
-    clamp(24px, 8vw, 140px);
+  position: relative;
 
-  background: #101010;
-}
+  padding: 130px 0 140px;
 
-.servicesContainer {
-  width: min(1400px, 100%);
-
-  margin: 0 auto;
+  background:
+    radial-gradient(
+      circle at 95% 5%,
+      rgba(220, 20, 60, 0.08),
+      transparent 25%
+    ),
+    linear-gradient(
+      180deg,
+      #fafafa 0%,
+      #f3f3f3 100%
+    );
 }
 
 .servicesHeader {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  align-items: end;
-  gap: 70px;
+  grid-template-columns:
+    minmax(0, 1.2fr)
+    minmax(320px, 0.8fr);
 
-  margin-bottom: 70px;
+  align-items: end;
+
+  gap: clamp(50px, 8vw, 110px);
+
+  margin-bottom: 62px;
 }
 
-.servicesHeader h2 {
+.servicesHeading {
+  max-width: 780px;
+}
+
+.servicesIntroWrap {
+  max-width: 500px;
+
+  padding-bottom: 8px;
+}
+
+.servicesIntroWrap p {
   margin: 0;
 
-  color: var(--white);
+  color: var(--gray-600);
 
-  font-size: clamp(43px, 5vw, 72px);
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 22px;
+
+  color: var(--crimson);
+
+  font-size: 12px;
   font-weight: 900;
-  line-height: 0.98;
-  letter-spacing: -3px;
+  letter-spacing: 1px;
+  text-decoration: none;
   text-transform: uppercase;
 }
 
-.servicesHeader h2 span {
-  display: block;
-
-  color: var(--crimson);
+.textLink svg {
+  transition: transform 0.25s ease;
 }
 
-.servicesDescription {
-  max-width: 600px;
-
-  color: rgba(255, 255, 255, 0.66);
-
-  font-size: 16px;
-  line-height: 1.8;
+.textLink:hover svg {
+  transform: translateX(4px);
 }
 
 .servicesGrid {
@@ -459,19 +526,22 @@
   display: flex;
   flex-direction: column;
 
-  padding: 31px;
-
-  color: var(--white);
-  background: #191919;
-
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 26px;
 
   overflow: hidden;
 
+  background: rgba(255, 255, 255, 0.94);
+
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 18px;
+
+  box-shadow: 0 13px 32px rgba(0, 0, 0, 0.055);
+
   transition:
-    transform 0.3s ease,
-    background 0.3s ease,
-    border-color 0.3s ease;
+    transform 0.32s ease,
+    box-shadow 0.32s ease,
+    border-color 0.32s ease,
+    background-color 0.32s ease;
 }
 
 .serviceCard::before {
@@ -479,100 +549,176 @@
 
   position: absolute;
   top: 0;
+  right: 0;
   left: 0;
 
-  width: 0;
-  height: 4px;
+  height: 3px;
 
   background: var(--crimson);
 
-  transition: width 0.3s ease;
+  transform: scaleX(0);
+  transform-origin: left;
+
+  transition: transform 0.32s ease;
 }
 
 .serviceCard:hover {
-  background: #222222;
-  border-color: rgba(220, 20, 60, 0.55);
-
   transform: translateY(-8px);
+
+  background: var(--white);
+  border-color: rgba(220, 20, 60, 0.16);
+
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.095);
 }
 
 .serviceCard:hover::before {
-  width: 100%;
+  transform: scaleX(1);
+}
+
+.serviceTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .serviceNumber {
-  position: absolute;
-  top: 24px;
-  right: 25px;
-
-  color: rgba(255, 255, 255, 0.24);
+  color: rgba(21, 21, 21, 0.2);
 
   font-size: 13px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
 }
 
 .serviceIcon {
-  width: 62px;
-  height: 62px;
+  width: 56px;
+  height: 56px;
 
   display: grid;
   place-items: center;
 
-  margin-bottom: 38px;
+  color: var(--crimson);
+  background: var(--crimson-soft);
 
+  border-radius: 14px;
+
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.serviceCard:hover .serviceIcon {
   color: var(--white);
   background: var(--crimson);
 
-  border-radius: 4px;
-
-  box-shadow:
-    0 15px 35px rgba(220, 20, 60, 0.22);
+  transform: rotate(-5deg);
 }
 
-.serviceCard h3 {
-  margin-bottom: 16px;
+.serviceBody {
+  margin-top: 35px;
+}
 
-  font-size: 20px;
+.serviceBody h3 {
+  margin: 0;
+
+  color: var(--black);
+
+  font-size: 18px;
   font-weight: 900;
-  line-height: 1.25;
+  line-height: 1.28;
   text-transform: uppercase;
 }
 
-.serviceCard p {
-  color: rgba(255, 255, 255, 0.62);
+.serviceBody p {
+  margin: 15px 0 0;
 
-  font-size: 14px;
-  line-height: 1.7;
+  color: var(--gray-600);
+
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.serviceFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  margin-top: auto;
+  padding-top: 26px;
+
+  color: var(--gray-700);
+
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 
 .serviceArrow {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
 
   display: grid;
   place-items: center;
 
-  margin-top: auto;
-  padding-top: 25px;
-
   color: var(--crimson);
+  background: var(--crimson-soft);
 
-  transition: transform 0.3s ease;
+  border-radius: 50%;
+
+  transition:
+    transform 0.3s ease,
+    color 0.3s ease,
+    background-color 0.3s ease;
 }
 
 .serviceCard:hover .serviceArrow {
-  transform: translateX(7px);
+  color: var(--white);
+  background: var(--crimson);
+
+  transform: translateX(3px);
 }
 
-/* ========================================
-   TABLETTE
-======================================== */
+.servicesAction {
+  display: flex;
+  justify-content: center;
 
-@media (max-width: 1150px) {
+  margin-top: 58px;
+}
+
+/* =========================================================
+   ANIMATION
+========================================================= */
+
+@keyframes heroEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1100px) {
   .introductionGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: 55px;
+    grid-template-columns: 1fr;
+  }
+
+  .introductionContent {
+    max-width: 760px;
+  }
+
+  .introductionVisual {
+    min-height: 560px;
   }
 
   .servicesGrid {
@@ -581,50 +727,50 @@
 }
 
 @media (max-width: 900px) {
-  .hero {
-    min-height: 700px;
-
-    padding-right: 30px;
-    padding-left: 30px;
-  }
-
-  .introductionGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .introductionVisual {
-    min-height: 600px;
-  }
-
   .servicesHeader {
     grid-template-columns: 1fr;
-    gap: 25px;
+    gap: 28px;
+  }
+
+  .servicesIntroWrap {
+    max-width: 720px;
   }
 }
 
-/* ========================================
-   MOBILE
-======================================== */
+@media (max-width: 720px) {
+  .container,
+  .heroInner {
+    width: min(100% - 36px, 1320px);
+  }
 
-@media (max-width: 620px) {
   .hero {
     min-height: 690px;
 
-    padding:
-      calc(var(--navbar-height, 88px) + 55px)
-      20px
-      60px;
+    background-position: 61% center;
+  }
 
-    background-position: 62% center;
+  .heroOverlay {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(8, 8, 8, 0.95) 0%,
+        rgba(8, 8, 8, 0.81) 68%,
+        rgba(8, 8, 8, 0.56) 100%
+      );
+  }
+
+  .heroInner {
+    padding-top: calc(var(--navbar-height, 90px) + 55px);
+    padding-bottom: 60px;
   }
 
   .hero h1 {
-    font-size: clamp(48px, 14vw, 68px);
+    font-size: clamp(44px, 12vw, 62px);
     letter-spacing: -2px;
   }
 
   .heroDescription {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .heroActions {
@@ -632,45 +778,37 @@
   }
 
   .primaryButton,
-  .secondaryButton {
+  .secondaryButton,
+  .servicesButton {
     width: 100%;
   }
 
   .heroHighlights {
     flex-direction: column;
-    gap: 13px;
+    gap: 12px;
   }
 
   .introductionSection,
   .servicesSection {
-    padding:
-      80px
-      20px;
+    padding-top: 85px;
+    padding-bottom: 90px;
   }
 
   .introductionContent h2,
-  .servicesHeader h2 {
-    font-size: clamp(40px, 12vw, 55px);
-    letter-spacing: -2px;
+  .servicesHeading h2 {
+    font-size: 40px;
+    letter-spacing: -1.4px;
   }
 
   .introductionVisual {
-    min-height: 460px;
+    min-height: 430px;
   }
 
   .imageFrame {
-    top: 18px;
-    right: 18px;
-    bottom: 18px;
-    left: 18px;
-  }
-
-  .imageBadge {
-    right: 18px;
-    bottom: 18px;
-    left: 18px;
-
-    min-width: 0;
+    top: 16px;
+    right: -12px;
+    bottom: -12px;
+    left: 16px;
   }
 
   .servicesGrid {
@@ -678,45 +816,53 @@
   }
 
   .serviceCard {
-    min-height: 300px;
+    min-height: 290px;
   }
 }
 
-/* ========================================
-   PETITS MOBILES
-======================================== */
-
-@media (max-width: 390px) {
-  .hero,
-  .introductionSection,
-  .servicesSection {
-    padding-right: 16px;
-    padding-left: 16px;
+@media (max-width: 480px) {
+  .container,
+  .heroInner {
+    width: min(100% - 28px, 1320px);
   }
 
   .hero h1 {
-    font-size: 44px;
+    font-size: 39px;
+  }
+
+  .introductionContent h2,
+  .servicesHeading h2 {
+    font-size: 33px;
   }
 
   .introductionVisual {
-    min-height: 400px;
+    min-height: 350px;
+  }
+
+  .imageBadge {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+
+    justify-content: center;
   }
 
   .serviceCard {
-    padding: 26px;
+    min-height: 265px;
   }
 }
 
-/* ========================================
-   ACCESSIBILITÉ
-======================================== */
-
 @media (prefers-reduced-motion: reduce) {
+  .heroContent,
   .primaryButton,
   .secondaryButton,
+  .servicesButton,
   .commitmentItem,
   .serviceCard,
+  .serviceCard::before,
+  .serviceIcon,
   .serviceArrow {
+    animation: none;
     transition: none;
   }
 }

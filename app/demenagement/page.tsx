@@ -12,6 +12,7 @@ import {
   Sofa,
   Truck,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
@@ -19,35 +20,41 @@ import Footer from "../components/Footer";
 
 import styles from "./demenagement.module.css";
 
-const movingServices = [
+type MovingService = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+};
+
+const movingServices: MovingService[] = [
   {
     title: "Déménagement résidentiel",
     description:
-      "Un service complet pour votre appartement, votre condo ou votre maison.",
+      "Un service complet pour votre appartement, votre condo ou votre maison, avec une prise en charge professionnelle.",
     icon: Home,
   },
   {
     title: "Déménagement commercial",
     description:
-      "Une prise en charge professionnelle pour les bureaux et les locaux commerciaux.",
+      "Une solution structurée pour les bureaux, commerces et locaux professionnels.",
     icon: Building2,
   },
   {
     title: "Transport de meubles",
     description:
-      "Transport sécuritaire de vos meubles, objets lourds et biens volumineux.",
+      "Transport sécuritaire de meubles, objets lourds et biens volumineux.",
     icon: Sofa,
   },
   {
     title: "Transport d’électroménagers",
     description:
-      "Manipulation soigneuse de vos appareils électroménagers et équipements.",
+      "Manipulation soigneuse de vos électroménagers et équipements lourds.",
     icon: Boxes,
   },
   {
     title: "Livraison de mobilier",
     description:
-      "Livraison de mobilier directement à votre domicile ou à votre entreprise.",
+      "Livraison directe de mobilier à votre domicile, commerce ou entreprise.",
     icon: PackageCheck,
   },
   {
@@ -59,13 +66,13 @@ const movingServices = [
   {
     title: "Longue distance",
     description:
-      "Organisation complète de votre déménagement partout au Québec.",
+      "Organisation complète de votre déménagement entre différentes régions du Québec.",
     icon: ArrowRight,
   },
   {
     title: "Particuliers et entreprises",
     description:
-      "Des solutions personnalisées adaptées à tous les types de clients.",
+      "Des solutions flexibles et adaptées aux particuliers comme aux entreprises.",
     icon: Users,
   },
 ];
@@ -77,95 +84,62 @@ const commitments = [
   "Déménagement local et longue distance",
 ];
 
+const heroHighlights = [
+  "Soumission gratuite",
+  "Service professionnel",
+  "Partout au Québec",
+];
+
 export default function MovingPage() {
   return (
     <div className={styles.page}>
       <Navbar />
 
       <main className={styles.main}>
-        {/* ========================================
-            HERO
-        ======================================== */}
         <section className={styles.hero}>
-          <div className={styles.heroOverlay} />
+          <div className={styles.heroOverlay} aria-hidden="true" />
 
-          <div className={styles.heroContent}>
-            <p className={styles.eyebrow}>
-              Glory Solutions
-            </p>
+          <div className={styles.heroInner}>
+            <div className={styles.heroContent}>
+              <p className={styles.eyebrow}>Glory Solutions</p>
 
-            <h1>
-              Déménagez
-              <span>en toute confiance</span>
-            </h1>
+              <h1>
+                Déménagez
+                <span>en toute confiance</span>
+              </h1>
 
-            <p className={styles.heroDescription}>
-              Un service de déménagement professionnel, rapide et sécuritaire
-              pour les particuliers et les entreprises partout au Québec.
-            </p>
+              <p className={styles.heroDescription}>
+                Un service de déménagement professionnel, rapide et sécuritaire
+                pour les particuliers et les entreprises partout au Québec.
+              </p>
 
-            <div className={styles.heroActions}>
-              <Link
-                href="/quote"
-                className={styles.primaryButton}
-              >
-                Demander une soumission
+              <div className={styles.heroActions}>
+                <Link href="/quote" className={styles.primaryButton}>
+                  Demander une soumission
+                  <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+                </Link>
 
-                <ArrowRight
-                  size={18}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                />
-              </Link>
+                <Link href="/contact" className={styles.secondaryButton}>
+                  Nous contacter
+                </Link>
+              </div>
 
-              <Link
-                href="/contact"
-                className={styles.secondaryButton}
-              >
-                Nous contacter
-              </Link>
-            </div>
-
-            <div className={styles.heroHighlights}>
-              <span>
-                <Check
-                  size={18}
-                  aria-hidden="true"
-                />
-
-                Soumission gratuite
-              </span>
-
-              <span>
-                <Check
-                  size={18}
-                  aria-hidden="true"
-                />
-
-                Service professionnel
-              </span>
-
-              <span>
-                <Check
-                  size={18}
-                  aria-hidden="true"
-                />
-
-                Partout au Québec
-              </span>
+              <div className={styles.heroHighlights}>
+                {heroHighlights.map((highlight) => (
+                  <span key={highlight}>
+                    <Check size={17} strokeWidth={2.2} aria-hidden="true" />
+                    {highlight}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* ========================================
-            INTRODUCTION
-        ======================================== */}
         <section className={styles.introductionSection}>
-          <div className={styles.introductionGrid}>
+          <div className={`${styles.container} ${styles.introductionGrid}`}>
             <div className={styles.introductionContent}>
-              <p className={styles.sectionLabel}>
-                Votre partenaire de confiance
-              </p>
+              <p className={styles.sectionLabel}>Votre partenaire de confiance</p>
 
               <h2>
                 Un déménagement
@@ -174,35 +148,30 @@ export default function MovingPage() {
 
               <p className={styles.introductionLead}>
                 Chez Glory Solutions, nous mettons notre expertise au service
-                des particuliers et des entreprises afin d’offrir un service
-                de déménagement professionnel, rapide et sécuritaire.
+                des particuliers et des entreprises afin d’offrir un
+                déménagement professionnel, efficace et sécuritaire.
               </p>
 
               <p>
                 Qu’il s’agisse d’un appartement, d’une maison, d’un condo,
                 d’un bureau ou d’un local commercial, notre équipe prend en
-                charge votre déménagement avec rigueur, efficacité et le plus
-                grand soin.
+                charge votre déménagement avec rigueur et attention.
               </p>
 
               <p>
-                Nous comprenons que chaque déménagement est unique. C’est
-                pourquoi nous proposons un service personnalisé, adapté à vos
-                besoins, à votre horaire et à votre situation.
+                Chaque déménagement est différent. Nous adaptons donc notre
+                service à votre horaire, votre volume de biens, votre destination
+                et vos besoins particuliers.
               </p>
 
               <div className={styles.commitmentList}>
                 {commitments.map((commitment) => (
-                  <div
-                    key={commitment}
-                    className={styles.commitmentItem}
-                  >
+                  <div key={commitment} className={styles.commitmentItem}>
                     <CheckCircle2
-                      size={21}
+                      size={20}
                       strokeWidth={2}
                       aria-hidden="true"
                     />
-
                     <span>{commitment}</span>
                   </div>
                 ))}
@@ -218,16 +187,11 @@ export default function MovingPage() {
                 className={styles.introductionImage}
               />
 
-              <div className={styles.imageOverlay} />
-
-              <div className={styles.imageFrame} />
+              <div className={styles.imageOverlay} aria-hidden="true" />
+              <div className={styles.imageFrame} aria-hidden="true" />
 
               <div className={styles.imageBadge}>
-                <Truck
-                  size={28}
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
+                <Truck size={27} strokeWidth={1.8} aria-hidden="true" />
 
                 <span>
                   Service professionnel
@@ -238,16 +202,11 @@ export default function MovingPage() {
           </div>
         </section>
 
-        {/* ========================================
-            SERVICES
-        ======================================== */}
         <section className={styles.servicesSection}>
-          <div className={styles.servicesContainer}>
+          <div className={styles.container}>
             <div className={styles.servicesHeader}>
-              <div>
-                <p className={styles.sectionLabel}>
-                  Nos services
-                </p>
+              <div className={styles.servicesHeading}>
+                <p className={styles.sectionLabel}>Nos services</p>
 
                 <h2>
                   Des solutions adaptées
@@ -255,7 +214,9 @@ export default function MovingPage() {
                 </h2>
               </div>
 
-             
+              <div className={styles.servicesIntroWrap}>
+              
+              </div>
             </div>
 
             <div className={styles.servicesGrid}>
@@ -263,36 +224,39 @@ export default function MovingPage() {
                 const Icon = service.icon;
 
                 return (
-                  <article
-                    key={service.title}
-                    className={styles.serviceCard}
-                  >
-                    <span className={styles.serviceNumber}>
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
+                  <article key={service.title} className={styles.serviceCard}>
+                    <div className={styles.serviceTop}>
+                      <span className={styles.serviceNumber} aria-hidden="true">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
 
-                    <span className={styles.serviceIcon}>
-                      <Icon
-                        size={30}
-                        strokeWidth={1.7}
-                        aria-hidden="true"
-                      />
-                    </span>
+                      <div className={styles.serviceIcon} aria-hidden="true">
+                        <Icon size={27} strokeWidth={1.8} />
+                      </div>
+                    </div>
 
-                    <h3>{service.title}</h3>
+                    <div className={styles.serviceBody}>
+                      <h3>{service.title}</h3>
+                      <p>{service.description}</p>
+                    </div>
 
-                    <p>{service.description}</p>
+                    <div className={styles.serviceFooter}>
+                      <span>En savoir plus</span>
 
-                    <span className={styles.serviceArrow}>
-                      <ArrowRight
-                        size={19}
-                        strokeWidth={2}
-                        aria-hidden="true"
-                      />
-                    </span>
+                      <span className={styles.serviceArrow} aria-hidden="true">
+                        <ArrowRight size={18} strokeWidth={2} />
+                      </span>
+                    </div>
                   </article>
                 );
               })}
+            </div>
+
+            <div className={styles.servicesAction}>
+              <Link href="/quote" className={styles.servicesButton}>
+                Demander une soumission
+                <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+              </Link>
             </div>
           </div>
         </section>

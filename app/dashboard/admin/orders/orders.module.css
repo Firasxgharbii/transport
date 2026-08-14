@@ -1,0 +1,786 @@
+
+.page {
+  min-height: calc(100vh - 74px);
+  padding: 28px;
+  color: #171820;
+}
+
+/* ============================================================
+   EN-TÊTE
+============================================================ */
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #dc143c;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+  font-size: clamp(
+    32px,
+    4vw,
+    46px
+  );
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.heading p {
+  margin: 10px 0 0;
+  color: #747684;
+  font-size: 14px;
+}
+
+.headingActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.refreshButton,
+.createButton,
+.emptyButton {
+  display: inline-flex;
+  min-height: 43px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.refreshButton {
+  border: 1px solid #ffc7d4;
+  background: #ffffff;
+  color: #dc143c;
+}
+
+.createButton,
+.emptyButton {
+  border: 1px solid #dc143c;
+  background:
+    linear-gradient(
+      135deg,
+      #ef0043,
+      #dc143c
+    );
+  color: #ffffff;
+  box-shadow:
+    0 12px 28px
+    rgba(220, 20, 60, 0.2);
+}
+
+.refreshButton:hover,
+.createButton:hover,
+.emptyButton:hover {
+  transform: translateY(-2px);
+}
+
+.refreshButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* ============================================================
+   ERREUR
+============================================================ */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 14px 15px;
+  border: 1px solid #ffc2cf;
+  border-radius: 13px;
+  background: #fff1f4;
+  color: #c50032;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.errorBanner button {
+  display: grid;
+  margin-left: auto;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ============================================================
+   STATISTIQUES
+============================================================ */
+
+.statsGrid {
+  display: grid;
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.statCard,
+.revenueCard {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 17px;
+  border: 1px solid #e5e6ec;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow:
+    0 12px 35px
+    rgba(29, 28, 40, 0.04);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.statCard:hover,
+.revenueCard:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 18px 42px
+    rgba(29, 28, 40, 0.08);
+}
+
+.statCard > span,
+.revenueCard > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+}
+
+.stat_total {
+  background: #f1ecff;
+  color: #6c43dd;
+}
+
+.stat_pending {
+  background: #fff5dd;
+  color: #bd7700;
+}
+
+.stat_active {
+  background: #fff0f4;
+  color: #dc143c;
+}
+
+.stat_completed {
+  background: #e9faf3;
+  color: #087d5a;
+}
+
+.stat_cancelled {
+  background: #fff0f1;
+  color: #c50032;
+}
+
+.revenueCard > span {
+  background: #eaf5ff;
+  color: #1974c8;
+}
+
+.statCard div,
+.revenueCard div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statCard small,
+.revenueCard small {
+  color: #838591;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.statCard strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.revenueCard strong {
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   PANNEAU PRINCIPAL
+============================================================ */
+
+.panel {
+  overflow: hidden;
+  border: 1px solid #e5e6ec;
+  border-radius: 19px;
+  background: #ffffff;
+  box-shadow:
+    0 16px 42px
+    rgba(30, 29, 41, 0.05);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border-bottom: 1px solid #ececf1;
+}
+
+.searchBox {
+  display: flex;
+  width: min(480px, 100%);
+  min-height: 43px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid #e3e4ea;
+  border-radius: 11px;
+  background: #f8f8fb;
+  color: #a0a1ac;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.searchBox:focus-within {
+  border-color: #ff9ab3;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 4px
+    rgba(220, 20, 60, 0.08);
+}
+
+.searchBox input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #20212a;
+  font: inherit;
+}
+
+.searchBox input::placeholder {
+  color: #a2a4ae;
+}
+
+.filterGroup {
+  display: flex;
+  gap: 9px;
+}
+
+.filterGroup select {
+  min-height: 42px;
+  padding: 0 35px 0 12px;
+  border: 1px solid #e0e1e7;
+  border-radius: 10px;
+  outline: none;
+  background: #ffffff;
+  color: #555761;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.filterGroup select:focus {
+  border-color: #ff9ab3;
+  box-shadow:
+    0 0 0 4px
+    rgba(220, 20, 60, 0.08);
+}
+
+/* ============================================================
+   TABLEAU
+============================================================ */
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 1550px;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 14px;
+  border-bottom: 1px solid #efeff3;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  background: #fdfdfe;
+  color: #9395a0;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.table td {
+  color: #5d5f69;
+  font-size: 11px;
+}
+
+.table tbody tr {
+  transition:
+    background 0.16s ease;
+}
+
+.table tbody tr:hover {
+  background: #fdfbfc;
+}
+
+/* ============================================================
+   IDENTITÉ COMMANDE
+============================================================ */
+
+.orderIdentity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.orderIdentity > span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: #fff0f4;
+  color: #dc143c;
+}
+
+.orderIdentity div,
+.clientCell,
+.driverCell div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orderIdentity strong,
+.clientCell strong,
+.driverCell strong {
+  color: #292a33;
+  font-size: 11px;
+}
+
+.orderIdentity small,
+.clientCell small,
+.driverCell small {
+  color: #9799a3;
+  font-size: 9px;
+}
+
+/* ============================================================
+   TRAJET
+============================================================ */
+
+.routeCell {
+  display: flex;
+  min-width: 285px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.routeCell span {
+  display: grid;
+  grid-template-columns:
+    15px
+    48px
+    minmax(0, 1fr);
+  align-items: start;
+  gap: 5px;
+}
+
+.routeCell svg {
+  color: #dc143c;
+}
+
+.routeCell strong {
+  color: #30313a;
+  font-size: 9px;
+}
+
+.routeCell em {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  color: #747681;
+  font-size: 10px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   CHAUFFEUR
+============================================================ */
+
+.driverCell {
+  display: flex;
+  min-width: 155px;
+  align-items: center;
+  gap: 9px;
+}
+
+.driverCell > svg {
+  color: #6c43dd;
+}
+
+/* ============================================================
+   BADGES
+============================================================ */
+
+.stopsBadge,
+.priorityBadge,
+.statusBadge {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.stopsBadge {
+  background: #f1ecff;
+  color: #6c43dd;
+}
+
+.priorityLow {
+  background: #eef0f4;
+  color: #666873;
+}
+
+.priorityNormal {
+  background: #eaf5ff;
+  color: #1974c8;
+}
+
+.priorityHigh {
+  background: #fff5dd;
+  color: #b97000;
+}
+
+.priorityUrgent {
+  background: #fff0f3;
+  color: #d10038;
+}
+
+.statusPending {
+  background: #fff5dd;
+  color: #b97000;
+}
+
+.statusActive {
+  background: #eeeaff;
+  color: #6540d8;
+}
+
+.statusCompleted {
+  background: #e9faf3;
+  color: #087d5a;
+}
+
+.statusDanger {
+  background: #fff0f3;
+  color: #cf0034;
+}
+
+/* ============================================================
+   MONTANT ET DATE
+============================================================ */
+
+.amount {
+  color: #292a33;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.dateCell {
+  display: flex;
+  min-width: 135px;
+  align-items: center;
+  gap: 7px;
+}
+
+.dateCell svg {
+  flex: 0 0 auto;
+  color: #dc143c;
+}
+
+/* ============================================================
+   ACTIONS
+============================================================ */
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.actionButton {
+  display: grid;
+  width: 33px;
+  height: 33px;
+  place-items: center;
+  border: 1px solid #dfe0e7;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #555761;
+  text-decoration: none;
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.actionButton:hover {
+  transform: translateY(-2px);
+  border-color: #ffabc0;
+  color: #dc143c;
+  box-shadow:
+    0 8px 18px
+    rgba(30, 29, 41, 0.08);
+}
+
+/* ============================================================
+   ÉTAT VIDE
+============================================================ */
+
+.emptyState {
+  display: flex;
+  min-height: 330px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px;
+  color: #9a9ca7;
+  text-align: center;
+}
+
+.emptyState > svg {
+  color: #dc143c;
+}
+
+.emptyState h2 {
+  margin: 15px 0 6px;
+  color: #272832;
+  font-size: 18px;
+}
+
+.emptyState p {
+  margin: 0 0 18px;
+}
+
+.emptyButton {
+  min-height: 39px;
+}
+
+/* ============================================================
+   CHARGEMENT
+============================================================ */
+
+.skeleton {
+  height: 50px;
+  border-radius: 10px;
+  background:
+    linear-gradient(
+      90deg,
+      #f0f1f4,
+      #fafafd,
+      #f0f1f4
+    );
+  background-size: 200% 100%;
+  animation:
+    skeleton 1.3s infinite;
+}
+
+/* ============================================================
+   PAGINATION
+============================================================ */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 18px;
+  color: #858793;
+  font-size: 11px;
+}
+
+.pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e1e2e8;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #565862;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(
+    :disabled
+  ) {
+  border-color: #ffabc0;
+  color: #dc143c;
+}
+
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+
+.spin {
+  animation:
+    spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes skeleton {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 1400px) {
+  .statsGrid {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 1050px) {
+  .heading,
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .searchBox {
+    width: 100%;
+  }
+
+  .filterGroup {
+    width: 100%;
+  }
+
+  .filterGroup select {
+    flex: 1;
+  }
+}
+
+@media (max-width: 750px) {
+  .page {
+    padding: 20px 14px;
+  }
+
+  .headingActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .refreshButton,
+  .createButton {
+    width: 100%;
+  }
+
+  .statsGrid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .filterGroup {
+    flex-direction: column;
+  }
+
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heading h1 {
+    font-size: 34px;
+  }
+}

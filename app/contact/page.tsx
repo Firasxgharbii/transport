@@ -1,18 +1,34 @@
 "use client";
 
-import { FormEvent, useState } from "react";
 import {
-  Building2,
+  FormEvent,
+  useState,
+} from "react";
+
+import {
   CheckCircle2,
   Mail,
+  MapPin,
   Phone,
-  Printer,
   Send,
 } from "lucide-react";
 
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+
 import styles from "./contact.module.css";
+
+/* =========================================================
+   API
+========================================================= */
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://172.20.10.6:5000";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type Office = {
   city: string;
@@ -25,28 +41,35 @@ type Status = {
   message: string;
 };
 
-const offices: Office[] = [
+/* =========================================================
+   BUREAUX
+========================================================= */
 
+const offices: Office[] = [
   {
     city: "Montréal",
     phone: "514-553-6762",
     address:
-      "5975 Av. de l'authion Montréal, QC H1M 2W3",
+      "5975 Av. de l'Authion, Montréal, QC H1M 2W3",
   },
-  
 ];
+
+/* =========================================================
+   OFFICE ITEM
+========================================================= */
 
 function OfficeItem({
   city,
   phone,
   address,
 }: Office) {
-  const phoneLink = phone.replace(/[^\d+]/g, "");
+  const phoneLink =
+    phone.replace(/[^\d+]/g, "");
 
   return (
     <article className={styles.officeItem}>
       <div className={styles.iconCircle}>
-        <Building2
+        <MapPin
           size={20}
           strokeWidth={1.8}
           aria-hidden="true"
@@ -54,12 +77,14 @@ function OfficeItem({
       </div>
 
       <div className={styles.officeText}>
-        <h3>
-          {city} :{" "}
-          <a href={`tel:${phoneLink}`}>
-            {phone}
-          </a>
-        </h3>
+        <h3>{city}</h3>
+
+        <a
+          href={`tel:${phoneLink}`}
+          className={styles.officePhone}
+        >
+          {phone}
+        </a>
 
         <p>{address}</p>
       </div>
@@ -67,13 +92,23 @@ function OfficeItem({
   );
 }
 
-export default function ContactPage() {
-  const [loading, setLoading] = useState(false);
+/* =========================================================
+   PAGE CONTACT
+========================================================= */
 
-  const [status, setStatus] = useState<Status>({
-    type: "",
-    message: "",
-  });
+export default function ContactPage() {
+  const [loading, setLoading] =
+    useState(false);
+
+  const [status, setStatus] =
+    useState<Status>({
+      type: "",
+      message: "",
+    });
+
+  /* =======================================================
+     SUBMIT
+  ======================================================= */
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -85,20 +120,37 @@ export default function ContactPage() {
       message: "",
     });
 
-    const form = event.currentTarget;
-    const formData = new FormData(form);
+    const form =
+      event.currentTarget;
+
+    const formData =
+      new FormData(form);
 
     const payload = {
-      name: String(formData.get("name") || "").trim(),
-      email: String(formData.get("email") || "").trim(),
-      phone: String(formData.get("phone") || "").trim(),
+      name: String(
+        formData.get("name") || ""
+      ).trim(),
+
+      email: String(
+        formData.get("email") || ""
+      ).trim(),
+
+      phone: String(
+        formData.get("phone") || ""
+      ).trim(),
+
       company: String(
         formData.get("company") || ""
       ).trim(),
+
       message: String(
         formData.get("message") || ""
       ).trim(),
     };
+
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
 
     if (
       !payload.name ||
@@ -107,6 +159,7 @@ export default function ContactPage() {
     ) {
       setStatus({
         type: "error",
+
         message:
           "Veuillez remplir le nom, l’adresse courriel et le message.",
       });
@@ -117,17 +170,26 @@ export default function ContactPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const response =
+        await fetch(
+          `${API_URL}/api/contact`,
+          {
+            method: "POST",
 
-      const data = await response
-        .json()
-        .catch(() => ({}));
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(payload),
+          }
+        );
+
+      const data =
+        await response
+          .json()
+          .catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(
@@ -138,41 +200,96 @@ export default function ContactPage() {
 
       setStatus({
         type: "success",
+
         message:
-          "Votre message a été envoyé avec succès.",
+          "Votre message a été envoyé avec succès. Notre équipe vous répondra dès que possible.",
       });
 
       form.reset();
     } catch (error) {
+      console.error(
+        "Erreur formulaire contact :",
+        error
+      );
+
       setStatus({
         type: "error",
+
         message:
           error instanceof Error
             ? error.message
-            : "Une erreur est survenue. Veuillez réessayer.",
+            : "Impossible d’envoyer le message.",
       });
     } finally {
       setLoading(false);
     }
   }
 
+  /* =======================================================
+     JSX
+  ======================================================= */
+
   return (
     <div className={styles.page}>
       <Navbar />
 
       <main className={styles.main}>
-        <section className={styles.contactSection}>
-          <div className={styles.contactGrid}>
-            {/* COLONNE GAUCHE */}
-            <div className={styles.formColumn}>
-              <h1 className={styles.title}>
+        <section
+          className={
+            styles.contactSection
+          }
+        >
+          <div
+            className={
+              styles.contactGrid
+            }
+          >
+            {/* ============================================
+                COLONNE FORMULAIRE
+            ============================================ */}
+
+            <div
+              className={
+                styles.formColumn
+              }
+            >
+              <p
+                className={
+                  styles.sectionLabel
+                }
+              >
+                Contact
+              </p>
+
+              <h1
+                className={
+                  styles.title
+                }
+              >
                 Envoyez-nous un message
               </h1>
 
-              <div className={styles.contactInfo}>
+              {/* ==========================================
+                  INFORMATIONS
+              ========================================== */}
+
+              <div
+                className={
+                  styles.contactInfo
+                }
+              >
                 {/* TÉLÉPHONE */}
-                <div className={styles.infoRow}>
-                  <div className={styles.iconCircle}>
+
+                <div
+                  className={
+                    styles.infoRow
+                  }
+                >
+                  <div
+                    className={
+                      styles.iconCircle
+                    }
+                  >
                     <Phone
                       size={20}
                       strokeWidth={1.8}
@@ -180,20 +297,31 @@ export default function ContactPage() {
                     />
                   </div>
 
-                  <p>
-                    <strong>Sans frais :</strong>{" "}
-                    <a href="tel:18886751515">
-                      514-553-6762
-                    </a>
-                  </p>
+                  <div>
+                    <span>
+                      Téléphone
+                    </span>
+
+                    <p>
+                      <a href="tel:5145536762">
+                        514-553-6762
+                      </a>
+                    </p>
+                  </div>
                 </div>
 
-                {/* FAX */}
-               
-
                 {/* COURRIEL */}
-                <div className={styles.infoRow}>
-                  <div className={styles.iconCircle}>
+
+                <div
+                  className={
+                    styles.infoRow
+                  }
+                >
+                  <div
+                    className={
+                      styles.iconCircle
+                    }
+                  >
                     <Mail
                       size={20}
                       strokeWidth={1.8}
@@ -201,147 +329,239 @@ export default function ContactPage() {
                     />
                   </div>
 
-                  <p>
-                    <a
-                      href="mailto:info@glorysolutions.ca"
-                      className={styles.emailLink}
-                    >
-                      contact@glorysolutions.ca
-                    </a>
-                  </p>
+                  <div>
+                    <span>
+                      Courriel
+                    </span>
+
+                    <p>
+                      <a
+                        href="mailto:contact@glorysolutions.ca"
+                        className={
+                          styles.emailLink
+                        }
+                      >
+                        contact@glorysolutions.ca
+                      </a>
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <p className={styles.introduction}>
-                Complétez le formulaire ci-dessous et
-                notre équipe répondra à votre demande dès
-                que possible.
+              <p
+                className={
+                  styles.introduction
+                }
+              >
+                Complétez le formulaire
+                ci-dessous et notre équipe
+                répondra à votre demande
+                dès que possible.
               </p>
+
+              {/* ==========================================
+                  FORMULAIRE
+              ========================================== */}
 
               <form
                 className={styles.form}
                 onSubmit={handleSubmit}
               >
-                <label className={styles.field}>
+                {/* NOM */}
+
+                <label
+                  className={
+                    styles.field
+                  }
+                >
                   <span>
-                    Nom <strong>*</strong>
+                    Nom
+                    <strong> *</strong>
                   </span>
 
                   <input
                     type="text"
                     name="name"
-                    placeholder="Nom *"
+                    placeholder="Votre nom"
                     autoComplete="name"
                     required
                   />
                 </label>
 
-                <label className={styles.field}>
+                {/* EMAIL */}
+
+                <label
+                  className={
+                    styles.field
+                  }
+                >
                   <span>
-                    E-mail <strong>*</strong>
+                    E-mail
+                    <strong> *</strong>
                   </span>
 
                   <input
                     type="email"
                     name="email"
-                    placeholder="E-mail *"
+                    placeholder="Votre adresse courriel"
                     autoComplete="email"
                     required
                   />
                 </label>
 
-                <label className={styles.field}>
-                  <span>Téléphone</span>
+                {/* PHONE */}
+
+                <label
+                  className={
+                    styles.field
+                  }
+                >
+                  <span>
+                    Téléphone
+                  </span>
 
                   <input
                     type="tel"
                     name="phone"
-                    placeholder="Téléphone"
+                    placeholder="Votre téléphone"
                     autoComplete="tel"
                   />
                 </label>
 
-                <label className={styles.field}>
-                  <span>Entreprise</span>
+                {/* ENTREPRISE */}
+
+                <label
+                  className={
+                    styles.field
+                  }
+                >
+                  <span>
+                    Entreprise
+                  </span>
 
                   <input
                     type="text"
                     name="company"
-                    placeholder="Entreprise"
+                    placeholder="Nom de l’entreprise"
                     autoComplete="organization"
                   />
                 </label>
 
-                <label className={styles.field}>
+                {/* MESSAGE */}
+
+                <label
+                  className={
+                    styles.field
+                  }
+                >
                   <span>
-                    Message <strong>*</strong>
+                    Message
+                    <strong> *</strong>
                   </span>
 
                   <textarea
                     name="message"
-                    placeholder="Message *"
-                    rows={5}
+                    placeholder="Comment pouvons-nous vous aider ?"
+                    rows={6}
                     required
                   />
                 </label>
 
+                {/* SUBMIT */}
+
                 <button
                   type="submit"
-                  className={styles.submitButton}
+                  className={
+                    styles.submitButton
+                  }
                   disabled={loading}
                 >
-                  {loading ? (
-                    "Envoi en cours..."
-                  ) : (
-                    <>
-                      Envoyer le message
+                  {loading
+                    ? "Envoi en cours..."
+                    : (
+                      <>
+                        Envoyer le message
 
-                      <Send
-                        size={17}
-                        strokeWidth={2}
-                        aria-hidden="true"
-                      />
-                    </>
-                  )}
+                        <Send
+                          size={17}
+                          strokeWidth={2}
+                          aria-hidden="true"
+                        />
+                      </>
+                    )}
                 </button>
+
+                {/* STATUS */}
 
                 {status.message && (
                   <div
-                    className={`${styles.status} ${
-                      status.type === "success"
-                        ? styles.success
-                        : styles.error
-                    }`}
+                    className={`
+                      ${styles.status}
+                      ${
+                        status.type ===
+                        "success"
+                          ? styles.success
+                          : styles.error
+                      }
+                    `}
                     role="status"
                   >
-                    {status.type === "success" && (
+                    {status.type ===
+                      "success" && (
                       <CheckCircle2
                         size={19}
                         aria-hidden="true"
                       />
                     )}
 
-                    <span>{status.message}</span>
+                    <span>
+                      {status.message}
+                    </span>
                   </div>
                 )}
               </form>
             </div>
 
-            {/* COLONNE DROITE */}
-            <aside className={styles.officesColumn}>
-              <h2 className={styles.title}>
+            {/* ============================================
+                BUREAUX
+            ============================================ */}
+
+            <aside
+              className={
+                styles.officesColumn
+              }
+            >
+              <p
+                className={
+                  styles.sectionLabel
+                }
+              >
+                Où nous trouver
+              </p>
+
+              <h2
+                className={
+                  styles.title
+                }
+              >
                 Bureaux
               </h2>
 
-              <div className={styles.officesList}>
-                {offices.map((office) => (
-                  <OfficeItem
-                    key={office.city}
-                    city={office.city}
-                    phone={office.phone}
-                    address={office.address}
-                  />
-                ))}
+              <div
+                className={
+                  styles.officesList
+                }
+              >
+                {offices.map(
+                  (office) => (
+                    <OfficeItem
+                      key={
+                        office.city
+                      }
+                      {...office}
+                    />
+                  )
+                )}
               </div>
             </aside>
           </div>
