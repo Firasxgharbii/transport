@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
     "localhost",
     "localhost:3000",
     "172.20.10.6",
-    "192.168.2.47"
+    "192.168.2.47",
+    "192.168.2.14",
+
   ],
 };
 

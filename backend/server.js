@@ -50,6 +50,10 @@ const contactRoutes = require(
   "./routes/contactRoutes"
 );
 
+const quoteRoutes = require(
+  "./routes/quoteRoutes"
+);
+
 /* =====================================================
    EXPRESS ET SERVEUR HTTP
 ===================================================== */
@@ -240,6 +244,11 @@ app.use(
 app.use(
   "/api/contact",
   contactRoutes
+);
+
+app.use(
+  "/api/quote",
+  quoteRoutes
 );
 
 /* =====================================================

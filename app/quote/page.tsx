@@ -18,6 +18,10 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import styles from "./quote.module.css";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://192.168.2.14:5000";
+
 type FormStatus = {
   type: "success" | "error" | "";
   message: string;
@@ -356,7 +360,7 @@ export default function QuotePage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/quote", {
+      const response = await fetch(`${API_URL}/api/quote`, {
         method: "POST",
 
         headers: {
@@ -372,8 +376,9 @@ export default function QuotePage() {
 
       if (!response.ok) {
         throw new Error(
-          data?.error ||
-            "Impossible d’envoyer la demande de soumission."
+          data?.message ||
+            data?.error ||
+            `Erreur serveur (${response.status}).`
         );
       }
 
