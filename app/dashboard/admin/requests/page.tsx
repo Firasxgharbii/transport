@@ -131,84 +131,11 @@ export default function RequestsPage() {
       return "";
     }
 
-    /*
-     * On vérifie plusieurs noms possibles afin
-     * d'être compatible avec ton login actuel.
-     */
-
-    const possibleKeys = [
-      "token",
-      "accessToken",
-      "access_token",
-      "authToken",
-      "auth_token",
-      "jwt",
-      "jwtToken",
-      "userToken",
-    ];
-
-    for (const key of possibleKeys) {
-      const localValue =
-        localStorage.getItem(key);
-
-      if (localValue) {
-        return localValue;
-      }
-
-      const sessionValue =
-        sessionStorage.getItem(key);
-
-      if (sessionValue) {
-        return sessionValue;
-      }
-    }
-
-    /*
-     * Certains projets enregistrent un objet
-     * d'authentification complet en JSON.
-     */
-
-    const possibleObjects = [
-      "auth",
-      "user",
-      "session",
-      "authData",
-    ];
-
-    for (const key of possibleObjects) {
-      const raw =
-        localStorage.getItem(key) ||
-        sessionStorage.getItem(key);
-
-      if (!raw) {
-        continue;
-      }
-
-      try {
-        const parsed = JSON.parse(raw);
-
-        const token =
-          parsed?.token ||
-          parsed?.accessToken ||
-          parsed?.access_token ||
-          parsed?.authToken ||
-          parsed?.jwt;
-
-        if (
-          typeof token === "string" &&
-          token.length > 0
-        ) {
-          return token;
-        }
-      } catch {
-        /*
-         * Ce n'est pas du JSON.
-         * On continue simplement.
-         */
-      }
-    }
-
-    return "";
+    return (
+      window.localStorage.getItem("glory_token") ||
+      window.sessionStorage.getItem("glory_token") ||
+      ""
+    );
   }, []);
 
   /* =======================================================
