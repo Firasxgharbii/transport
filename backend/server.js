@@ -28,6 +28,10 @@ const userRoutes = require(
   "./routes/userRoutes"
 );
 
+const registrationRequestRoutes = require(
+  "./routes/registrationRequestRoutes"
+);
+
 const clientRoutes = require(
   "./routes/clientRoutes"
 );
@@ -215,6 +219,11 @@ app.use(
 app.use(
   "/api/users",
   userRoutes
+);
+
+app.use(
+  "/api/registration-requests",
+  registrationRequestRoutes
 );
 
 app.use(
