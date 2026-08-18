@@ -27,35 +27,54 @@ import {
 
 import styles from "./requests.module.css";
 
+/* =========================================================
+   API
+========================================================= */
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://192.168.2.22:5000";
+  "https://api.glorysolutions.ca";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type RequestStatus =
   | "pending"
-  | "approved"
+  | "active"
   | "rejected";
 
 interface RegistrationRequest {
   id: number;
+
   first_name: string;
   last_name: string;
+
   email: string;
   phone: string | null;
-  company_name: string | null;
-  message: string | null;
+
+  company_name?: string | null;
+  message?: string | null;
+
   status: RequestStatus;
+
   created_at: string;
   updated_at?: string;
 }
 
 interface ApiResponse<T> {
-  success: boolean;
+  success?: boolean;
   message?: string;
   data?: T;
+  requests?: T;
+  total?: number;
 }
 
 const ITEMS_PER_PAGE = 8;
+
+/* =========================================================
+   PAGE
+========================================================= */
 
 export default function RequestsPage() {
   const [requests, setRequests] = useState<
@@ -77,8 +96,12 @@ export default function RequestsPage() {
   const [search, setSearch] =
     useState("");
 
-  const [statusFilter, setStatusFilter] =
-    useState<RequestStatus | "all">("all");
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState<RequestStatus | "all">(
+    "all"
+  );
 
   const [currentPage, setCurrentPage] =
     useState(1);
@@ -86,28 +109,151 @@ export default function RequestsPage() {
   const [
     selectedRequest,
     setSelectedRequest,
-  ] = useState<RegistrationRequest | null>(
-    null,
-  );
+  ] =
+    useState<RegistrationRequest | null>(
+      null
+    );
 
   const [
     requestToDelete,
     setRequestToDelete,
-  ] = useState<RegistrationRequest | null>(
-    null,
-  );
+  ] =
+    useState<RegistrationRequest | null>(
+      null
+    );
 
-  const getToken = () => {
+  /* =======================================================
+     RÉCUPÉRER LE TOKEN
+  ======================================================= */
+
+  const getToken = useCallback(() => {
     if (typeof window === "undefined") {
       return "";
     }
 
-    return (
-      localStorage.getItem("token") ||
-      sessionStorage.getItem("token") ||
-      ""
+    /*
+     * On vérifie plusieurs noms possibles afin
+     * d'être compatible avec ton login actuel.
+     */
+
+    const possibleKeys = [
+      "token",
+      "accessToken",
+      "access_token",
+      "authToken",
+      "auth_token",
+      "jwt",
+      "jwtToken",
+      "userToken",
+    ];
+
+    for (const key of possibleKeys) {
+      const localValue =
+        localStorage.getItem(key);
+
+      if (localValue) {
+        return localValue;
+      }
+
+      const sessionValue =
+        sessionStorage.getItem(key);
+
+      if (sessionValue) {
+        return sessionValue;
+      }
+    }
+
+    /*
+     * Certains projets enregistrent un objet
+     * d'authentification complet en JSON.
+     */
+
+    const possibleObjects = [
+      "auth",
+      "user",
+      "session",
+      "authData",
+    ];
+
+    for (const key of possibleObjects) {
+      const raw =
+        localStorage.getItem(key) ||
+        sessionStorage.getItem(key);
+
+      if (!raw) {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(raw);
+
+        const token =
+          parsed?.token ||
+          parsed?.accessToken ||
+          parsed?.access_token ||
+          parsed?.authToken ||
+          parsed?.jwt;
+
+        if (
+          typeof token === "string" &&
+          token.length > 0
+        ) {
+          return token;
+        }
+      } catch {
+        /*
+         * Ce n'est pas du JSON.
+         * On continue simplement.
+         */
+      }
+    }
+
+    return "";
+  }, []);
+
+  /* =======================================================
+     FETCH AUTHENTIFIÉ
+  ======================================================= */
+
+  const authenticatedFetch =
+    useCallback(
+      async (
+        url: string,
+        options: RequestInit = {}
+      ) => {
+        const token = getToken();
+
+        if (!token) {
+          throw new Error(
+            "Session introuvable. Veuillez vous reconnecter."
+          );
+        }
+
+        const headers =
+          new Headers(options.headers);
+
+        headers.set(
+          "Content-Type",
+          "application/json"
+        );
+
+        headers.set(
+          "Authorization",
+          `Bearer ${token}`
+        );
+
+        return fetch(url, {
+          ...options,
+          headers,
+          cache: "no-store",
+        });
+      },
+      [getToken]
     );
-  };
+
+  /* =======================================================
+     CHARGER LES DEMANDES
+  ======================================================= */
 
   const fetchRequests =
     useCallback(async () => {
@@ -115,20 +261,13 @@ export default function RequestsPage() {
         setLoading(true);
         setError("");
 
-        const token = getToken();
-
-        const response = await fetch(
-          `${API_URL}/api/registration-requests`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            cache: "no-store",
-          },
-        );
+        const response =
+          await authenticatedFetch(
+            `${API_URL}/api/registration-requests`,
+            {
+              method: "GET",
+            }
+          );
 
         const result: ApiResponse<
           RegistrationRequest[]
@@ -137,21 +276,48 @@ export default function RequestsPage() {
         if (!response.ok) {
           throw new Error(
             result.message ||
-              "Impossible de charger les demandes.",
+              "Impossible de charger les demandes."
           );
         }
 
-        setRequests(result.data || []);
+        /*
+         * Notre backend retourne actuellement :
+         *
+         * {
+         *   success: true,
+         *   requests: [...],
+         *   data: [...]
+         * }
+         *
+         * On supporte donc les deux.
+         */
+
+        const receivedRequests =
+          result.data ||
+          result.requests ||
+          [];
+
+        setRequests(
+          Array.isArray(receivedRequests)
+            ? receivedRequests
+            : []
+        );
       } catch (err) {
+        setRequests([]);
+
         setError(
           err instanceof Error
             ? err.message
-            : "Une erreur est survenue.",
+            : "Une erreur est survenue."
         );
       } finally {
         setLoading(false);
       }
-    }, []);
+    }, [authenticatedFetch]);
+
+  /* =======================================================
+     PREMIER CHARGEMENT
+  ======================================================= */
 
   useEffect(() => {
     fetchRequests();
@@ -161,243 +327,383 @@ export default function RequestsPage() {
     setCurrentPage(1);
   }, [search, statusFilter]);
 
-  const filteredRequests = useMemo(() => {
-    const normalizedSearch =
-      search.trim().toLowerCase();
+  /* =======================================================
+     FILTRES
+  ======================================================= */
 
-    return requests.filter((request) => {
-      const matchesStatus =
-        statusFilter === "all" ||
-        request.status === statusFilter;
+  const filteredRequests =
+    useMemo(() => {
+      const normalizedSearch =
+        search
+          .trim()
+          .toLowerCase();
 
-      const fullName =
-        `${request.first_name} ${request.last_name}`.toLowerCase();
+      return requests.filter(
+        (request) => {
+          const matchesStatus =
+            statusFilter === "all" ||
+            request.status ===
+              statusFilter;
 
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        fullName.includes(normalizedSearch) ||
-        request.email
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        request.phone
-          ?.toLowerCase()
-          .includes(normalizedSearch) ||
-        request.company_name
-          ?.toLowerCase()
-          .includes(normalizedSearch);
+          const fullName =
+            `${request.first_name || ""} ${
+              request.last_name || ""
+            }`.toLowerCase();
 
-      return matchesStatus && matchesSearch;
-    });
-  }, [requests, search, statusFilter]);
+          const email =
+            request.email
+              ?.toLowerCase() || "";
+
+          const phone =
+            request.phone
+              ?.toLowerCase() || "";
+
+          const company =
+            request.company_name
+              ?.toLowerCase() || "";
+
+          const matchesSearch =
+            normalizedSearch.length ===
+              0 ||
+            fullName.includes(
+              normalizedSearch
+            ) ||
+            email.includes(
+              normalizedSearch
+            ) ||
+            phone.includes(
+              normalizedSearch
+            ) ||
+            company.includes(
+              normalizedSearch
+            );
+
+          return (
+            matchesStatus &&
+            matchesSearch
+          );
+        }
+      );
+    }, [
+      requests,
+      search,
+      statusFilter,
+    ]);
+
+  /* =======================================================
+     PAGINATION
+  ======================================================= */
 
   const totalPages = Math.max(
     1,
     Math.ceil(
       filteredRequests.length /
-        ITEMS_PER_PAGE,
-    ),
+        ITEMS_PER_PAGE
+    )
   );
 
-  const paginatedRequests = useMemo(() => {
-    const start =
-      (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedRequests =
+    useMemo(() => {
+      const start =
+        (currentPage - 1) *
+        ITEMS_PER_PAGE;
 
-    return filteredRequests.slice(
-      start,
-      start + ITEMS_PER_PAGE,
-    );
-  }, [filteredRequests, currentPage]);
-
-  const pendingCount = requests.filter(
-    (request) =>
-      request.status === "pending",
-  ).length;
-
-  const approvedCount = requests.filter(
-    (request) =>
-      request.status === "approved",
-  ).length;
-
-  const rejectedCount = requests.filter(
-    (request) =>
-      request.status === "rejected",
-  ).length;
-
-  const updateRequestStatus = async (
-    requestId: number,
-    status: "approved" | "rejected",
-  ) => {
-    try {
-      setActionLoading(requestId);
-      setError("");
-      setSuccess("");
-
-      const token = getToken();
-
-      const response = await fetch(
-        `${API_URL}/api/registration-requests/${requestId}/${status}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      return filteredRequests.slice(
+        start,
+        start + ITEMS_PER_PAGE
       );
+    }, [
+      filteredRequests,
+      currentPage,
+    ]);
 
-      const result: ApiResponse<
-        RegistrationRequest
-      > = await response.json();
+  /* =======================================================
+     STATISTIQUES
+  ======================================================= */
 
-      if (!response.ok) {
-        throw new Error(
-          result.message ||
-            "Impossible de modifier la demande.",
+  const pendingCount =
+    requests.filter(
+      (request) =>
+        request.status === "pending"
+    ).length;
+
+  const approvedCount =
+    requests.filter(
+      (request) =>
+        request.status === "active"
+    ).length;
+
+  const rejectedCount =
+    requests.filter(
+      (request) =>
+        request.status === "rejected"
+    ).length;
+
+  /* =======================================================
+     APPROUVER / REFUSER
+  ======================================================= */
+
+  const updateRequestStatus =
+    async (
+      requestId: number,
+      action:
+        | "approve"
+        | "reject"
+    ) => {
+      try {
+        setActionLoading(
+          requestId
         );
-      }
 
-      setRequests((currentRequests) =>
-        currentRequests.map((request) =>
-          request.id === requestId
-            ? {
-                ...request,
-                status,
-              }
-            : request,
-        ),
-      );
+        setError("");
+        setSuccess("");
 
-      setSelectedRequest((current) =>
-        current?.id === requestId
-          ? {
-              ...current,
-              status,
+        const response =
+          await authenticatedFetch(
+            `${API_URL}/api/registration-requests/${requestId}/${action}`,
+            {
+              method: "PATCH",
             }
-          : current,
-      );
+          );
 
-      setSuccess(
-        status === "approved"
-          ? "La demande a été approuvée."
-          : "La demande a été refusée.",
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Une erreur est survenue.",
-      );
-    } finally {
-      setActionLoading(null);
-    }
-  };
+        const result: ApiResponse<{
+          status?: RequestStatus;
+        }> =
+          await response.json();
 
-  const deleteRequest = async () => {
-    if (!requestToDelete) {
-      return;
-    }
+        if (!response.ok) {
+          throw new Error(
+            result.message ||
+              "Impossible de modifier la demande."
+          );
+        }
 
-    try {
-      setActionLoading(requestToDelete.id);
-      setError("");
-      setSuccess("");
+        const newStatus: RequestStatus =
+          action === "approve"
+            ? "active"
+            : "rejected";
 
-      const token = getToken();
-
-      const response = await fetch(
-        `${API_URL}/api/registration-requests/${requestToDelete.id}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const result: ApiResponse<null> =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result.message ||
-            "Impossible de supprimer la demande.",
+        setRequests(
+          (currentRequests) =>
+            currentRequests.map(
+              (request) =>
+                request.id ===
+                requestId
+                  ? {
+                      ...request,
+                      status:
+                        newStatus,
+                    }
+                  : request
+            )
         );
+
+        setSelectedRequest(
+          (current) =>
+            current?.id ===
+            requestId
+              ? {
+                  ...current,
+                  status:
+                    newStatus,
+                }
+              : current
+        );
+
+        setSuccess(
+          action === "approve"
+            ? "La demande a été approuvée avec succès."
+            : "La demande a été refusée."
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue."
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    };
+
+  /* =======================================================
+     SUPPRIMER
+  ======================================================= */
+
+  const deleteRequest =
+    async () => {
+      if (!requestToDelete) {
+        return;
       }
 
-      setRequests((currentRequests) =>
-        currentRequests.filter(
-          (request) =>
-            request.id !==
-            requestToDelete.id,
-        ),
-      );
+      try {
+        setActionLoading(
+          requestToDelete.id
+        );
 
-      if (
-        selectedRequest?.id ===
-        requestToDelete.id
-      ) {
-        setSelectedRequest(null);
+        setError("");
+        setSuccess("");
+
+        const response =
+          await authenticatedFetch(
+            `${API_URL}/api/registration-requests/${requestToDelete.id}`,
+            {
+              method: "DELETE",
+            }
+          );
+
+        const result: ApiResponse<null> =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.message ||
+              "Impossible de supprimer la demande."
+          );
+        }
+
+        setRequests(
+          (currentRequests) =>
+            currentRequests.filter(
+              (request) =>
+                request.id !==
+                requestToDelete.id
+            )
+        );
+
+        if (
+          selectedRequest?.id ===
+          requestToDelete.id
+        ) {
+          setSelectedRequest(
+            null
+          );
+        }
+
+        setRequestToDelete(
+          null
+        );
+
+        setSuccess(
+          "La demande a été supprimée."
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Une erreur est survenue."
+        );
+      } finally {
+        setActionLoading(null);
       }
+    };
 
-      setRequestToDelete(null);
-      setSuccess(
-        "La demande a été supprimée.",
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Une erreur est survenue.",
-      );
-    } finally {
-      setActionLoading(null);
+  /* =======================================================
+     HELPERS
+  ======================================================= */
+
+  const formatDate = (
+    value: string
+  ) => {
+    if (!value) {
+      return "—";
     }
-  };
 
-  const formatDate = (value: string) => {
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return "—";
+    }
+
     return new Intl.DateTimeFormat(
       "fr-CA",
       {
         dateStyle: "medium",
         timeStyle: "short",
-      },
-    ).format(new Date(value));
+      }
+    ).format(date);
   };
 
   const getInitials = (
     firstName: string,
-    lastName: string,
+    lastName: string
   ) => {
-    return `${firstName.charAt(0)}${lastName.charAt(
-      0,
-    )}`.toUpperCase();
+    return `${firstName?.charAt(0) || ""}${
+      lastName?.charAt(0) || ""
+    }`.toUpperCase();
   };
 
   const getStatusLabel = (
-    status: RequestStatus,
+    status: RequestStatus
   ) => {
-    if (status === "approved") {
+    if (
+      status === "active"
+    ) {
       return "Approuvée";
     }
 
-    if (status === "rejected") {
+    if (
+      status === "rejected"
+    ) {
       return "Refusée";
     }
 
     return "En attente";
   };
 
-  const handleSearchChange = (
-    event: ChangeEvent<HTMLInputElement>,
+  const getStatusClass = (
+    status: RequestStatus
   ) => {
-    setSearch(event.target.value);
+    /*
+     * Ton ancien CSS utilise probablement :
+     *
+     * status_pending
+     * status_approved
+     * status_rejected
+     *
+     * Le backend utilise "active".
+     * On convertit donc active -> approved
+     * uniquement pour le CSS.
+     */
+
+    if (
+      status === "active"
+    ) {
+      return styles.status_approved;
+    }
+
+    if (
+      status === "rejected"
+    ) {
+      return styles.status_rejected;
+    }
+
+    return styles.status_pending;
   };
+
+  const handleSearchChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    setSearch(
+      event.target.value
+    );
+  };
+
+  /* =======================================================
+     JSX
+  ======================================================= */
 
   return (
     <main className={styles.page}>
+      {/* ================================================
+          HEADER
+      ================================================= */}
+
       <header className={styles.header}>
         <div>
           <div className={styles.eyebrow}>
@@ -405,17 +711,22 @@ export default function RequestsPage() {
             Gestion des inscriptions
           </div>
 
-          <h1>Demandes clients</h1>
+          <h1>
+            Demandes clients
+          </h1>
 
           <p>
-            Consultez, approuvez ou refusez les
-            demandes d’accès à la plateforme.
+            Consultez, approuvez ou
+            refusez les demandes d’accès
+            à la plateforme.
           </p>
         </div>
 
         <button
           type="button"
-          className={styles.refreshButton}
+          className={
+            styles.refreshButton
+          }
           onClick={fetchRequests}
           disabled={loading}
         >
@@ -427,18 +738,32 @@ export default function RequestsPage() {
                 : undefined
             }
           />
+
           Actualiser
         </button>
       </header>
 
+      {/* ================================================
+          ERREUR
+      ================================================= */}
+
       {error && (
-        <div className={styles.errorMessage}>
-          <CircleAlert size={18} />
+        <div
+          className={
+            styles.errorMessage
+          }
+        >
+          <CircleAlert
+            size={18}
+          />
+
           <span>{error}</span>
 
           <button
             type="button"
-            onClick={() => setError("")}
+            onClick={() =>
+              setError("")
+            }
             aria-label="Fermer le message"
           >
             <X size={16} />
@@ -446,14 +771,27 @@ export default function RequestsPage() {
         </div>
       )}
 
+      {/* ================================================
+          SUCCESS
+      ================================================= */}
+
       {success && (
-        <div className={styles.successMessage}>
+        <div
+          className={
+            styles.successMessage
+          }
+        >
           <Check size={18} />
-          <span>{success}</span>
+
+          <span>
+            {success}
+          </span>
 
           <button
             type="button"
-            onClick={() => setSuccess("")}
+            onClick={() =>
+              setSuccess("")
+            }
             aria-label="Fermer le message"
           >
             <X size={16} />
@@ -461,75 +799,160 @@ export default function RequestsPage() {
         </div>
       )}
 
-      <section className={styles.statsGrid}>
-        <article className={styles.statCard}>
-          <div className={styles.statIconPending}>
+      {/* ================================================
+          STATS
+      ================================================= */}
+
+      <section
+        className={
+          styles.statsGrid
+        }
+      >
+        <article
+          className={
+            styles.statCard
+          }
+        >
+          <div
+            className={
+              styles.statIconPending
+            }
+          >
             <Clock3 size={20} />
           </div>
 
           <div>
-            <span>En attente</span>
-            <strong>{pendingCount}</strong>
+            <span>
+              En attente
+            </span>
+
+            <strong>
+              {pendingCount}
+            </strong>
           </div>
         </article>
 
-        <article className={styles.statCard}>
-          <div className={styles.statIconApproved}>
+        <article
+          className={
+            styles.statCard
+          }
+        >
+          <div
+            className={
+              styles.statIconApproved
+            }
+          >
             <Check size={20} />
           </div>
 
           <div>
-            <span>Approuvées</span>
-            <strong>{approvedCount}</strong>
+            <span>
+              Approuvées
+            </span>
+
+            <strong>
+              {approvedCount}
+            </strong>
           </div>
         </article>
 
-        <article className={styles.statCard}>
-          <div className={styles.statIconRejected}>
+        <article
+          className={
+            styles.statCard
+          }
+        >
+          <div
+            className={
+              styles.statIconRejected
+            }
+          >
             <X size={20} />
           </div>
 
           <div>
-            <span>Refusées</span>
-            <strong>{rejectedCount}</strong>
+            <span>
+              Refusées
+            </span>
+
+            <strong>
+              {rejectedCount}
+            </strong>
           </div>
         </article>
 
-        <article className={styles.statCard}>
-          <div className={styles.statIconTotal}>
+        <article
+          className={
+            styles.statCard
+          }
+        >
+          <div
+            className={
+              styles.statIconTotal
+            }
+          >
             <UserRound size={20} />
           </div>
 
           <div>
-            <span>Total</span>
-            <strong>{requests.length}</strong>
+            <span>
+              Total
+            </span>
+
+            <strong>
+              {requests.length}
+            </strong>
           </div>
         </article>
       </section>
 
-      <section className={styles.contentCard}>
-        <div className={styles.toolbar}>
-          <div className={styles.searchBox}>
+      {/* ================================================
+          TABLE
+      ================================================= */}
+
+      <section
+        className={
+          styles.contentCard
+        }
+      >
+        <div
+          className={
+            styles.toolbar
+          }
+        >
+          <div
+            className={
+              styles.searchBox
+            }
+          >
             <Search size={18} />
 
             <input
               type="search"
               value={search}
-              onChange={handleSearchChange}
+              onChange={
+                handleSearchChange
+              }
               placeholder="Rechercher un client, un courriel..."
             />
           </div>
 
-          <div className={styles.filters}>
+          <div
+            className={
+              styles.filters
+            }
+          >
             <button
               type="button"
               className={
-                statusFilter === "all"
+                statusFilter ===
+                "all"
                   ? styles.activeFilter
                   : styles.filterButton
               }
               onClick={() =>
-                setStatusFilter("all")
+                setStatusFilter(
+                  "all"
+                )
               }
             >
               Toutes
@@ -538,12 +961,15 @@ export default function RequestsPage() {
             <button
               type="button"
               className={
-                statusFilter === "pending"
+                statusFilter ===
+                "pending"
                   ? styles.activeFilter
                   : styles.filterButton
               }
               onClick={() =>
-                setStatusFilter("pending")
+                setStatusFilter(
+                  "pending"
+                )
               }
             >
               En attente
@@ -552,12 +978,15 @@ export default function RequestsPage() {
             <button
               type="button"
               className={
-                statusFilter === "approved"
+                statusFilter ===
+                "active"
                   ? styles.activeFilter
                   : styles.filterButton
               }
               onClick={() =>
-                setStatusFilter("approved")
+                setStatusFilter(
+                  "active"
+                )
               }
             >
               Approuvées
@@ -566,12 +995,15 @@ export default function RequestsPage() {
             <button
               type="button"
               className={
-                statusFilter === "rejected"
+                statusFilter ===
+                "rejected"
                   ? styles.activeFilter
                   : styles.filterButton
               }
               onClick={() =>
-                setStatusFilter("rejected")
+                setStatusFilter(
+                  "rejected"
+                )
               }
             >
               Refusées
@@ -579,16 +1011,41 @@ export default function RequestsPage() {
           </div>
         </div>
 
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
+        <div
+          className={
+            styles.tableWrapper
+          }
+        >
+          <table
+            className={
+              styles.table
+            }
+          >
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Coordonnées</th>
-                <th>Entreprise</th>
-                <th>Date</th>
-                <th>Statut</th>
-                <th>Actions</th>
+                <th>
+                  Client
+                </th>
+
+                <th>
+                  Coordonnées
+                </th>
+
+                <th>
+                  Entreprise
+                </th>
+
+                <th>
+                  Date
+                </th>
+
+                <th>
+                  Statut
+                </th>
+
+                <th>
+                  Actions
+                </th>
               </tr>
             </thead>
 
@@ -596,22 +1053,36 @@ export default function RequestsPage() {
               {loading ? (
                 Array.from({
                   length: 5,
-                }).map((_, index) => (
-                  <tr key={index}>
-                    <td colSpan={6}>
-                      <div
-                        className={
-                          styles.skeletonRow
+                }).map(
+                  (_, index) => (
+                    <tr
+                      key={
+                        index
+                      }
+                    >
+                      <td
+                        colSpan={
+                          6
                         }
-                      />
-                    </td>
-                  </tr>
-                ))
+                      >
+                        <div
+                          className={
+                            styles.skeletonRow
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )
+                )
               ) : paginatedRequests.length >
                 0 ? (
                 paginatedRequests.map(
                   (request) => (
-                    <tr key={request.id}>
+                    <tr
+                      key={
+                        request.id
+                      }
+                    >
                       <td>
                         <div
                           className={
@@ -625,7 +1096,7 @@ export default function RequestsPage() {
                           >
                             {getInitials(
                               request.first_name,
-                              request.last_name,
+                              request.last_name
                             )}
                           </div>
 
@@ -640,7 +1111,10 @@ export default function RequestsPage() {
                             </strong>
 
                             <span>
-                              ID #{request.id}
+                              ID #
+                              {
+                                request.id
+                              }
                             </span>
                           </div>
                         </div>
@@ -653,12 +1127,24 @@ export default function RequestsPage() {
                           }
                         >
                           <span>
-                            <Mail size={14} />
-                            {request.email}
+                            <Mail
+                              size={
+                                14
+                              }
+                            />
+
+                            {
+                              request.email
+                            }
                           </span>
 
                           <span>
-                            <Phone size={14} />
+                            <Phone
+                              size={
+                                14
+                              }
+                            />
+
                             {request.phone ||
                               "Non fourni"}
                           </span>
@@ -672,20 +1158,18 @@ export default function RequestsPage() {
 
                       <td>
                         {formatDate(
-                          request.created_at,
+                          request.created_at
                         )}
                       </td>
 
                       <td>
                         <span
-                          className={`${styles.status} ${
-                            styles[
-                              `status_${request.status}`
-                            ]
-                          }`}
+                          className={`${styles.status} ${getStatusClass(
+                            request.status
+                          )}`}
                         >
                           {getStatusLabel(
-                            request.status,
+                            request.status
                           )}
                         </span>
                       </td>
@@ -703,12 +1187,16 @@ export default function RequestsPage() {
                             }
                             onClick={() =>
                               setSelectedRequest(
-                                request,
+                                request
                               )
                             }
                             title="Voir les détails"
                           >
-                            <Eye size={16} />
+                            <Eye
+                              size={
+                                16
+                              }
+                            />
                           </button>
 
                           {request.status ===
@@ -722,7 +1210,7 @@ export default function RequestsPage() {
                                 onClick={() =>
                                   updateRequestStatus(
                                     request.id,
-                                    "approved",
+                                    "approve"
                                   )
                                 }
                                 disabled={
@@ -732,7 +1220,9 @@ export default function RequestsPage() {
                                 title="Approuver"
                               >
                                 <Check
-                                  size={16}
+                                  size={
+                                    16
+                                  }
                                 />
                               </button>
 
@@ -744,7 +1234,7 @@ export default function RequestsPage() {
                                 onClick={() =>
                                   updateRequestStatus(
                                     request.id,
-                                    "rejected",
+                                    "reject"
                                   )
                                 }
                                 disabled={
@@ -753,7 +1243,11 @@ export default function RequestsPage() {
                                 }
                                 title="Refuser"
                               >
-                                <X size={16} />
+                                <X
+                                  size={
+                                    16
+                                  }
+                                />
                               </button>
                             </>
                           )}
@@ -765,35 +1259,46 @@ export default function RequestsPage() {
                             }
                             onClick={() =>
                               setRequestToDelete(
-                                request,
+                                request
                               )
                             }
                             title="Supprimer"
                           >
-                            <Trash2 size={16} />
+                            <Trash2
+                              size={
+                                16
+                              }
+                            />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ),
+                  )
                 )
               ) : (
                 <tr>
-                  <td colSpan={6}>
+                  <td
+                    colSpan={6}
+                  >
                     <div
                       className={
                         styles.emptyState
                       }
                     >
-                      <UserRound size={34} />
+                      <UserRound
+                        size={34}
+                      />
 
                       <h3>
-                        Aucune demande trouvée
+                        Aucune demande
+                        trouvée
                       </h3>
 
                       <p>
-                        Modifiez les filtres ou
-                        actualisez les données.
+                        Modifiez les
+                        filtres ou
+                        actualisez les
+                        données.
                       </p>
                     </div>
                   </td>
@@ -803,10 +1308,22 @@ export default function RequestsPage() {
           </table>
         </div>
 
-        <footer className={styles.pagination}>
+        {/* ==============================================
+            PAGINATION
+        =============================================== */}
+
+        <footer
+          className={
+            styles.pagination
+          }
+        >
           <span>
-            {filteredRequests.length} demande
-            {filteredRequests.length > 1
+            {
+              filteredRequests.length
+            }{" "}
+            demande
+            {filteredRequests.length >
+            1
               ? "s"
               : ""}
           </span>
@@ -815,13 +1332,21 @@ export default function RequestsPage() {
             <button
               type="button"
               onClick={() =>
-                setCurrentPage((page) =>
-                  Math.max(1, page - 1),
+                setCurrentPage(
+                  (page) =>
+                    Math.max(
+                      1,
+                      page - 1
+                    )
                 )
               }
-              disabled={currentPage === 1}
+              disabled={
+                currentPage === 1
+              }
             >
-              <ChevronLeft size={17} />
+              <ChevronLeft
+                size={17}
+              />
             </button>
 
             <span>
@@ -832,58 +1357,85 @@ export default function RequestsPage() {
             <button
               type="button"
               onClick={() =>
-                setCurrentPage((page) =>
-                  Math.min(
-                    totalPages,
-                    page + 1,
-                  ),
+                setCurrentPage(
+                  (page) =>
+                    Math.min(
+                      totalPages,
+                      page + 1
+                    )
                 )
               }
               disabled={
-                currentPage === totalPages
+                currentPage ===
+                totalPages
               }
             >
-              <ChevronRight size={17} />
+              <ChevronRight
+                size={17}
+              />
             </button>
           </div>
         </footer>
       </section>
 
+      {/* ================================================
+          MODAL DÉTAILS
+      ================================================= */}
+
       {selectedRequest && (
         <div
-          className={styles.modalOverlay}
+          className={
+            styles.modalOverlay
+          }
           role="presentation"
           onMouseDown={() =>
-            setSelectedRequest(null)
+            setSelectedRequest(
+              null
+            )
           }
         >
           <article
-            className={styles.modal}
+            className={
+              styles.modal
+            }
             role="dialog"
             aria-modal="true"
             aria-labelledby="request-title"
-            onMouseDown={(event) =>
+            onMouseDown={(
+              event
+            ) =>
               event.stopPropagation()
             }
           >
-            <header className={styles.modalHeader}>
+            <header
+              className={
+                styles.modalHeader
+              }
+            >
               <div>
                 <span>
-                  Demande #{selectedRequest.id}
+                  Demande #
+                  {
+                    selectedRequest.id
+                  }
                 </span>
 
                 <h2 id="request-title">
                   {
                     selectedRequest.first_name
                   }{" "}
-                  {selectedRequest.last_name}
+                  {
+                    selectedRequest.last_name
+                  }
                 </h2>
               </div>
 
               <button
                 type="button"
                 onClick={() =>
-                  setSelectedRequest(null)
+                  setSelectedRequest(
+                    null
+                  )
                 }
                 aria-label="Fermer"
               >
@@ -891,17 +1443,33 @@ export default function RequestsPage() {
               </button>
             </header>
 
-            <div className={styles.modalBody}>
-              <div className={styles.detailGrid}>
+            <div
+              className={
+                styles.modalBody
+              }
+            >
+              <div
+                className={
+                  styles.detailGrid
+                }
+              >
                 <div>
-                  <span>Courriel</span>
+                  <span>
+                    Courriel
+                  </span>
+
                   <strong>
-                    {selectedRequest.email}
+                    {
+                      selectedRequest.email
+                    }
                   </strong>
                 </div>
 
                 <div>
-                  <span>Téléphone</span>
+                  <span>
+                    Téléphone
+                  </span>
+
                   <strong>
                     {selectedRequest.phone ||
                       "Non fourni"}
@@ -909,7 +1477,10 @@ export default function RequestsPage() {
                 </div>
 
                 <div>
-                  <span>Entreprise</span>
+                  <span>
+                    Entreprise
+                  </span>
+
                   <strong>
                     {selectedRequest.company_name ||
                       "Client particulier"}
@@ -917,17 +1488,26 @@ export default function RequestsPage() {
                 </div>
 
                 <div>
-                  <span>Date de demande</span>
+                  <span>
+                    Date de demande
+                  </span>
+
                   <strong>
                     {formatDate(
-                      selectedRequest.created_at,
+                      selectedRequest.created_at
                     )}
                   </strong>
                 </div>
               </div>
 
-              <div className={styles.messageBox}>
-                <span>Message du client</span>
+              <div
+                className={
+                  styles.messageBox
+                }
+              >
+                <span>
+                  Message du client
+                </span>
 
                 <p>
                   {selectedRequest.message ||
@@ -936,12 +1516,20 @@ export default function RequestsPage() {
               </div>
             </div>
 
-            <footer className={styles.modalFooter}>
+            <footer
+              className={
+                styles.modalFooter
+              }
+            >
               <button
                 type="button"
-                className={styles.secondaryButton}
+                className={
+                  styles.secondaryButton
+                }
                 onClick={() =>
-                  setSelectedRequest(null)
+                  setSelectedRequest(
+                    null
+                  )
                 }
               >
                 Fermer
@@ -955,14 +1543,20 @@ export default function RequestsPage() {
                     className={
                       styles.rejectLargeButton
                     }
+                    disabled={
+                      actionLoading ===
+                      selectedRequest.id
+                    }
                     onClick={() =>
                       updateRequestStatus(
                         selectedRequest.id,
-                        "rejected",
+                        "reject"
                       )
                     }
                   >
-                    <X size={17} />
+                    <X
+                      size={17}
+                    />
                     Refuser
                   </button>
 
@@ -971,14 +1565,20 @@ export default function RequestsPage() {
                     className={
                       styles.approveLargeButton
                     }
+                    disabled={
+                      actionLoading ===
+                      selectedRequest.id
+                    }
                     onClick={() =>
                       updateRequestStatus(
                         selectedRequest.id,
-                        "approved",
+                        "approve"
                       )
                     }
                   >
-                    <Check size={17} />
+                    <Check
+                      size={17}
+                    />
                     Approuver
                   </button>
                 </>
@@ -988,12 +1588,20 @@ export default function RequestsPage() {
         </div>
       )}
 
+      {/* ================================================
+          CONFIRMATION SUPPRESSION
+      ================================================= */}
+
       {requestToDelete && (
         <div
-          className={styles.modalOverlay}
+          className={
+            styles.modalOverlay
+          }
           role="presentation"
           onMouseDown={() =>
-            setRequestToDelete(null)
+            setRequestToDelete(
+              null
+            )
           }
         >
           <article
@@ -1002,7 +1610,9 @@ export default function RequestsPage() {
             }
             role="dialog"
             aria-modal="true"
-            onMouseDown={(event) =>
+            onMouseDown={(
+              event
+            ) =>
               event.stopPropagation()
             }
           >
@@ -1011,18 +1621,27 @@ export default function RequestsPage() {
                 styles.confirmationIcon
               }
             >
-              <Trash2 size={23} />
+              <Trash2
+                size={23}
+              />
             </div>
 
-            <h2>Supprimer la demande?</h2>
+            <h2>
+              Supprimer la demande?
+            </h2>
 
             <p>
               La demande de{" "}
               <strong>
-                {requestToDelete.first_name}{" "}
-                {requestToDelete.last_name}
+                {
+                  requestToDelete.first_name
+                }{" "}
+                {
+                  requestToDelete.last_name
+                }
               </strong>{" "}
-              sera supprimée définitivement.
+              sera supprimée
+              définitivement.
             </p>
 
             <div
@@ -1036,7 +1655,9 @@ export default function RequestsPage() {
                   styles.secondaryButton
                 }
                 onClick={() =>
-                  setRequestToDelete(null)
+                  setRequestToDelete(
+                    null
+                  )
                 }
               >
                 Annuler
@@ -1047,13 +1668,18 @@ export default function RequestsPage() {
                 className={
                   styles.confirmDeleteButton
                 }
-                onClick={deleteRequest}
+                onClick={
+                  deleteRequest
+                }
                 disabled={
                   actionLoading ===
                   requestToDelete.id
                 }
               >
-                <Trash2 size={16} />
+                <Trash2
+                  size={16}
+                />
+
                 Supprimer
               </button>
             </div>
