@@ -8,7 +8,6 @@ import {
   Fuel,
   Gauge,
   Loader2,
-  MoreHorizontal,
   Plus,
   RefreshCw,
   Search,
@@ -39,7 +38,7 @@ import styles from "./vehicles.module.css";
 
 type VehicleStatus =
   | "available"
-  | "in_use"
+  | "in_service"
   | "maintenance"
   | "inactive";
 
@@ -51,70 +50,90 @@ type VehicleType =
   | "trailer"
   | "other";
 
+type FuelType =
+  | "gasoline"
+  | "diesel"
+  | "electric"
+  | "hybrid"
+  | "other";
+
 type Vehicle = {
   id: number;
 
-  vehicle_number?: string | null;
+  driver_id?: number | null;
 
-  brand?: string | null;
+  make?: string | null;
   model?: string | null;
   year?: number | null;
 
-  plate_number?: string | null;
+  plate?: string | null;
   vin?: string | null;
 
-  vehicle_type?: VehicleType | string;
+  vehicle_type?: VehicleType | string | null;
 
   capacity_kg?: number | string | null;
-  capacity_pallets?: number | null;
+  capacity_pallets?: number | string | null;
 
-  fuel_type?: string | null;
+  fuel_type?: FuelType | string | null;
   mileage?: number | string | null;
 
-  status?: VehicleStatus | string;
+  status?: VehicleStatus | string | null;
 
-  driver_id?: number | null;
-  driver_first_name?: string | null;
-  driver_last_name?: string | null;
-
+  insurance_number?: string | null;
   insurance_expiry?: string | null;
+
+  registration_number?: string | null;
   registration_expiry?: string | null;
-  inspection_expiry?: string | null;
 
   notes?: string | null;
 
-  created_at?: string;
-  updated_at?: string;
+  driver_first_name?: string | null;
+  driver_last_name?: string | null;
+  driver_phone?: string | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type Driver = {
   id: number;
-  first_name?: string;
-  last_name?: string;
-  availability_status?: string;
+
+  first_name?: string | null;
+  last_name?: string | null;
+
+  phone?: string | null;
+
+  availability_status?: string | null;
 };
 
 type VehiclesResponse = {
   success?: boolean;
-  data?: Vehicle[];
+
+  count?: number;
+
   vehicles?: Vehicle[];
+  data?: Vehicle[];
+
   message?: string;
 };
 
 type DriversResponse = {
   success?: boolean;
-  data?: Driver[];
+
+  count?: number;
+
   drivers?: Driver[];
+  data?: Driver[];
+
+  message?: string;
 };
 
 type VehicleForm = {
-  vehicle_number: string;
-
-  brand: string;
+  make: string;
   model: string;
   year: string;
 
-  plate_number: string;
+  plate: string;
   vin: string;
 
   vehicle_type: VehicleType;
@@ -122,16 +141,18 @@ type VehicleForm = {
   capacity_kg: string;
   capacity_pallets: string;
 
-  fuel_type: string;
+  fuel_type: FuelType;
   mileage: string;
 
   status: VehicleStatus;
 
   driver_id: string;
 
+  insurance_number: string;
   insurance_expiry: string;
+
+  registration_number: string;
   registration_expiry: string;
-  inspection_expiry: string;
 
   notes: string;
 };
@@ -146,16 +167,14 @@ type StatusFilter =
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://192.168.2.22:5000";
+  "http://localhost:5000";
 
 const EMPTY_FORM: VehicleForm = {
-  vehicle_number: "",
-
-  brand: "",
+  make: "",
   model: "",
   year: "",
 
-  plate_number: "",
+  plate: "",
   vin: "",
 
   vehicle_type: "van",
@@ -170,9 +189,11 @@ const EMPTY_FORM: VehicleForm = {
 
   driver_id: "",
 
+  insurance_number: "",
   insurance_expiry: "",
+
+  registration_number: "",
   registration_expiry: "",
-  inspection_expiry: "",
 
   notes: "",
 };
@@ -187,10 +208,20 @@ function getToken() {
   }
 
   return (
-    window.localStorage.getItem(
+    localStorage.getItem(
       "glory_token",
     ) || ""
   );
+}
+
+function normalizeApiError(
+  error: unknown,
+) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Une erreur est survenue.";
 }
 
 function formatDate(
@@ -200,16 +231,17 @@ function formatDate(
     return "Non définie";
   }
 
-  const normalizedValue =
+  const normalized =
     value.includes("T")
       ? value
       : `${value}T00:00:00`;
 
-  const date =
-    new Date(normalizedValue);
+  const date = new Date(normalized);
 
   if (
-    Number.isNaN(date.getTime())
+    Number.isNaN(
+      date.getTime(),
+    )
   ) {
     return value;
   }
@@ -225,16 +257,15 @@ function formatDate(
 function getVehicleName(
   vehicle: Vehicle,
 ) {
-  const name = [
-    vehicle.brand,
+  const value = [
+    vehicle.make,
     vehicle.model,
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    name ||
-    vehicle.vehicle_number ||
+    value ||
     `Véhicule #${vehicle.id}`
   );
 }
@@ -242,28 +273,31 @@ function getVehicleName(
 function getDriverName(
   vehicle: Vehicle,
 ) {
-  const name = [
+  const value = [
     vehicle.driver_first_name,
     vehicle.driver_last_name,
   ]
     .filter(Boolean)
     .join(" ");
 
-  return name || "Non assigné";
+  return (
+    value ||
+    "Non assigné"
+  );
 }
 
 function getStatusLabel(
-  status?: string,
+  status?: string | null,
 ) {
   switch (status) {
     case "available":
       return "Disponible";
 
-    case "in_use":
+    case "in_service":
       return "En service";
 
     case "maintenance":
-      return "Entretien";
+      return "En entretien";
 
     case "inactive":
       return "Inactif";
@@ -274,7 +308,7 @@ function getStatusLabel(
 }
 
 function getTypeLabel(
-  type?: string,
+  type?: string | null,
 ) {
   switch (type) {
     case "van":
@@ -310,20 +344,12 @@ function getFuelLabel(
     case "hybrid":
       return "Hybride";
 
-    case "propane":
-      return "Propane";
+    case "other":
+      return "Autre";
 
     default:
       return "Essence";
   }
-}
-
-function normalizeApiError(
-  error: unknown,
-) {
-  return error instanceof Error
-    ? error.message
-    : "Une erreur est survenue.";
 }
 
 /* ============================================================
@@ -358,24 +384,28 @@ export default function VehiclesPage() {
     statusFilter,
     setStatusFilter,
   ] =
-    useState<StatusFilter>("all");
+    useState<StatusFilter>(
+      "all",
+    );
 
   const [
     showModal,
     setShowModal,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     editingVehicle,
     setEditingVehicle,
-  ] = useState<Vehicle | null>(
-    null,
-  );
+  ] =
+    useState<Vehicle | null>(
+      null,
+    );
 
   const [form, setForm] =
-    useState<VehicleForm>(
-      EMPTY_FORM,
-    );
+    useState<VehicleForm>({
+      ...EMPTY_FORM,
+    });
 
   /* ============================================================
      FETCH AUTHENTIFIÉ
@@ -387,10 +417,13 @@ export default function VehiclesPage() {
         endpoint: string,
         options: RequestInit = {},
       ): Promise<T> => {
-        const token = getToken();
+        const token =
+          getToken();
 
         if (!token) {
-          router.replace("/login");
+          router.replace(
+            "/login",
+          );
 
           throw new Error(
             "Votre session a expiré.",
@@ -418,7 +451,8 @@ export default function VehiclesPage() {
           );
 
         let responseData:
-          | unknown = null;
+          | unknown
+          | null = null;
 
         try {
           responseData =
@@ -428,17 +462,20 @@ export default function VehiclesPage() {
         }
 
         if (
-          response.status === 401
+          response.status ===
+          401
         ) {
-          window.localStorage.removeItem(
+          localStorage.removeItem(
             "glory_token",
           );
 
-          window.localStorage.removeItem(
+          localStorage.removeItem(
             "glory_user",
           );
 
-          router.replace("/login");
+          router.replace(
+            "/login",
+          );
 
           throw new Error(
             "Votre session a expiré.",
@@ -453,7 +490,7 @@ export default function VehiclesPage() {
 
           throw new Error(
             apiError?.message ||
-              "Une erreur est survenue.",
+              `Erreur HTTP ${response.status}.`,
           );
         }
 
@@ -463,7 +500,7 @@ export default function VehiclesPage() {
     );
 
   /* ============================================================
-     CHARGEMENT
+     CHARGER LES VÉHICULES + CHAUFFEURS
   ============================================================ */
 
   const loadVehicles =
@@ -473,37 +510,40 @@ export default function VehiclesPage() {
 
       try {
         const [
-          vehicleResponse,
-          driverResponse,
+          vehicleResult,
+          driverResult,
         ] =
-          await Promise.allSettled([
-            authenticatedFetch<VehiclesResponse>(
-              "/api/vehicles",
-            ),
+          await Promise.allSettled(
+            [
+              authenticatedFetch<VehiclesResponse>(
+                "/api/vehicles",
+              ),
 
-            authenticatedFetch<DriversResponse>(
-              "/api/drivers",
-            ),
-          ]);
+              authenticatedFetch<DriversResponse>(
+                "/api/drivers",
+              ),
+            ],
+          );
 
         if (
-          vehicleResponse.status ===
+          vehicleResult.status ===
           "rejected"
         ) {
-          throw vehicleResponse.reason;
+          throw vehicleResult.reason;
         }
+
+        const vehicleResponse =
+          vehicleResult.value;
 
         const receivedVehicles =
           Array.isArray(
-            vehicleResponse.value.data,
+            vehicleResponse.data,
           )
-            ? vehicleResponse.value.data
+            ? vehicleResponse.data
             : Array.isArray(
-                  vehicleResponse.value
-                    .vehicles,
+                  vehicleResponse.vehicles,
                 )
-              ? vehicleResponse.value
-                  .vehicles
+              ? vehicleResponse.vehicles
               : [];
 
         setVehicles(
@@ -511,30 +551,34 @@ export default function VehiclesPage() {
         );
 
         if (
-          driverResponse.status ===
+          driverResult.status ===
           "fulfilled"
         ) {
+          const driverResponse =
+            driverResult.value;
+
           const receivedDrivers =
             Array.isArray(
-              driverResponse.value.data,
+              driverResponse.data,
             )
-              ? driverResponse.value
-                  .data
+              ? driverResponse.data
               : Array.isArray(
-                    driverResponse.value
-                      .drivers,
+                    driverResponse.drivers,
                   )
-                ? driverResponse.value
-                    .drivers
+                ? driverResponse.drivers
                 : [];
 
           setDrivers(
             receivedDrivers,
           );
+        } else {
+          setDrivers([]);
         }
       } catch (reason) {
         setError(
-          normalizeApiError(reason),
+          normalizeApiError(
+            reason,
+          ),
         );
       } finally {
         setLoading(false);
@@ -560,13 +604,13 @@ export default function VehiclesPage() {
       [vehicles],
     );
 
-  const inUseCount =
+  const inServiceCount =
     useMemo(
       () =>
         vehicles.filter(
           (vehicle) =>
             vehicle.status ===
-            "in_use",
+            "in_service",
         ).length,
       [vehicles],
     );
@@ -599,18 +643,17 @@ export default function VehiclesPage() {
 
   const filteredVehicles =
     useMemo(() => {
-      const normalizedSearch =
+      const query =
         search
           .trim()
           .toLowerCase();
 
       return vehicles.filter(
         (vehicle) => {
-          const searchableContent = [
-            vehicle.vehicle_number,
-            vehicle.brand,
+          const searchable = [
+            vehicle.make,
             vehicle.model,
-            vehicle.plate_number,
+            vehicle.plate,
             vehicle.vin,
             vehicle.driver_first_name,
             vehicle.driver_last_name,
@@ -620,13 +663,14 @@ export default function VehiclesPage() {
             .toLowerCase();
 
           const matchesSearch =
-            !normalizedSearch ||
-            searchableContent.includes(
-              normalizedSearch,
+            !query ||
+            searchable.includes(
+              query,
             );
 
           const matchesStatus =
-            statusFilter === "all" ||
+            statusFilter ===
+              "all" ||
             vehicle.status ===
               statusFilter;
 
@@ -648,24 +692,27 @@ export default function VehiclesPage() {
 
   const openCreateModal = () => {
     setEditingVehicle(null);
-    setForm(EMPTY_FORM);
+
+    setForm({
+      ...EMPTY_FORM,
+    });
+
     setError("");
     setSuccess("");
+
     setShowModal(true);
   };
 
   const openEditModal = (
     vehicle: Vehicle,
   ) => {
-    setEditingVehicle(vehicle);
+    setEditingVehicle(
+      vehicle,
+    );
 
     setForm({
-      vehicle_number:
-        vehicle.vehicle_number ||
-        "",
-
-      brand:
-        vehicle.brand || "",
+      make:
+        vehicle.make || "",
 
       model:
         vehicle.model || "",
@@ -675,9 +722,8 @@ export default function VehiclesPage() {
           ? String(vehicle.year)
           : "",
 
-      plate_number:
-        vehicle.plate_number ||
-        "",
+      plate:
+        vehicle.plate || "",
 
       vin:
         vehicle.vin || "",
@@ -707,13 +753,17 @@ export default function VehiclesPage() {
           : "",
 
       fuel_type:
-        vehicle.fuel_type ||
-        "gasoline",
+        (vehicle.fuel_type ||
+          "gasoline") as FuelType,
 
       mileage:
-        vehicle.mileage !== null &&
-        vehicle.mileage !== undefined
-          ? String(vehicle.mileage)
+        vehicle.mileage !==
+          null &&
+        vehicle.mileage !==
+          undefined
+          ? String(
+              vehicle.mileage,
+            )
           : "",
 
       status:
@@ -727,16 +777,20 @@ export default function VehiclesPage() {
             )
           : "",
 
+      insurance_number:
+        vehicle.insurance_number ||
+        "",
+
       insurance_expiry:
         vehicle.insurance_expiry
           ?.slice(0, 10) || "",
 
+      registration_number:
+        vehicle.registration_number ||
+        "",
+
       registration_expiry:
         vehicle.registration_expiry
-          ?.slice(0, 10) || "",
-
-      inspection_expiry:
-        vehicle.inspection_expiry
           ?.slice(0, 10) || "",
 
       notes:
@@ -745,6 +799,7 @@ export default function VehiclesPage() {
 
     setError("");
     setSuccess("");
+
     setShowModal(true);
   };
 
@@ -754,8 +809,14 @@ export default function VehiclesPage() {
     }
 
     setShowModal(false);
-    setEditingVehicle(null);
-    setForm(EMPTY_FORM);
+
+    setEditingVehicle(
+      null,
+    );
+
+    setForm({
+      ...EMPTY_FORM,
+    });
   };
 
   /* ============================================================
@@ -763,236 +824,379 @@ export default function VehiclesPage() {
   ============================================================ */
 
   const updateField = (
-    field: keyof VehicleForm,
+    field:
+      keyof VehicleForm,
     value: string,
   ) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setForm(
+      (current) => ({
+        ...current,
+        [field]: value,
+      }),
+    );
   };
 
-  const handleSubmit = async (
-    event: FormEvent,
-  ) => {
-    event.preventDefault();
+  const handleSubmit =
+    async (
+      event: FormEvent,
+    ) => {
+      event.preventDefault();
 
-    setError("");
-    setSuccess("");
+      setError("");
+      setSuccess("");
 
-    if (!form.brand.trim()) {
-      setError(
-        "La marque du véhicule est obligatoire.",
-      );
+      /* -------------------------
+         MARQUE
+      ------------------------- */
 
-      return;
-    }
-
-    if (!form.model.trim()) {
-      setError(
-        "Le modèle du véhicule est obligatoire.",
-      );
-
-      return;
-    }
-
-    if (
-      !form.plate_number.trim()
-    ) {
-      setError(
-        "La plaque d’immatriculation est obligatoire.",
-      );
-
-      return;
-    }
-
-    const year = form.year
-      ? Number(form.year)
-      : null;
-
-    if (
-      year !== null &&
-      (
-        !Number.isInteger(year) ||
-        year < 1950 ||
-        year >
-          new Date().getFullYear() +
-            1
-      )
-    ) {
-      setError(
-        "L’année du véhicule est invalide.",
-      );
-
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const payload = {
-        vehicle_number:
-          form.vehicle_number.trim() ||
-          null,
-
-        brand:
-          form.brand.trim(),
-
-        model:
-          form.model.trim(),
-
-        year,
-
-        plate_number:
-          form.plate_number.trim(),
-
-        vin:
-          form.vin.trim() || null,
-
-        vehicle_type:
-          form.vehicle_type,
-
-        capacity_kg:
-          form.capacity_kg
-            ? Number(
-                form.capacity_kg,
-              )
-            : null,
-
-        capacity_pallets:
-          form.capacity_pallets
-            ? Number(
-                form.capacity_pallets,
-              )
-            : null,
-
-        fuel_type:
-          form.fuel_type,
-
-        mileage:
-          form.mileage
-            ? Number(form.mileage)
-            : 0,
-
-        status:
-          form.status,
-
-        driver_id:
-          form.driver_id
-            ? Number(
-                form.driver_id,
-              )
-            : null,
-
-        insurance_expiry:
-          form.insurance_expiry ||
-          null,
-
-        registration_expiry:
-          form.registration_expiry ||
-          null,
-
-        inspection_expiry:
-          form.inspection_expiry ||
-          null,
-
-        notes:
-          form.notes.trim() ||
-          null,
-      };
-
-      if (editingVehicle) {
-        await authenticatedFetch(
-          `/api/vehicles/${editingVehicle.id}`,
-          {
-            method: "PUT",
-
-            body: JSON.stringify(
-              payload,
-            ),
-          },
+      if (
+        !form.make.trim()
+      ) {
+        setError(
+          "La marque du véhicule est obligatoire.",
         );
 
-        setSuccess(
-          "Véhicule modifié avec succès.",
-        );
-      } else {
-        await authenticatedFetch(
-          "/api/vehicles",
-          {
-            method: "POST",
-
-            body: JSON.stringify(
-              payload,
-            ),
-          },
-        );
-
-        setSuccess(
-          "Véhicule ajouté avec succès.",
-        );
+        return;
       }
 
-      closeModal();
-      await loadVehicles();
-    } catch (reason) {
-      setError(
-        normalizeApiError(reason),
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+      /* -------------------------
+         MODÈLE
+      ------------------------- */
+
+      if (
+        !form.model.trim()
+      ) {
+        setError(
+          "Le modèle du véhicule est obligatoire.",
+        );
+
+        return;
+      }
+
+      /* -------------------------
+         PLAQUE
+      ------------------------- */
+
+      if (
+        !form.plate.trim()
+      ) {
+        setError(
+          "La plaque du véhicule est obligatoire.",
+        );
+
+        return;
+      }
+
+      /* -------------------------
+         ANNÉE
+      ------------------------- */
+
+      const year =
+        form.year
+          ? Number(
+              form.year,
+            )
+          : null;
+
+      if (
+        year !== null &&
+        (
+          !Number.isInteger(
+            year,
+          ) ||
+          year < 1900 ||
+          year > 2100
+        )
+      ) {
+        setError(
+          "L’année du véhicule est invalide.",
+        );
+
+        return;
+      }
+
+      /* -------------------------
+         CAPACITÉ KG
+      ------------------------- */
+
+      const capacityKg =
+        form.capacity_kg
+          ? Number(
+              form.capacity_kg,
+            )
+          : null;
+
+      if (
+        capacityKg !== null &&
+        (
+          !Number.isFinite(
+            capacityKg,
+          ) ||
+          capacityKg < 0
+        )
+      ) {
+        setError(
+          "La capacité en kilogrammes est invalide.",
+        );
+
+        return;
+      }
+
+      /* -------------------------
+         PALETTES
+      ------------------------- */
+
+      const capacityPallets =
+        form.capacity_pallets
+          ? Number(
+              form.capacity_pallets,
+            )
+          : null;
+
+      if (
+        capacityPallets !==
+          null &&
+        (
+          !Number.isInteger(
+            capacityPallets,
+          ) ||
+          capacityPallets < 0
+        )
+      ) {
+        setError(
+          "Le nombre de palettes est invalide.",
+        );
+
+        return;
+      }
+
+      /* -------------------------
+         KILOMÉTRAGE
+      ------------------------- */
+
+      const mileage =
+        form.mileage
+          ? Number(
+              form.mileage,
+            )
+          : 0;
+
+      if (
+        !Number.isFinite(
+          mileage,
+        ) ||
+        mileage < 0
+      ) {
+        setError(
+          "Le kilométrage est invalide.",
+        );
+
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        /*
+         * IMPORTANT :
+         *
+         * Les noms correspondent maintenant
+         * EXACTEMENT au backend :
+         *
+         * make
+         * plate
+         * in_service
+         */
+
+        const payload = {
+          make:
+            form.make.trim(),
+
+          model:
+            form.model.trim(),
+
+          year,
+
+          plate:
+            form.plate
+              .trim()
+              .toUpperCase(),
+
+          vin:
+            form.vin.trim()
+              ? form.vin
+                  .trim()
+                  .toUpperCase()
+              : null,
+
+          vehicle_type:
+            form.vehicle_type,
+
+          capacity_kg:
+            capacityKg,
+
+          capacity_pallets:
+            capacityPallets,
+
+          fuel_type:
+            form.fuel_type,
+
+          mileage,
+
+          status:
+            form.status,
+
+          driver_id:
+            form.driver_id
+              ? Number(
+                  form.driver_id,
+                )
+              : null,
+
+          insurance_number:
+            form.insurance_number
+              .trim() ||
+            null,
+
+          insurance_expiry:
+            form.insurance_expiry ||
+            null,
+
+          registration_number:
+            form.registration_number
+              .trim() ||
+            null,
+
+          registration_expiry:
+            form.registration_expiry ||
+            null,
+
+          notes:
+            form.notes.trim() ||
+            null,
+        };
+
+        if (
+          editingVehicle
+        ) {
+          await authenticatedFetch(
+            `/api/vehicles/${editingVehicle.id}`,
+            {
+              method: "PUT",
+
+              body:
+                JSON.stringify(
+                  payload,
+                ),
+            },
+          );
+
+          setSuccess(
+            "Véhicule modifié avec succès.",
+          );
+        } else {
+          await authenticatedFetch(
+            "/api/vehicles",
+            {
+              method: "POST",
+
+              body:
+                JSON.stringify(
+                  payload,
+                ),
+            },
+          );
+
+          setSuccess(
+            "Véhicule ajouté avec succès.",
+          );
+        }
+
+        setShowModal(false);
+
+        setEditingVehicle(
+          null,
+        );
+
+        setForm({
+          ...EMPTY_FORM,
+        });
+
+        await loadVehicles();
+      } catch (reason) {
+        setError(
+          normalizeApiError(
+            reason,
+          ),
+        );
+      } finally {
+        setSaving(false);
+      }
+    };
 
   /* ============================================================
      SUPPRESSION
   ============================================================ */
 
-  const deleteVehicle = async (
-    vehicle: Vehicle,
-  ) => {
-    const confirmed =
-      window.confirm(
-        `Voulez-vous supprimer ${getVehicleName(
-          vehicle,
-        )} ?`,
-      );
+  const deleteVehicle =
+    async (
+      vehicle: Vehicle,
+    ) => {
+      const confirmed =
+        window.confirm(
+          `Voulez-vous vraiment supprimer ${getVehicleName(
+            vehicle,
+          )} ?`,
+        );
 
-    if (!confirmed) {
-      return;
-    }
+      if (!confirmed) {
+        return;
+      }
 
-    setError("");
-    setSuccess("");
+      setError("");
+      setSuccess("");
 
-    try {
-      await authenticatedFetch(
-        `/api/vehicles/${vehicle.id}`,
-        {
-          method: "DELETE",
-        },
-      );
+      try {
+        await authenticatedFetch(
+          `/api/vehicles/${vehicle.id}`,
+          {
+            method:
+              "DELETE",
+          },
+        );
 
-      setSuccess(
-        "Véhicule supprimé avec succès.",
-      );
+        setSuccess(
+          "Véhicule supprimé avec succès.",
+        );
 
-      await loadVehicles();
-    } catch (reason) {
-      setError(
-        normalizeApiError(reason),
-      );
-    }
-  };
+        await loadVehicles();
+      } catch (reason) {
+        setError(
+          normalizeApiError(
+            reason,
+          ),
+        );
+      }
+    };
+
+  /* ============================================================
+     AFFICHAGE
+  ============================================================ */
 
   return (
-    <main className={styles.page}>
+    <main
+      className={
+        styles.page
+      }
+    >
       {/* =====================================================
           EN-TÊTE
       ====================================================== */}
 
       <section
-        className={styles.heading}
+        className={
+          styles.heading
+        }
       >
         <div>
           <span
@@ -1001,10 +1205,13 @@ export default function VehiclesPage() {
             }
           >
             <Truck size={16} />
+
             Gestion de la flotte
           </span>
 
-          <h1>Véhicules</h1>
+          <h1>
+            Véhicules
+          </h1>
 
           <p>
             Gérez les véhicules,
@@ -1051,6 +1258,7 @@ export default function VehiclesPage() {
             }
           >
             <Plus size={18} />
+
             Ajouter un véhicule
           </button>
         </div>
@@ -1070,7 +1278,9 @@ export default function VehiclesPage() {
             size={18}
           />
 
-          <span>{error}</span>
+          <span>
+            {error}
+          </span>
 
           <button
             type="button"
@@ -1094,7 +1304,9 @@ export default function VehiclesPage() {
             size={18}
           />
 
-          <span>{success}</span>
+          <span>
+            {success}
+          </span>
 
           <button
             type="button"
@@ -1119,14 +1331,20 @@ export default function VehiclesPage() {
       >
         <StatCard
           label="Total véhicules"
-          value={vehicles.length}
-          icon={<Truck size={20} />}
+          value={
+            vehicles.length
+          }
+          icon={
+            <Truck size={20} />
+          }
           variant="total"
         />
 
         <StatCard
           label="Disponibles"
-          value={availableCount}
+          value={
+            availableCount
+          }
           icon={
             <CheckCircle2
               size={20}
@@ -1137,8 +1355,12 @@ export default function VehiclesPage() {
 
         <StatCard
           label="En service"
-          value={inUseCount}
-          icon={<Gauge size={20} />}
+          value={
+            inServiceCount
+          }
+          icon={
+            <Gauge size={20} />
+          }
           variant="inUse"
         />
 
@@ -1147,14 +1369,22 @@ export default function VehiclesPage() {
           value={
             maintenanceCount
           }
-          icon={<Wrench size={20} />}
+          icon={
+            <Wrench size={20} />
+          }
           variant="maintenance"
         />
 
         <StatCard
           label="Inactifs"
-          value={inactiveCount}
-          icon={<XCircle size={20} />}
+          value={
+            inactiveCount
+          }
+          icon={
+            <XCircle
+              size={20}
+            />
+          }
           variant="inactive"
         />
       </section>
@@ -1164,7 +1394,9 @@ export default function VehiclesPage() {
       ====================================================== */}
 
       <section
-        className={styles.panel}
+        className={
+          styles.panel
+        }
       >
         <div
           className={
@@ -1181,9 +1413,12 @@ export default function VehiclesPage() {
             <input
               type="search"
               value={search}
-              onChange={(event) =>
+              onChange={(
+                event,
+              ) =>
                 setSearch(
-                  event.target.value,
+                  event.target
+                    .value,
                 )
               }
               placeholder="Rechercher par marque, modèle, plaque ou chauffeur..."
@@ -1194,8 +1429,12 @@ export default function VehiclesPage() {
             className={
               styles.statusFilter
             }
-            value={statusFilter}
-            onChange={(event) =>
+            value={
+              statusFilter
+            }
+            onChange={(
+              event,
+            ) =>
               setStatusFilter(
                 event.target
                   .value as StatusFilter,
@@ -1210,7 +1449,7 @@ export default function VehiclesPage() {
               Disponibles
             </option>
 
-            <option value="in_use">
+            <option value="in_service">
               En service
             </option>
 
@@ -1230,31 +1469,68 @@ export default function VehiclesPage() {
           }
         >
           <table
-            className={styles.table}
+            className={
+              styles.table
+            }
           >
             <thead>
               <tr>
-                <th>Véhicule</th>
-                <th>Plaque / VIN</th>
-                <th>Type</th>
-                <th>Capacité</th>
-                <th>Carburant</th>
-                <th>Kilométrage</th>
-                <th>Chauffeur</th>
-                <th>Documents</th>
-                <th>Statut</th>
-                <th>Actions</th>
+                <th>
+                  Véhicule
+                </th>
+
+                <th>
+                  Plaque / VIN
+                </th>
+
+                <th>
+                  Type
+                </th>
+
+                <th>
+                  Capacité
+                </th>
+
+                <th>
+                  Carburant
+                </th>
+
+                <th>
+                  Kilométrage
+                </th>
+
+                <th>
+                  Chauffeur
+                </th>
+
+                <th>
+                  Documents
+                </th>
+
+                <th>
+                  Statut
+                </th>
+
+                <th>
+                  Actions
+                </th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
                 Array.from({
-                  length: 5,
+                  length: 4,
                 }).map(
                   (_, index) => (
-                    <tr key={index}>
-                      <td colSpan={10}>
+                    <tr
+                      key={index}
+                    >
+                      <td
+                        colSpan={
+                          10
+                        }
+                      >
                         <div
                           className={
                             styles.skeleton
@@ -1267,13 +1543,17 @@ export default function VehiclesPage() {
               ) : filteredVehicles.length ===
                 0 ? (
                 <tr>
-                  <td colSpan={10}>
+                  <td
+                    colSpan={10}
+                  >
                     <div
                       className={
                         styles.emptyState
                       }
                     >
-                      <Truck size={44} />
+                      <Truck
+                        size={44}
+                      />
 
                       <h2>
                         Aucun véhicule
@@ -1281,9 +1561,9 @@ export default function VehiclesPage() {
                       </h2>
 
                       <p>
-                        Ajoutez le premier
-                        véhicule de votre
-                        flotte.
+                        Ajoutez le
+                        premier véhicule
+                        de votre flotte.
                       </p>
 
                       <button
@@ -1298,7 +1578,9 @@ export default function VehiclesPage() {
                         <Plus
                           size={17}
                         />
-                        Ajouter un véhicule
+
+                        Ajouter un
+                        véhicule
                       </button>
                     </div>
                   </td>
@@ -1307,7 +1589,9 @@ export default function VehiclesPage() {
                 filteredVehicles.map(
                   (vehicle) => (
                     <tr
-                      key={vehicle.id}
+                      key={
+                        vehicle.id
+                      }
                     >
                       <td>
                         <div
@@ -1317,7 +1601,9 @@ export default function VehiclesPage() {
                         >
                           <span>
                             <Truck
-                              size={18}
+                              size={
+                                18
+                              }
                             />
                           </span>
 
@@ -1329,19 +1615,20 @@ export default function VehiclesPage() {
                             </strong>
 
                             <small>
-                              {vehicle.vehicle_number ||
-                                `VHC-${String(
-                                  vehicle.id,
-                                ).padStart(
-                                  4,
-                                  "0",
-                                )}`}
+                              {`VHC-${String(
+                                vehicle.id,
+                              ).padStart(
+                                4,
+                                "0",
+                              )}`}
                             </small>
 
                             {vehicle.year && (
                               <small>
                                 Année{" "}
-                                {vehicle.year}
+                                {
+                                  vehicle.year
+                                }
                               </small>
                             )}
                           </div>
@@ -1355,7 +1642,7 @@ export default function VehiclesPage() {
                           }
                         >
                           <strong>
-                            {vehicle.plate_number ||
+                            {vehicle.plate ||
                               "Non fournie"}
                           </strong>
 
@@ -1392,8 +1679,10 @@ export default function VehiclesPage() {
                           </strong>
 
                           <small>
-                            {vehicle.capacity_pallets ||
-                              0}{" "}
+                            {Number(
+                              vehicle.capacity_pallets ||
+                                0,
+                            )}{" "}
                             palette
                             {Number(
                               vehicle.capacity_pallets ||
@@ -1412,7 +1701,9 @@ export default function VehiclesPage() {
                           }
                         >
                           <Fuel
-                            size={15}
+                            size={
+                              15
+                            }
                           />
 
                           <span>
@@ -1430,7 +1721,9 @@ export default function VehiclesPage() {
                           }
                         >
                           <Gauge
-                            size={15}
+                            size={
+                              15
+                            }
                           />
 
                           <span>
@@ -1452,7 +1745,9 @@ export default function VehiclesPage() {
                           }
                         >
                           <UserRound
-                            size={16}
+                            size={
+                              16
+                            }
                           />
 
                           <span>
@@ -1482,13 +1777,6 @@ export default function VehiclesPage() {
                               vehicle.registration_expiry
                             }
                           />
-
-                          <DocumentDate
-                            label="Inspection"
-                            value={
-                              vehicle.inspection_expiry
-                            }
-                          />
                         </div>
                       </td>
 
@@ -1499,7 +1787,7 @@ export default function VehiclesPage() {
                             "available"
                               ? styles.statusAvailable
                               : vehicle.status ===
-                                  "in_use"
+                                  "in_service"
                                 ? styles.statusInUse
                                 : vehicle.status ===
                                     "maintenance"
@@ -1532,7 +1820,9 @@ export default function VehiclesPage() {
                             title="Modifier"
                           >
                             <Edit3
-                              size={16}
+                              size={
+                                16
+                              }
                             />
                           </button>
 
@@ -1547,19 +1837,9 @@ export default function VehiclesPage() {
                             title="Supprimer"
                           >
                             <Trash2
-                              size={16}
-                            />
-                          </button>
-
-                          <button
-                            type="button"
-                            className={
-                              styles.actionButton
-                            }
-                            title="Plus d’options"
-                          >
-                            <MoreHorizontal
-                              size={17}
+                              size={
+                                16
+                              }
                             />
                           </button>
                         </div>
@@ -1577,16 +1857,19 @@ export default function VehiclesPage() {
             styles.footer
           }
         >
-          {filteredVehicles.length}{" "}
+          {
+            filteredVehicles.length
+          }{" "}
           véhicule
-          {filteredVehicles.length > 1
+          {filteredVehicles.length >
+          1
             ? "s"
             : ""}
         </footer>
       </section>
 
       {/* =====================================================
-          MODAL
+          MODAL AJOUT / MODIFICATION
       ====================================================== */}
 
       {showModal && (
@@ -1597,7 +1880,9 @@ export default function VehiclesPage() {
           role="presentation"
         >
           <section
-            className={styles.modal}
+            className={
+              styles.modal
+            }
             role="dialog"
             aria-modal="true"
             aria-label={
@@ -1617,8 +1902,12 @@ export default function VehiclesPage() {
                     styles.eyebrow
                   }
                 >
-                  <Truck size={15} />
-                  Gestion de la flotte
+                  <Truck
+                    size={15}
+                  />
+
+                  Gestion de la
+                  flotte
                 </span>
 
                 <h2>
@@ -1633,7 +1922,9 @@ export default function VehiclesPage() {
                 className={
                   styles.closeButton
                 }
-                onClick={closeModal}
+                onClick={
+                  closeModal
+                }
                 aria-label="Fermer"
               >
                 <X size={20} />
@@ -1654,25 +1945,15 @@ export default function VehiclesPage() {
                 }
               >
                 <Field
-                  label="Numéro interne"
-                  value={
-                    form.vehicle_number
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "vehicle_number",
-                      value,
-                    )
-                  }
-                  placeholder="GLY-VHC-001"
-                />
-
-                <Field
                   label="Marque *"
-                  value={form.brand}
-                  onChange={(value) =>
+                  value={
+                    form.make
+                  }
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
-                      "brand",
+                      "make",
                       value,
                     )
                   }
@@ -1682,8 +1963,12 @@ export default function VehiclesPage() {
 
                 <Field
                   label="Modèle *"
-                  value={form.model}
-                  onChange={(value) =>
+                  value={
+                    form.model
+                  }
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "model",
                       value,
@@ -1696,35 +1981,45 @@ export default function VehiclesPage() {
                 <Field
                   label="Année"
                   type="number"
-                  value={form.year}
-                  onChange={(value) =>
+                  value={
+                    form.year
+                  }
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "year",
                       value,
                     )
                   }
-                  placeholder="2025"
+                  placeholder="2026"
                 />
 
                 <Field
                   label="Plaque *"
                   value={
-                    form.plate_number
+                    form.plate
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
-                      "plate_number",
+                      "plate",
                       value,
                     )
                   }
-                  placeholder="GLY-001"
+                  placeholder="ABC-123"
                   required
                 />
 
                 <Field
                   label="Numéro VIN"
-                  value={form.vin}
-                  onChange={(value) =>
+                  value={
+                    form.vin
+                  }
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "vin",
                       value,
@@ -1738,7 +2033,9 @@ export default function VehiclesPage() {
                   value={
                     form.vehicle_type
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "vehicle_type",
                       value,
@@ -1746,32 +2043,40 @@ export default function VehiclesPage() {
                   }
                   options={[
                     {
-                      value: "van",
+                      value:
+                        "van",
                       label:
                         "Fourgonnette",
                     },
                     {
-                      value: "truck",
-                      label: "Camion",
+                      value:
+                        "truck",
+                      label:
+                        "Camion",
                     },
                     {
-                      value: "box_truck",
+                      value:
+                        "box_truck",
                       label:
                         "Camion cube",
                     },
                     {
-                      value: "pickup",
+                      value:
+                        "pickup",
                       label:
                         "Camionnette",
                     },
                     {
-                      value: "trailer",
+                      value:
+                        "trailer",
                       label:
                         "Remorque",
                     },
                     {
-                      value: "other",
-                      label: "Autre",
+                      value:
+                        "other",
+                      label:
+                        "Autre",
                     },
                   ]}
                 />
@@ -1781,7 +2086,9 @@ export default function VehiclesPage() {
                   value={
                     form.fuel_type
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "fuel_type",
                       value,
@@ -1791,11 +2098,14 @@ export default function VehiclesPage() {
                     {
                       value:
                         "gasoline",
-                      label: "Essence",
+                      label:
+                        "Essence",
                     },
                     {
-                      value: "diesel",
-                      label: "Diesel",
+                      value:
+                        "diesel",
+                      label:
+                        "Diesel",
                     },
                     {
                       value:
@@ -1804,12 +2114,16 @@ export default function VehiclesPage() {
                         "Électrique",
                     },
                     {
-                      value: "hybrid",
-                      label: "Hybride",
+                      value:
+                        "hybrid",
+                      label:
+                        "Hybride",
                     },
                     {
-                      value: "propane",
-                      label: "Propane",
+                      value:
+                        "other",
+                      label:
+                        "Autre",
                     },
                   ]}
                 />
@@ -1820,7 +2134,9 @@ export default function VehiclesPage() {
                   value={
                     form.capacity_kg
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "capacity_kg",
                       value,
@@ -1835,7 +2151,9 @@ export default function VehiclesPage() {
                   value={
                     form.capacity_pallets
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "capacity_pallets",
                       value,
@@ -1850,7 +2168,9 @@ export default function VehiclesPage() {
                   value={
                     form.mileage
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "mileage",
                       value,
@@ -1861,8 +2181,12 @@ export default function VehiclesPage() {
 
                 <SelectField
                   label="Statut"
-                  value={form.status}
-                  onChange={(value) =>
+                  value={
+                    form.status
+                  }
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "status",
                       value,
@@ -1876,7 +2200,8 @@ export default function VehiclesPage() {
                         "Disponible",
                     },
                     {
-                      value: "in_use",
+                      value:
+                        "in_service",
                       label:
                         "En service",
                     },
@@ -1889,7 +2214,8 @@ export default function VehiclesPage() {
                     {
                       value:
                         "inactive",
-                      label: "Inactif",
+                      label:
+                        "Inactif",
                     },
                   ]}
                 />
@@ -1899,7 +2225,9 @@ export default function VehiclesPage() {
                   value={
                     form.driver_id
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "driver_id",
                       value,
@@ -1914,21 +2242,42 @@ export default function VehiclesPage() {
 
                     ...drivers.map(
                       (driver) => ({
-                        value: String(
-                          driver.id,
-                        ),
+                        value:
+                          String(
+                            driver.id,
+                          ),
 
                         label:
                           [
                             driver.first_name,
                             driver.last_name,
                           ]
-                            .filter(Boolean)
-                            .join(" ") ||
+                            .filter(
+                              Boolean,
+                            )
+                            .join(
+                              " ",
+                            ) ||
                           `Chauffeur #${driver.id}`,
                       }),
                     ),
                   ]}
+                />
+
+                <Field
+                  label="N° assurance"
+                  value={
+                    form.insurance_number
+                  }
+                  onChange={(
+                    value,
+                  ) =>
+                    updateField(
+                      "insurance_number",
+                      value,
+                    )
+                  }
+                  placeholder="ASS-001"
                 />
 
                 <Field
@@ -1937,7 +2286,9 @@ export default function VehiclesPage() {
                   value={
                     form.insurance_expiry
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "insurance_expiry",
                       value,
@@ -1946,28 +2297,32 @@ export default function VehiclesPage() {
                 />
 
                 <Field
+                  label="N° immatriculation"
+                  value={
+                    form.registration_number
+                  }
+                  onChange={(
+                    value,
+                  ) =>
+                    updateField(
+                      "registration_number",
+                      value,
+                    )
+                  }
+                  placeholder="REG-001"
+                />
+
+                <Field
                   label="Expiration immatriculation"
                   type="date"
                   value={
                     form.registration_expiry
                   }
-                  onChange={(value) =>
+                  onChange={(
+                    value,
+                  ) =>
                     updateField(
                       "registration_expiry",
-                      value,
-                    )
-                  }
-                />
-
-                <Field
-                  label="Expiration inspection"
-                  type="date"
-                  value={
-                    form.inspection_expiry
-                  }
-                  onChange={(value) =>
-                    updateField(
-                      "inspection_expiry",
                       value,
                     )
                   }
@@ -1979,14 +2334,21 @@ export default function VehiclesPage() {
                   styles.textareaField
                 }
               >
-                <span>Notes</span>
+                <span>
+                  Notes
+                </span>
 
                 <textarea
-                  value={form.notes}
-                  onChange={(event) =>
+                  value={
+                    form.notes
+                  }
+                  onChange={(
+                    event,
+                  ) =>
                     updateField(
                       "notes",
-                      event.target.value,
+                      event.target
+                        .value,
                     )
                   }
                   rows={4}
@@ -2007,7 +2369,9 @@ export default function VehiclesPage() {
                   onClick={
                     closeModal
                   }
-                  disabled={saving}
+                  disabled={
+                    saving
+                  }
                 >
                   Annuler
                 </button>
@@ -2017,7 +2381,9 @@ export default function VehiclesPage() {
                   className={
                     styles.saveButton
                   }
-                  disabled={saving}
+                  disabled={
+                    saving
+                  }
                 >
                   {saving ? (
                     <>
@@ -2052,7 +2418,7 @@ export default function VehiclesPage() {
 }
 
 /* ============================================================
-   COMPOSANTS
+   STAT CARD
 ============================================================ */
 
 function StatCard({
@@ -2062,8 +2428,11 @@ function StatCard({
   variant,
 }: {
   label: string;
+
   value: number;
-  icon: React.ReactNode;
+
+  icon:
+    React.ReactNode;
 
   variant:
     | "total"
@@ -2074,7 +2443,9 @@ function StatCard({
 }) {
   return (
     <article
-      className={styles.statCard}
+      className={
+        styles.statCard
+      }
     >
       <span
         className={
@@ -2087,32 +2458,54 @@ function StatCard({
       </span>
 
       <div>
-        <small>{label}</small>
-        <strong>{value}</strong>
+        <small>
+          {label}
+        </small>
+
+        <strong>
+          {value}
+        </strong>
       </div>
     </article>
   );
 }
+
+/* ============================================================
+   DATE DOCUMENT
+============================================================ */
 
 function DocumentDate({
   label,
   value,
 }: {
   label: string;
-  value?: string | null;
+
+  value?:
+    | string
+    | null;
 }) {
   return (
     <span>
-      <CalendarDays size={13} />
+      <CalendarDays
+        size={13}
+      />
 
-      <small>{label}</small>
+      <small>
+        {label}
+      </small>
 
       <strong>
-        {formatDate(value)}
+        {formatDate(
+          value,
+        )}
       </strong>
     </span>
   );
 }
+
+/* ============================================================
+   FIELD
+============================================================ */
 
 function Field({
   label,
@@ -2123,32 +2516,55 @@ function Field({
   required = false,
 }: {
   label: string;
+
   value: string;
-  onChange: (value: string) => void;
+
+  onChange:
+    (
+      value: string,
+    ) => void;
+
   type?: string;
+
   placeholder?: string;
+
   required?: boolean;
 }) {
   return (
     <label
-      className={styles.field}
+      className={
+        styles.field
+      }
     >
-      <span>{label}</span>
+      <span>
+        {label}
+      </span>
 
       <input
         type={type}
         value={value}
-        onChange={(event) =>
+        onChange={(
+          event,
+        ) =>
           onChange(
-            event.target.value,
+            event.target
+              .value,
           )
         }
-        placeholder={placeholder}
-        required={required}
+        placeholder={
+          placeholder
+        }
+        required={
+          required
+        }
       />
     </label>
   );
 }
+
+/* ============================================================
+   SELECT FIELD
+============================================================ */
 
 function SelectField({
   label,
@@ -2157,8 +2573,13 @@ function SelectField({
   options,
 }: {
   label: string;
+
   value: string;
-  onChange: (value: string) => void;
+
+  onChange:
+    (
+      value: string,
+    ) => void;
 
   options: {
     value: string;
@@ -2167,15 +2588,22 @@ function SelectField({
 }) {
   return (
     <label
-      className={styles.field}
+      className={
+        styles.field
+      }
     >
-      <span>{label}</span>
+      <span>
+        {label}
+      </span>
 
       <select
         value={value}
-        onChange={(event) =>
+        onChange={(
+          event,
+        ) =>
           onChange(
-            event.target.value,
+            event.target
+              .value,
           )
         }
       >
@@ -2190,7 +2618,9 @@ function SelectField({
                 option.value
               }
             >
-              {option.label}
+              {
+                option.label
+              }
             </option>
           ),
         )}
