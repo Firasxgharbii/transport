@@ -36,14 +36,43 @@ const DriverModel = {
         d.emergency_contact_name,
         d.emergency_contact_phone,
 
-        d.vehicle_name,
-        d.vehicle_plate,
-
         d.last_seen_at,
         d.onfleet_worker_id,
 
         d.created_at,
         d.updated_at,
+
+        /* ===============================================
+           VÉHICULE ACTUEL
+        =============================================== */
+
+        v.id AS vehicle_id,
+
+        v.make AS vehicle_make,
+        v.model AS vehicle_model,
+        v.year AS vehicle_year,
+
+        v.plate AS vehicle_plate,
+        v.vin AS vehicle_vin,
+
+        v.vehicle_type,
+        v.capacity_kg,
+        v.capacity_pallets,
+
+        v.fuel_type,
+        v.mileage,
+
+        v.status AS vehicle_status,
+
+        CONCAT_WS(
+          ' ',
+          v.make,
+          v.model
+        ) AS vehicle_name,
+
+        /* ===============================================
+           STATISTIQUES COMMANDES
+        =============================================== */
 
         (
           SELECT COUNT(*)
@@ -77,7 +106,10 @@ const DriverModel = {
       FROM drivers d
 
       INNER JOIN users u
-        ON d.user_id = u.id
+        ON u.id = d.user_id
+
+      LEFT JOIN vehicles v
+        ON v.driver_id = d.id
 
       ORDER BY d.id DESC
     `);
@@ -92,77 +124,116 @@ const DriverModel = {
   async getDriverById(id) {
     const [rows] = await db.query(
       `
-      SELECT
-        d.id,
-        d.user_id,
+        SELECT
+          d.id,
+          d.user_id,
 
-        u.first_name,
-        u.last_name,
-        u.email,
+          u.first_name,
+          u.last_name,
+          u.email,
 
-        COALESCE(
-          d.phone,
-          u.phone
-        ) AS phone,
+          COALESCE(
+            d.phone,
+            u.phone
+          ) AS phone,
 
-        u.status,
+          u.status,
 
-        d.availability_status,
-        d.profile_photo_url,
+          d.availability_status,
+          d.profile_photo_url,
 
-        d.license_number,
-        d.license_expiry,
+          d.license_number,
+          d.license_expiry,
 
-        d.address,
-        d.city,
-        d.province,
-        d.postal_code,
+          d.address,
+          d.city,
+          d.province,
+          d.postal_code,
 
-        d.emergency_contact_name,
-        d.emergency_contact_phone,
+          d.emergency_contact_name,
+          d.emergency_contact_phone,
 
-        d.vehicle_name,
-        d.vehicle_plate,
+          d.last_seen_at,
+          d.onfleet_worker_id,
 
-        d.last_seen_at,
-        d.onfleet_worker_id,
+          d.created_at,
+          d.updated_at,
 
-        d.created_at,
-        d.updated_at,
+          /* =============================================
+             VÉHICULE ASSIGNÉ
+          ============================================= */
 
-        (
-          SELECT COUNT(*)
-          FROM orders o
-          WHERE o.driver_id = d.id
-        ) AS total_orders,
+          v.id AS vehicle_id,
 
-        (
-          SELECT COUNT(*)
-          FROM orders o
-          WHERE o.driver_id = d.id
-            AND o.status = 'completed'
-        ) AS completed_orders,
+          v.make AS vehicle_make,
+          v.model AS vehicle_model,
+          v.year AS vehicle_year,
 
-        (
-          SELECT COUNT(*)
-          FROM orders o
-          WHERE o.driver_id = d.id
-            AND o.status NOT IN (
-              'completed',
-              'cancelled'
-            )
-        ) AS active_orders
+          v.plate AS vehicle_plate,
+          v.vin AS vehicle_vin,
 
-      FROM drivers d
+          v.vehicle_type,
 
-      INNER JOIN users u
-        ON d.user_id = u.id
+          v.capacity_kg,
+          v.capacity_pallets,
 
-      WHERE d.id = ?
+          v.fuel_type,
+          v.mileage,
 
-      LIMIT 1
+          v.status AS vehicle_status,
+
+          v.insurance_number,
+          v.insurance_expiry,
+
+          v.registration_number,
+          v.registration_expiry,
+
+          CONCAT_WS(
+            ' ',
+            v.make,
+            v.model
+          ) AS vehicle_name,
+
+          /* =============================================
+             STATISTIQUES
+          ============================================= */
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+          ) AS total_orders,
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+              AND o.status = 'completed'
+          ) AS completed_orders,
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+              AND o.status NOT IN (
+                'completed',
+                'cancelled'
+              )
+          ) AS active_orders
+
+        FROM drivers d
+
+        INNER JOIN users u
+          ON u.id = d.user_id
+
+        LEFT JOIN vehicles v
+          ON v.driver_id = d.id
+
+        WHERE d.id = ?
+
+        LIMIT 1
       `,
-      [id],
+      [id]
     );
 
     return rows[0] || null;
@@ -177,74 +248,86 @@ const DriverModel = {
       user_id,
       phone,
       profile_photo_url,
+
       availability_status = "offline",
+
       license_number,
       license_expiry,
+
       address,
       city,
       province,
       postal_code,
+
       emergency_contact_name,
       emergency_contact_phone,
-      vehicle_name,
-      vehicle_plate,
+
       onfleet_worker_id,
     } = data;
 
     const [result] = await db.query(
       `
-      INSERT INTO drivers (
-        user_id,
-        phone,
-        profile_photo_url,
-        availability_status,
-        license_number,
-        license_expiry,
-        address,
-        city,
-        province,
-        postal_code,
-        emergency_contact_name,
-        emergency_contact_phone,
-        vehicle_name,
-        vehicle_plate,
-        onfleet_worker_id
-      )
-      VALUES (
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?
-      )
+        INSERT INTO drivers (
+          user_id,
+          phone,
+          profile_photo_url,
+
+          availability_status,
+
+          license_number,
+          license_expiry,
+
+          address,
+          city,
+          province,
+          postal_code,
+
+          emergency_contact_name,
+          emergency_contact_phone,
+
+          onfleet_worker_id
+        )
+        VALUES (
+          ?,
+          ?,
+          ?,
+
+          ?,
+
+          ?,
+          ?,
+
+          ?,
+          ?,
+          ?,
+          ?,
+
+          ?,
+          ?,
+
+          ?
+        )
       `,
       [
         user_id,
         phone || null,
         profile_photo_url || null,
+
         availability_status,
+
         license_number || null,
         license_expiry || null,
+
         address || null,
         city || null,
         province || null,
         postal_code || null,
+
         emergency_contact_name || null,
         emergency_contact_phone || null,
-        vehicle_name || null,
-        vehicle_plate || null,
+
         onfleet_worker_id || null,
-      ],
+      ]
     );
 
     return result.insertId;
@@ -258,17 +341,20 @@ const DriverModel = {
     const allowedFields = [
       "phone",
       "profile_photo_url",
+
       "availability_status",
+
       "license_number",
       "license_expiry",
+
       "address",
       "city",
       "province",
       "postal_code",
+
       "emergency_contact_name",
       "emergency_contact_phone",
-      "vehicle_name",
-      "vehicle_plate",
+
       "last_seen_at",
       "onfleet_worker_id",
     ];
@@ -280,11 +366,13 @@ const DriverModel = {
       if (
         Object.prototype.hasOwnProperty.call(
           data,
-          field,
+          field
         )
       ) {
         fields.push(`${field} = ?`);
-        values.push(data[field] ?? null);
+        values.push(
+          data[field] ?? null
+        );
       }
     }
 
@@ -299,13 +387,13 @@ const DriverModel = {
 
     const [result] = await db.query(
       `
-      UPDATE drivers
-      SET
-        ${fields.join(", ")},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        UPDATE drivers
+        SET
+          ${fields.join(", ")},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
       `,
-      values,
+      values
     );
 
     return result;
@@ -316,63 +404,203 @@ const DriverModel = {
   ===================================================== */
 
   async deleteDriver(id) {
+    /*
+     * Grâce à ta FK vehicles.driver_id
+     * ON DELETE SET NULL,
+     * le véhicule ne sera pas supprimé.
+     * Il sera seulement désassigné.
+     */
+
     const [result] = await db.query(
       `
-      DELETE FROM drivers
-      WHERE id = ?
+        DELETE FROM drivers
+        WHERE id = ?
       `,
-      [id],
+      [id]
     );
 
     return result;
   },
 
   /* =====================================================
-     VÉRIFIER LE RÔLE
+     VÉRIFIER LE RÔLE UTILISATEUR
   ===================================================== */
 
   async checkUserIsDriver(userId) {
     const [rows] = await db.query(
       `
-      SELECT
-        u.id,
-        u.first_name,
-        u.last_name,
-        u.email,
-        u.status,
-        r.name AS role
+        SELECT
+          u.id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.status,
 
-      FROM users u
+          r.name AS role
 
-      INNER JOIN roles r
-        ON u.role_id = r.id
+        FROM users u
 
-      WHERE u.id = ?
+        INNER JOIN roles r
+          ON r.id = u.role_id
 
-      LIMIT 1
+        WHERE u.id = ?
+
+        LIMIT 1
       `,
-      [userId],
+      [userId]
     );
 
     return rows[0] || null;
   },
 
   /* =====================================================
-     VÉRIFIER SI LE PROFIL EXISTE
+     VÉRIFIER SI LE PROFIL CHAUFFEUR EXISTE
   ===================================================== */
 
   async checkDriverExistsForUser(userId) {
     const [rows] = await db.query(
       `
-      SELECT id
-      FROM drivers
-      WHERE user_id = ?
-      LIMIT 1
+        SELECT id
+
+        FROM drivers
+
+        WHERE user_id = ?
+
+        LIMIT 1
       `,
-      [userId],
+      [userId]
     );
 
     return rows[0] || null;
+  },
+
+  /* =====================================================
+     RÉCUPÉRER LE VÉHICULE DU CHAUFFEUR
+  ===================================================== */
+
+  async getDriverVehicle(driverId) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          v.id,
+          v.driver_id,
+
+          v.make,
+          v.model,
+          v.year,
+
+          v.plate,
+          v.vin,
+
+          v.vehicle_type,
+
+          v.capacity_kg,
+          v.capacity_pallets,
+
+          v.fuel_type,
+          v.mileage,
+
+          v.status,
+
+          v.insurance_number,
+          v.insurance_expiry,
+
+          v.registration_number,
+          v.registration_expiry,
+
+          v.notes,
+
+          v.created_at,
+          v.updated_at
+
+        FROM vehicles v
+
+        WHERE v.driver_id = ?
+
+        LIMIT 1
+      `,
+      [driverId]
+    );
+
+    return rows[0] || null;
+  },
+
+  /* =====================================================
+     ASSIGNER UN VÉHICULE AU CHAUFFEUR
+  ===================================================== */
+
+  async assignVehicle(
+    driverId,
+    vehicleId
+  ) {
+    const connection =
+      await db.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      /*
+       * Désassigner les anciens véhicules du chauffeur.
+       */
+
+      await connection.query(
+        `
+          UPDATE vehicles
+          SET
+            driver_id = NULL,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE driver_id = ?
+        `,
+        [driverId]
+      );
+
+      /*
+       * Assigner le nouveau véhicule.
+       */
+
+      const [result] =
+        await connection.query(
+          `
+            UPDATE vehicles
+            SET
+              driver_id = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `,
+          [
+            driverId,
+            vehicleId,
+          ]
+        );
+
+      await connection.commit();
+
+      return result;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
+  /* =====================================================
+     DÉSAFFECTER LE VÉHICULE DU CHAUFFEUR
+  ===================================================== */
+
+  async unassignVehicle(driverId) {
+    const [result] = await db.query(
+      `
+        UPDATE vehicles
+        SET
+          driver_id = NULL,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE driver_id = ?
+      `,
+      [driverId]
+    );
+
+    return result;
   },
 
   /* =====================================================
@@ -382,43 +610,67 @@ const DriverModel = {
   async getDriverOrders(driverId) {
     const [rows] = await db.query(
       `
-      SELECT
-        o.id,
-        o.order_number,
-        o.client_id,
-        o.driver_id,
+        SELECT
+          o.id,
+          o.order_number,
 
-        o.pickup_address,
-        o.delivery_address,
-        o.pickup_date,
+          o.client_id,
+          o.driver_id,
+          o.vehicle_id,
 
-        o.status,
-        o.total_amount,
-        o.created_at,
-        o.updated_at,
+          o.pickup_address,
+          o.delivery_address,
 
-        c.first_name
-          AS client_first_name,
-
-        c.last_name
-          AS client_last_name,
-
-        c.company_name
-
-      FROM orders o
-
-      LEFT JOIN clients c
-        ON o.client_id = c.id
-
-      WHERE o.driver_id = ?
-
-      ORDER BY
-        COALESCE(
           o.pickup_date,
-          o.created_at
-        ) DESC
+          o.pickup_time,
+
+          o.delivery_date,
+          o.delivery_time,
+
+          o.status,
+          o.priority,
+
+          o.total_amount,
+
+          o.created_at,
+          o.updated_at,
+
+          c.first_name
+            AS client_first_name,
+
+          c.last_name
+            AS client_last_name,
+
+          c.company_name,
+
+          v.make
+            AS vehicle_make,
+
+          v.model
+            AS vehicle_model,
+
+          v.plate
+            AS vehicle_plate
+
+        FROM orders o
+
+        LEFT JOIN clients c
+          ON c.id = o.client_id
+
+        LEFT JOIN vehicles v
+          ON v.id = o.vehicle_id
+
+        WHERE o.driver_id = ?
+
+        ORDER BY
+          COALESCE(
+            o.pickup_date,
+            DATE(o.created_at)
+          ) DESC,
+
+          o.pickup_time DESC
       `,
-      [driverId],
+      [driverId]
     );
 
     return rows;

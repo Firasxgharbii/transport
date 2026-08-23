@@ -40,6 +40,10 @@ const driverRoutes = require(
   "./routes/driverRoutes"
 );
 
+const vehicleRoutes = require(
+  "./routes/vehicleRoutes"
+);
+
 const orderRoutes = require(
   "./routes/orderRoutes"
 );
@@ -47,8 +51,6 @@ const orderRoutes = require(
 const dashboardRoutes = require(
   "./routes/dashboardRoutes"
 );
-
-/* NOUVEAU : CONTACT */
 
 const contactRoutes = require(
   "./routes/contactRoutes"
@@ -82,14 +84,14 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 
-  /* TON IP LOCALE ACTUELLE */
-  "http://172.20.10.6:3000",
+  /* IP LOCALES */
 
-  /* AUTRES IP LOCALES SI BESOIN */
+  "http://172.20.10.6:3000",
   "http://192.168.2.22:3000",
   "http://192.168.2.47:3000",
 
-  /* SITE EN PRODUCTION */
+  /* PRODUCTION */
+
   "https://glorysolutions.ca",
   "https://www.glorysolutions.ca",
 ].filter(Boolean);
@@ -97,10 +99,11 @@ const allowedOrigins = [
 const corsOptions = {
   origin(origin, callback) {
     /*
-      Autorise Postman,
-      applications mobiles,
-      requêtes sans Origin.
-    */
+     * Autorise :
+     * - Postman
+     * - applications mobiles
+     * - requêtes serveur sans Origin
+     */
 
     if (!origin) {
       return callback(
@@ -110,9 +113,9 @@ const corsOptions = {
     }
 
     /*
-      En développement,
-      autorise les origines locales.
-    */
+     * En développement,
+     * autoriser les origines locales.
+     */
 
     if (
       process.env.NODE_ENV !==
@@ -125,9 +128,9 @@ const corsOptions = {
     }
 
     /*
-      En production,
-      seulement domaines autorisés.
-    */
+     * En production,
+     * seulement les domaines autorisés.
+     */
 
     if (
       allowedOrigins.includes(origin)
@@ -211,49 +214,90 @@ app.set(
    ROUTES API
 ===================================================== */
 
+/* -------------------------
+   AUTHENTIFICATION
+------------------------- */
+
 app.use(
   "/api/auth",
   authRoutes
 );
+
+/* -------------------------
+   UTILISATEURS
+------------------------- */
 
 app.use(
   "/api/users",
   userRoutes
 );
 
+/* -------------------------
+   DEMANDES D’INSCRIPTION
+------------------------- */
+
 app.use(
   "/api/registration-requests",
   registrationRequestRoutes
 );
+
+/* -------------------------
+   CLIENTS
+------------------------- */
 
 app.use(
   "/api/clients",
   clientRoutes
 );
 
+/* -------------------------
+   CHAUFFEURS
+------------------------- */
+
 app.use(
   "/api/drivers",
   driverRoutes
 );
+
+/* -------------------------
+   VÉHICULES
+------------------------- */
+
+app.use(
+  "/api/vehicles",
+  vehicleRoutes
+);
+
+/* -------------------------
+   COMMANDES
+------------------------- */
 
 app.use(
   "/api/orders",
   orderRoutes
 );
 
+/* -------------------------
+   DASHBOARD
+------------------------- */
+
 app.use(
   "/api/dashboard",
   dashboardRoutes
 );
 
-/* =====================================================
+/* -------------------------
    CONTACT
-===================================================== */
+------------------------- */
 
 app.use(
   "/api/contact",
   contactRoutes
 );
+
+/* -------------------------
+   SOUMISSIONS
+------------------------- */
 
 app.use(
   "/api/quote",
@@ -625,14 +669,10 @@ io.on(
         }
 
         if (
-          normalizedLatitude <
-            -90 ||
-          normalizedLatitude >
-            90 ||
-          normalizedLongitude <
-            -180 ||
-          normalizedLongitude >
-            180
+          normalizedLatitude < -90 ||
+          normalizedLatitude > 90 ||
+          normalizedLongitude < -180 ||
+          normalizedLongitude > 180
         ) {
           socket.emit(
             "socket-error",
@@ -704,6 +744,10 @@ io.on(
       }
     );
 
+    /* ===================================================
+       ERREUR SOCKET
+    =================================================== */
+
     socket.on(
       "error",
       (error) => {
@@ -718,6 +762,10 @@ io.on(
 
 /* =====================================================
    ROUTE INTROUVABLE
+
+   IMPORTANT :
+   Toujours garder ce middleware APRÈS toutes les
+   routes app.use("/api/...")
 ===================================================== */
 
 app.use(
@@ -749,6 +797,10 @@ app.use(
       error
     );
 
+    /* -------------------------
+       CORS
+    ------------------------- */
+
     if (
       error.message?.includes(
         "CORS"
@@ -764,6 +816,10 @@ app.use(
         });
     }
 
+    /* -------------------------
+       JSON INVALIDE
+    ------------------------- */
+
     if (
       error instanceof
         SyntaxError &&
@@ -778,6 +834,10 @@ app.use(
             "Le format JSON envoyé est invalide.",
         });
     }
+
+    /* -------------------------
+       AUTRES ERREURS
+    ------------------------- */
 
     return res
       .status(
@@ -897,8 +957,7 @@ const testSmtpConnection =
    ARRÊT PROPRE
 ===================================================== */
 
-let isShuttingDown =
-  false;
+let isShuttingDown = false;
 
 const shutdownServer =
   (signal) => {
@@ -908,8 +967,7 @@ const shutdownServer =
       return;
     }
 
-    isShuttingDown =
-      true;
+    isShuttingDown = true;
 
     console.log(
       `\n⚠️ Signal reçu : ${signal}`
@@ -1027,9 +1085,9 @@ const startServer =
     }
 
     /*
-      SMTP n'empêche pas le backend
-      de démarrer si le mail est mal configuré.
-    */
+     * SMTP n'empêche pas le backend
+     * de démarrer si le mail est mal configuré.
+     */
 
     await testSmtpConnection();
 
@@ -1097,6 +1155,12 @@ const startServer =
 
         console.log(
           `🚚 Chauffeurs : http://localhost:${PORT}/api/drivers`
+        );
+
+        /* NOUVEAU */
+
+        console.log(
+          `🚛 Véhicules : http://localhost:${PORT}/api/vehicles`
         );
 
         console.log(

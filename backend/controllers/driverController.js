@@ -17,6 +17,19 @@ function parseDriverId(value) {
   return driverId;
 }
 
+function parseVehicleId(value) {
+  const vehicleId = Number(value);
+
+  if (
+    !Number.isInteger(vehicleId) ||
+    vehicleId <= 0
+  ) {
+    return null;
+  }
+
+  return vehicleId;
+}
+
 /* =====================================================
    GET ALL DRIVERS
 ===================================================== */
@@ -32,6 +45,7 @@ exports.getDrivers = async (req, res) => {
       message:
         "Liste des chauffeurs récupérée avec succès.",
       drivers,
+      data: drivers,
     });
   } catch (error) {
     console.error(
@@ -83,6 +97,7 @@ exports.getDriver = async (req, res) => {
       message:
         "Chauffeur récupéré avec succès.",
       driver,
+      data: driver,
     });
   } catch (error) {
     console.error(
@@ -110,8 +125,22 @@ exports.createDriver = async (
   try {
     const {
       user_id,
-      availability_status,
+      phone,
       profile_photo_url,
+      availability_status,
+
+      license_number,
+      license_expiry,
+
+      address,
+      city,
+      province,
+      postal_code,
+
+      emergency_contact_name,
+      emergency_contact_phone,
+
+      onfleet_worker_id,
     } = req.body;
 
     const userId = Number(user_id);
@@ -178,10 +207,41 @@ exports.createDriver = async (
     const driverId =
       await DriverModel.createDriver({
         user_id: userId,
-        availability_status:
-          normalizedAvailabilityStatus,
+
+        phone: phone || null,
+
         profile_photo_url:
           profile_photo_url || null,
+
+        availability_status:
+          normalizedAvailabilityStatus,
+
+        license_number:
+          license_number || null,
+
+        license_expiry:
+          license_expiry || null,
+
+        address:
+          address || null,
+
+        city:
+          city || null,
+
+        province:
+          province || null,
+
+        postal_code:
+          postal_code || null,
+
+        emergency_contact_name:
+          emergency_contact_name || null,
+
+        emergency_contact_phone:
+          emergency_contact_phone || null,
+
+        onfleet_worker_id:
+          onfleet_worker_id || null,
       });
 
     const driver =
@@ -194,6 +254,7 @@ exports.createDriver = async (
       message:
         "Chauffeur créé avec succès.",
       driver,
+      data: driver,
     });
   } catch (error) {
     console.error(
@@ -270,6 +331,16 @@ exports.updateDriver = async (
     delete updateData.id;
     delete updateData.user_id;
     delete updateData.created_at;
+    delete updateData.updated_at;
+
+    /*
+     * Le véhicule est maintenant géré dans la table vehicles.
+     * On empêche donc la modification directe de ces anciens
+     * champs présents dans drivers.
+     */
+    delete updateData.vehicle_name;
+    delete updateData.vehicle_plate;
+    delete updateData.vehicle_id;
 
     const result =
       await DriverModel.updateDriver(
@@ -295,6 +366,7 @@ exports.updateDriver = async (
       message:
         "Chauffeur modifié avec succès.",
       driver: updatedDriver,
+      data: updatedDriver,
     });
   } catch (error) {
     console.error(
@@ -372,6 +444,267 @@ exports.deleteDriver = async (
       success: false,
       message:
         "Erreur lors de la suppression du chauffeur.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   GET VEHICLE OF DRIVER
+===================================================== */
+
+exports.getDriverVehicle = async (
+  req,
+  res
+) => {
+  try {
+    const driverId =
+      parseDriverId(req.params.id);
+
+    if (!driverId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Identifiant du chauffeur invalide.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverById(
+        driverId
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Chauffeur introuvable.",
+      });
+    }
+
+    const vehicle =
+      await DriverModel.getDriverVehicle(
+        driverId
+      );
+
+    return res.status(200).json({
+      success: true,
+      vehicle,
+      data: vehicle,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getDriverVehicle :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de récupérer le véhicule du chauffeur.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   ASSIGN VEHICLE TO DRIVER
+===================================================== */
+
+exports.assignVehicle = async (
+  req,
+  res
+) => {
+  try {
+    const driverId =
+      parseDriverId(req.params.id);
+
+    const vehicleId =
+      parseVehicleId(
+        req.body.vehicle_id
+      );
+
+    if (!driverId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Identifiant du chauffeur invalide.",
+      });
+    }
+
+    if (!vehicleId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "vehicle_id est obligatoire et doit être valide.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverById(
+        driverId
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Chauffeur introuvable.",
+      });
+    }
+
+    const result =
+      await DriverModel.assignVehicle(
+        driverId,
+        vehicleId
+      );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Véhicule introuvable.",
+      });
+    }
+
+    const vehicle =
+      await DriverModel.getDriverVehicle(
+        driverId
+      );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Véhicule assigné au chauffeur avec succès.",
+      vehicle,
+      data: vehicle,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur assignVehicle :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible d'assigner le véhicule au chauffeur.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   UNASSIGN VEHICLE FROM DRIVER
+===================================================== */
+
+exports.unassignVehicle = async (
+  req,
+  res
+) => {
+  try {
+    const driverId =
+      parseDriverId(req.params.id);
+
+    if (!driverId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Identifiant du chauffeur invalide.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverById(
+        driverId
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Chauffeur introuvable.",
+      });
+    }
+
+    await DriverModel.unassignVehicle(
+      driverId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Véhicule désassigné avec succès.",
+    });
+  } catch (error) {
+    console.error(
+      "Erreur unassignVehicle :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de désassigner le véhicule.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   GET DRIVER ORDERS
+===================================================== */
+
+exports.getDriverOrders = async (
+  req,
+  res
+) => {
+  try {
+    const driverId =
+      parseDriverId(req.params.id);
+
+    if (!driverId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Identifiant du chauffeur invalide.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverById(
+        driverId
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Chauffeur introuvable.",
+      });
+    }
+
+    const orders =
+      await DriverModel.getDriverOrders(
+        driverId
+      );
+
+    return res.status(200).json({
+      success: true,
+      count: orders.length,
+      orders,
+      data: orders,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getDriverOrders :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de récupérer les commandes du chauffeur.",
       error: error.message,
     });
   }
