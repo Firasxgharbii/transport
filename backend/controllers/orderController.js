@@ -2324,8 +2324,109 @@ const createDeliveryProof = async (
       error: error.message,
     });
   }
+  
+};
+/* ============================================================
+   BONS DE LIVRAISON
+============================================================ */
+
+// Récupérer tous les bons de livraison
+const getAllDeliveryNotes = async (req, res) => {
+  try {
+    const orders = await OrderModel.getAllOrders();
+
+    const deliveryNotes = await Promise.all(
+      orders.map(async (order) => {
+        const [stops, proofs] = await Promise.all([
+          OrderModel.getOrderStops(order.id),
+          OrderModel.getDeliveryProofs(order.id),
+        ]);
+
+        return {
+          ...order,
+          stops,
+          proofs,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      count: deliveryNotes.length,
+      data: deliveryNotes,
+      deliveryNotes,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getAllDeliveryNotes :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Erreur lors de la récupération des bons de livraison.",
+      error: error.message,
+    });
+  }
 };
 
+// Récupérer un bon de livraison par commande
+const getDeliveryNoteByOrderId = async (req, res) => {
+  try {
+    const orderId = parsePositiveId(req.params.id);
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Identifiant de commande invalide.",
+      });
+    }
+
+    const order =
+      await OrderModel.getOrderById(orderId);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Commande introuvable.",
+      });
+    }
+
+    const [stops, timeline, proofs] =
+      await Promise.all([
+        OrderModel.getOrderStops(orderId),
+        OrderModel.getOrderTimeline(orderId),
+        OrderModel.getDeliveryProofs(orderId),
+      ]);
+
+    const deliveryNote = {
+      ...order,
+      stops,
+      timeline,
+      proofs,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: deliveryNote,
+      deliveryNote,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getDeliveryNoteByOrderId :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Erreur lors de la récupération du bon de livraison.",
+      error: error.message,
+    });
+  }
+};
 /* ============================================================
    EXPORTS
 ============================================================ */
@@ -2353,4 +2454,7 @@ module.exports = {
 
   getDeliveryProofs,
   createDeliveryProof,
+
+    getAllDeliveryNotes,
+  getDeliveryNoteByOrderId,
 };

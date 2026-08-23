@@ -23,6 +23,10 @@ const {
 
   getDeliveryProofs,
   createDeliveryProof,
+
+  // Bons de livraison
+  getAllDeliveryNotes,
+  getDeliveryNoteByOrderId,
 } = require("../controllers/orderController");
 
 const authMiddleware = require(
@@ -37,18 +41,43 @@ const router = express.Router();
 
 /* ============================================================
    AUTHENTIFICATION
-
-   Toutes les routes ci-dessous nécessitent un utilisateur
-   authentifié.
 ============================================================ */
 
 router.use(authMiddleware);
 
 /* ============================================================
-   COMMANDES D’UN CHAUFFEUR
+   BONS DE LIVRAISON
 
-   Cette route est placée avant les routes avec /:id pour
-   garder une organisation claire.
+   IMPORTANT :
+   Ces routes doivent rester AVANT "/:id".
+============================================================ */
+
+// Tous les bons de livraison
+// Admin / Dispatcher
+router.get(
+  "/delivery-notes",
+  roleMiddleware(
+    "super_admin",
+    "dispatcher"
+  ),
+  getAllDeliveryNotes
+);
+
+// Un bon de livraison précis
+// Accessible également au chauffeur et au client
+router.get(
+  "/delivery-notes/:id",
+  roleMiddleware(
+    "super_admin",
+    "dispatcher",
+    "driver",
+    "client"
+  ),
+  getDeliveryNoteByOrderId
+);
+
+/* ============================================================
+   COMMANDES D'UN CHAUFFEUR
 ============================================================ */
 
 router.get(
@@ -114,7 +143,7 @@ router.patch(
 );
 
 /* ============================================================
-   MODIFIER LE STATUT D’UNE COMMANDE
+   MODIFIER LE STATUT D'UNE COMMANDE
 ============================================================ */
 
 router.patch(
@@ -128,9 +157,10 @@ router.patch(
 );
 
 /* ============================================================
-   RÉCUPÉRER LES ARRÊTS D’UNE COMMANDE
+   ARRÊTS D'UNE COMMANDE
 ============================================================ */
 
+// Récupérer les arrêts
 router.get(
   "/:id/stops",
   roleMiddleware(
@@ -142,10 +172,7 @@ router.get(
   getOrderStops
 );
 
-/* ============================================================
-   AJOUTER UN ARRÊT À UNE COMMANDE
-============================================================ */
-
+// Ajouter un arrêt
 router.post(
   "/:id/stops",
   roleMiddleware(
@@ -155,12 +182,7 @@ router.post(
   addOrderStop
 );
 
-/* ============================================================
-   MODIFIER UN ARRÊT
-
-   stopId correspond à l’identifiant dans order_stops.
-============================================================ */
-
+// Modifier un arrêt
 router.put(
   "/stops/:stopId",
   roleMiddleware(
@@ -171,10 +193,7 @@ router.put(
   updateOrderStop
 );
 
-/* ============================================================
-   SUPPRIMER UN ARRÊT
-============================================================ */
-
+// Supprimer un arrêt
 router.delete(
   "/stops/:stopId",
   roleMiddleware(
@@ -185,9 +204,10 @@ router.delete(
 );
 
 /* ============================================================
-   RÉCUPÉRER LES PREUVES DE LIVRAISON
+   PREUVES DE LIVRAISON
 ============================================================ */
 
+// Récupérer les preuves
 router.get(
   "/:id/proofs",
   roleMiddleware(
@@ -199,16 +219,7 @@ router.get(
   getDeliveryProofs
 );
 
-/* ============================================================
-   AJOUTER UNE PREUVE DE LIVRAISON
-
-   Peut contenir :
-   - photo
-   - signature
-   - code de confirmation
-   - document
-============================================================ */
-
+// Ajouter une preuve
 router.post(
   "/:id/proofs",
   roleMiddleware(
@@ -271,5 +282,9 @@ router.delete(
   roleMiddleware("super_admin"),
   deleteOrder
 );
+
+/* ============================================================
+   EXPORT
+============================================================ */
 
 module.exports = router;
