@@ -63,57 +63,57 @@ const OrderModel = {
   async getOrderById(id) {
     const [rows] = await db.query(
       `
-      SELECT
-        o.*,
+        SELECT
+          o.*,
 
-        c.first_name AS client_first_name,
-        c.last_name AS client_last_name,
-        c.company_name,
-        c.phone AS client_phone,
-        c.email AS client_email,
-        c.address AS client_address,
-        c.city AS client_city,
-        c.province AS client_province,
-        c.postal_code AS client_postal_code,
+          c.first_name AS client_first_name,
+          c.last_name AS client_last_name,
+          c.company_name,
+          c.phone AS client_phone,
+          c.email AS client_email,
+          c.address AS client_address,
+          c.city AS client_city,
+          c.province AS client_province,
+          c.postal_code AS client_postal_code,
 
-        d.id AS driver_record_id,
+          d.id AS driver_record_id,
 
-        u.first_name AS driver_first_name,
-        u.last_name AS driver_last_name,
-        u.email AS driver_email,
-        COALESCE(d.phone, u.phone) AS driver_phone,
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name,
+          u.email AS driver_email,
+          COALESCE(d.phone, u.phone) AS driver_phone,
 
-        d.vehicle_name,
-        d.vehicle_plate,
-        d.availability_status,
+          d.vehicle_name,
+          d.vehicle_plate,
+          d.availability_status,
 
-        (
-          SELECT COUNT(*)
-          FROM order_stops os
-          WHERE os.order_id = o.id
-        ) AS stop_count,
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+          ) AS stop_count,
 
-        (
-          SELECT COUNT(*)
-          FROM order_stops os
-          WHERE os.order_id = o.id
-            AND os.status = 'completed'
-        ) AS completed_stops
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+              AND os.status = 'completed'
+          ) AS completed_stops
 
-      FROM orders o
+        FROM orders o
 
-      INNER JOIN clients c
-        ON c.id = o.client_id
+        INNER JOIN clients c
+          ON c.id = o.client_id
 
-      LEFT JOIN drivers d
-        ON d.id = o.driver_id
+        LEFT JOIN drivers d
+          ON d.id = o.driver_id
 
-      LEFT JOIN users u
-        ON u.id = d.user_id
+        LEFT JOIN users u
+          ON u.id = d.user_id
 
-      WHERE o.id = ?
+        WHERE o.id = ?
 
-      LIMIT 1
+        LIMIT 1
       `,
       [id]
     );
@@ -128,23 +128,19 @@ const OrderModel = {
   async generateOrderNumber() {
     const year = new Date().getFullYear();
 
-    const [rows] = await db.query(
-      `
+    const [rows] = await db.query(`
       SELECT id
       FROM orders
       ORDER BY id DESC
       LIMIT 1
-      `
-    );
+    `);
 
     const nextId =
       rows.length > 0
         ? Number(rows[0].id) + 1
         : 1;
 
-    return `GLY-${year}-${String(
-      nextId
-    ).padStart(6, "0")}`;
+    return `GLY-${year}-${String(nextId).padStart(6, "0")}`;
   },
 
   /* =====================================================
@@ -187,50 +183,50 @@ const OrderModel = {
 
     const [result] = await db.query(
       `
-      INSERT INTO orders (
-        order_number,
-        client_id,
-        driver_id,
-        vehicle_id,
+        INSERT INTO orders (
+          order_number,
+          client_id,
+          driver_id,
+          vehicle_id,
 
-        pickup_address,
-        delivery_address,
+          pickup_address,
+          delivery_address,
 
-        pickup_date,
-        pickup_time,
+          pickup_date,
+          pickup_time,
 
-        delivery_date,
-        delivery_time,
+          delivery_date,
+          delivery_time,
 
-        pallets_count,
+          pallets_count,
 
-        description,
-        notes,
+          description,
+          notes,
 
-        subtotal,
-        taxes,
-        total_amount,
+          subtotal,
+          taxes,
+          total_amount,
 
-        estimated_distance,
-        estimated_duration,
+          estimated_distance,
+          estimated_duration,
 
-        priority,
-        onfleet_task_id,
+          priority,
+          onfleet_task_id,
 
-        status
-      )
-      VALUES (
-        ?, ?, ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?,
-        ?,
-        ?, ?,
-        ?, ?, ?,
-        ?, ?,
-        ?, ?,
-        ?
-      )
+          status
+        )
+        VALUES (
+          ?, ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          ?,
+          ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?
+        )
       `,
       [
         order_number,
@@ -332,11 +328,11 @@ const OrderModel = {
 
     const [result] = await db.query(
       `
-      UPDATE orders
-      SET
-        ${fields.join(", ")},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        UPDATE orders
+        SET
+          ${fields.join(", ")},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
       `,
       values
     );
@@ -351,8 +347,8 @@ const OrderModel = {
   async deleteOrder(id) {
     const [result] = await db.query(
       `
-      DELETE FROM orders
-      WHERE id = ?
+        DELETE FROM orders
+        WHERE id = ?
       `,
       [id]
     );
@@ -364,22 +360,22 @@ const OrderModel = {
      ASSIGNER UN CHAUFFEUR
   ===================================================== */
 
-  async assignDriver(
-    orderId,
-    driverId
-  ) {
+  async assignDriver(orderId, driverId) {
     const [result] = await db.query(
       `
-      UPDATE orders
-      SET
-        driver_id = ?,
-        status = CASE
-          WHEN status = 'pending'
-          THEN 'assigned'
-          ELSE status
-        END,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        UPDATE orders
+        SET
+          driver_id = ?,
+
+          status = CASE
+            WHEN status = 'pending'
+            THEN 'assigned'
+            ELSE status
+          END,
+
+          updated_at = CURRENT_TIMESTAMP
+
+        WHERE id = ?
       `,
       [driverId, orderId]
     );
@@ -391,17 +387,14 @@ const OrderModel = {
      ASSIGNER UN VÉHICULE
   ===================================================== */
 
-  async assignVehicle(
-    orderId,
-    vehicleId
-  ) {
+  async assignVehicle(orderId, vehicleId) {
     const [result] = await db.query(
       `
-      UPDATE orders
-      SET
-        vehicle_id = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        UPDATE orders
+        SET
+          vehicle_id = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
       `,
       [vehicleId, orderId]
     );
@@ -413,17 +406,14 @@ const OrderModel = {
      MODIFIER LE STATUT
   ===================================================== */
 
-  async updateStatus(
-    orderId,
-    status
-  ) {
+  async updateStatus(orderId, status) {
     const [result] = await db.query(
       `
-      UPDATE orders
-      SET
-        status = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        UPDATE orders
+        SET
+          status = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
       `,
       [status, orderId]
     );
@@ -443,13 +433,13 @@ const OrderModel = {
   ) {
     const [result] = await db.query(
       `
-      INSERT INTO order_status_history (
-        order_id,
-        status,
-        changed_by,
-        comment
-      )
-      VALUES (?, ?, ?, ?)
+        INSERT INTO order_status_history (
+          order_id,
+          status,
+          changed_by,
+          comment
+        )
+        VALUES (?, ?, ?, ?)
       `,
       [
         orderId,
@@ -465,20 +455,20 @@ const OrderModel = {
   async getOrderTimeline(orderId) {
     const [rows] = await db.query(
       `
-      SELECT
-        osh.*,
-        u.first_name,
-        u.last_name,
-        u.email
+        SELECT
+          osh.*,
+          u.first_name,
+          u.last_name,
+          u.email
 
-      FROM order_status_history osh
+        FROM order_status_history osh
 
-      LEFT JOIN users u
-        ON u.id = osh.changed_by
+        LEFT JOIN users u
+          ON u.id = osh.changed_by
 
-      WHERE osh.order_id = ?
+        WHERE osh.order_id = ?
 
-      ORDER BY osh.created_at DESC
+        ORDER BY osh.created_at DESC
       `,
       [orderId]
     );
@@ -487,16 +477,16 @@ const OrderModel = {
   },
 
   /* =====================================================
-     ARRÊTS D’UNE COMMANDE
+     ARRÊTS D'UNE COMMANDE
   ===================================================== */
 
   async getOrderStops(orderId) {
     const [rows] = await db.query(
       `
-      SELECT *
-      FROM order_stops
-      WHERE order_id = ?
-      ORDER BY stop_order ASC
+        SELECT *
+        FROM order_stops
+        WHERE order_id = ?
+        ORDER BY stop_order ASC
       `,
       [orderId]
     );
@@ -507,10 +497,10 @@ const OrderModel = {
   async getOrderStopById(stopId) {
     const [rows] = await db.query(
       `
-      SELECT *
-      FROM order_stops
-      WHERE id = ?
-      LIMIT 1
+        SELECT *
+        FROM order_stops
+        WHERE id = ?
+        LIMIT 1
       `,
       [stopId]
     );
@@ -518,10 +508,7 @@ const OrderModel = {
     return rows[0] || null;
   },
 
-  async createOrderStop(
-    orderId,
-    data
-  ) {
+  async createOrderStop(orderId, data) {
     const {
       stop_order,
       stop_type,
@@ -550,41 +537,41 @@ const OrderModel = {
 
     const [result] = await db.query(
       `
-      INSERT INTO order_stops (
-        order_id,
-        stop_order,
-        stop_type,
+        INSERT INTO order_stops (
+          order_id,
+          stop_order,
+          stop_type,
 
-        customer_name,
-        company_name,
-        contact_name,
+          customer_name,
+          company_name,
+          contact_name,
 
-        phone,
-        email,
+          phone,
+          email,
 
-        address,
-        city,
-        province,
-        postal_code,
+          address,
+          city,
+          province,
+          postal_code,
 
-        latitude,
-        longitude,
+          latitude,
+          longitude,
 
-        scheduled_start,
-        scheduled_end,
+          scheduled_start,
+          scheduled_end,
 
-        status,
-        notes
-      )
-      VALUES (
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?,
-        ?, ?, ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?
-      )
+          status,
+          notes
+        )
+        VALUES (
+          ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?
+        )
       `,
       [
         orderId,
@@ -617,10 +604,7 @@ const OrderModel = {
     return result.insertId;
   },
 
-  async updateOrderStop(
-    stopId,
-    data
-  ) {
+  async updateOrderStop(stopId, data) {
     const allowedFields = [
       "stop_order",
       "stop_type",
@@ -676,11 +660,11 @@ const OrderModel = {
 
     const [result] = await db.query(
       `
-      UPDATE order_stops
-      SET
-        ${fields.join(", ")},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        UPDATE order_stops
+        SET
+          ${fields.join(", ")},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
       `,
       values
     );
@@ -691,8 +675,8 @@ const OrderModel = {
   async deleteOrderStop(stopId) {
     const [result] = await db.query(
       `
-      DELETE FROM order_stops
-      WHERE id = ?
+        DELETE FROM order_stops
+        WHERE id = ?
       `,
       [stopId]
     );
@@ -701,47 +685,47 @@ const OrderModel = {
   },
 
   /* =====================================================
-     COMMANDES D’UN CHAUFFEUR
+     COMMANDES D'UN CHAUFFEUR
   ===================================================== */
 
   async getDriverOrders(driverId) {
     const [rows] = await db.query(
       `
-      SELECT
-        o.*,
+        SELECT
+          o.*,
 
-        c.first_name AS client_first_name,
-        c.last_name AS client_last_name,
-        c.company_name,
-        c.phone AS client_phone,
-        c.email AS client_email,
+          c.first_name AS client_first_name,
+          c.last_name AS client_last_name,
+          c.company_name,
+          c.phone AS client_phone,
+          c.email AS client_email,
 
-        (
-          SELECT COUNT(*)
-          FROM order_stops os
-          WHERE os.order_id = o.id
-        ) AS stop_count,
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+          ) AS stop_count,
 
-        (
-          SELECT COUNT(*)
-          FROM order_stops os
-          WHERE os.order_id = o.id
-            AND os.status = 'completed'
-        ) AS completed_stops
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+              AND os.status = 'completed'
+          ) AS completed_stops
 
-      FROM orders o
+        FROM orders o
 
-      INNER JOIN clients c
-        ON c.id = o.client_id
+        INNER JOIN clients c
+          ON c.id = o.client_id
 
-      WHERE o.driver_id = ?
+        WHERE o.driver_id = ?
 
-      ORDER BY
-        COALESCE(
-          o.pickup_date,
-          DATE(o.created_at)
-        ) DESC,
-        o.pickup_time DESC
+        ORDER BY
+          COALESCE(
+            o.pickup_date,
+            DATE(o.created_at)
+          ) DESC,
+          o.pickup_time DESC
       `,
       [driverId]
     );
@@ -750,29 +734,63 @@ const OrderModel = {
   },
 
   /* =====================================================
-     PREUVES DE LIVRAISON
+     PREUVES / BONS DE LIVRAISON
+
+     Structure actuelle de delivery_proofs :
+
+     id
+     order_id
+     driver_id
+     receiver_first_name
+     receiver_last_name
+     signature_url
+     photo_url
+     notes
+     delivered_at
   ===================================================== */
 
   async getDeliveryProofs(orderId) {
     const [rows] = await db.query(
       `
-      SELECT
-        dp.*,
+        SELECT
+          dp.id,
+          dp.order_id,
+          dp.driver_id,
 
-        u.first_name AS driver_first_name,
-        u.last_name AS driver_last_name
+          dp.receiver_first_name,
+          dp.receiver_last_name,
 
-      FROM delivery_proofs dp
+          dp.signature_url,
+          dp.photo_url,
 
-      LEFT JOIN drivers d
-        ON d.id = dp.driver_id
+          dp.notes,
+          dp.delivered_at,
 
-      LEFT JOIN users u
-        ON u.id = d.user_id
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name,
+          u.email AS driver_email,
 
-      WHERE dp.order_id = ?
+          COALESCE(
+            d.phone,
+            u.phone
+          ) AS driver_phone,
 
-      ORDER BY dp.created_at DESC
+          d.vehicle_name,
+          d.vehicle_plate
+
+        FROM delivery_proofs dp
+
+        LEFT JOIN drivers d
+          ON d.id = dp.driver_id
+
+        LEFT JOIN users u
+          ON u.id = d.user_id
+
+        WHERE dp.order_id = ?
+
+        ORDER BY
+          dp.delivered_at DESC,
+          dp.id DESC
       `,
       [orderId]
     );
@@ -780,63 +798,162 @@ const OrderModel = {
     return rows;
   },
 
+  /* =====================================================
+     CRÉER UNE PREUVE DE LIVRAISON
+  ===================================================== */
+
   async createDeliveryProof(data) {
     const {
       order_id,
-      stop_id,
       driver_id,
 
-      proof_type,
-      file_url,
+      receiver_first_name,
+      receiver_last_name,
 
-      recipient_name,
-      confirmation_code,
-
-      latitude,
-      longitude,
+      signature_url,
+      photo_url,
 
       notes,
+
+      /*
+       * Compatibilité temporaire avec ton ancien
+       * controller si celui-ci envoie encore :
+       *
+       * recipient_name
+       * proof_type
+       * file_url
+       */
+      recipient_name,
+      proof_type,
+      file_url,
     } = data;
+
+    if (!order_id) {
+      throw new Error(
+        "order_id est obligatoire pour créer une preuve de livraison."
+      );
+    }
+
+    if (!driver_id) {
+      throw new Error(
+        "driver_id est obligatoire pour créer une preuve de livraison."
+      );
+    }
+
+    /* -----------------------------------------------------
+       NOM DU DESTINATAIRE
+    ----------------------------------------------------- */
+
+    let finalFirstName =
+      receiver_first_name || null;
+
+    let finalLastName =
+      receiver_last_name || null;
+
+    /*
+     * Si l'ancien controller envoie encore
+     * recipient_name, on le sépare automatiquement.
+     */
+
+    if (
+      (!finalFirstName || !finalLastName) &&
+      recipient_name
+    ) {
+      const nameParts = String(recipient_name)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      if (!finalFirstName) {
+        finalFirstName =
+          nameParts.shift() || null;
+      }
+
+      if (!finalLastName) {
+        finalLastName =
+          nameParts.join(" ") || null;
+      }
+    }
+
+    /* -----------------------------------------------------
+       SIGNATURE / PHOTO
+    ----------------------------------------------------- */
+
+    let finalSignatureUrl =
+      signature_url || null;
+
+    let finalPhotoUrl =
+      photo_url || null;
+
+    /*
+     * Compatibilité avec l'ancien système :
+     *
+     * proof_type = signature
+     * file_url = URL
+     *
+     * ou
+     *
+     * proof_type = photo
+     * file_url = URL
+     */
+
+    if (file_url) {
+      const normalizedProofType =
+        String(proof_type || "")
+          .trim()
+          .toLowerCase();
+
+      if (
+        normalizedProofType ===
+          "signature" &&
+        !finalSignatureUrl
+      ) {
+        finalSignatureUrl = file_url;
+      }
+
+      if (
+        [
+          "photo",
+          "image",
+          "delivery_photo",
+        ].includes(
+          normalizedProofType
+        ) &&
+        !finalPhotoUrl
+      ) {
+        finalPhotoUrl = file_url;
+      }
+    }
+
+    /* -----------------------------------------------------
+       INSERTION DANS AIVEN
+    ----------------------------------------------------- */
 
     const [result] = await db.query(
       `
-      INSERT INTO delivery_proofs (
-        order_id,
-        stop_id,
-        driver_id,
+        INSERT INTO delivery_proofs (
+          order_id,
+          driver_id,
 
-        proof_type,
-        file_url,
+          receiver_first_name,
+          receiver_last_name,
 
-        recipient_name,
-        confirmation_code,
+          signature_url,
+          photo_url,
 
-        latitude,
-        longitude,
-
-        notes
-      )
-      VALUES (
-        ?, ?, ?,
-        ?, ?,
-        ?, ?,
-        ?, ?,
-        ?
-      )
+          notes
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [
         order_id,
-        stop_id || null,
         driver_id,
 
-        proof_type,
-        file_url || null,
+        finalFirstName || "",
+        finalLastName || "",
 
-        recipient_name || null,
-        confirmation_code || null,
-
-        latitude || null,
-        longitude || null,
+        finalSignatureUrl,
+        finalPhotoUrl,
 
         notes || null,
       ]
