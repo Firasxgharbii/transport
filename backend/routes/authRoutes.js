@@ -10,54 +10,97 @@ const authMiddleware = require(
   "../middleware/authMiddleware"
 );
 
-/*
-|--------------------------------------------------------------------------
-| ROUTES PUBLIQUES
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ROUTES PUBLIQUES
+============================================================ */
 
-// Connexion
+/* ------------------------------------------------------------
+   CONNEXION
+   POST /api/auth/login
+------------------------------------------------------------ */
+
 router.post(
   "/login",
   authController.login
 );
 
-// Inscription d’un client depuis le site
+/* ------------------------------------------------------------
+   INSCRIPTION PUBLIQUE CLIENT
+   POST /api/auth/client-register
+
+   Important :
+   cette route est destinée uniquement aux clients.
+
+   Le rôle "driver" ne doit pas être sélectionnable
+   depuis la page publique d'inscription.
+------------------------------------------------------------ */
+
 router.post(
   "/client-register",
   authController.registerClient
 );
 
-// Demande de réinitialisation du mot de passe
+/* ------------------------------------------------------------
+   MOT DE PASSE OUBLIÉ
+   POST /api/auth/forgot-password
+------------------------------------------------------------ */
+
 router.post(
   "/forgot-password",
   authController.forgotPassword
 );
 
-// Enregistrer le nouveau mot de passe
+/* ------------------------------------------------------------
+   RÉINITIALISER LE MOT DE PASSE
+   POST /api/auth/reset-password
+------------------------------------------------------------ */
+
 router.post(
   "/reset-password",
   authController.resetPassword
 );
 
-/*
-|--------------------------------------------------------------------------
-| ROUTES PROTÉGÉES
-|--------------------------------------------------------------------------
-*/
+/* ============================================================
+   ROUTES PROTÉGÉES
+============================================================ */
 
-// Informations du compte connecté
+/* ------------------------------------------------------------
+   UTILISATEUR CONNECTÉ
+   GET /api/auth/me
+
+   Retourne les informations du compte connecté
+   à partir du JWT.
+------------------------------------------------------------ */
+
 router.get(
   "/me",
   authMiddleware,
   authController.me
 );
 
-// Création d’un employé par un administrateur
+/* ------------------------------------------------------------
+   CRÉER UN UTILISATEUR INTERNE
+   POST /api/auth/register
+
+   Accessible uniquement à un utilisateur authentifié.
+
+   La vérification "super_admin" est également faite
+   dans authController.register.
+
+   Rôles internes possibles :
+   - super_admin
+   - dispatcher
+   - driver
+------------------------------------------------------------ */
+
 router.post(
   "/register",
   authMiddleware,
   authController.register
 );
+
+/* ============================================================
+   EXPORT
+============================================================ */
 
 module.exports = router;
