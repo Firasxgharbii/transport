@@ -1,62 +1,692 @@
 /* ============================================================
-   HEADER ACTIONS
+   PAGE
 ============================================================ */
+
+.page {
+  min-height: calc(100vh - 74px);
+  padding: 28px;
+  color: #171820;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.heading > div:first-child {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  color: #dc143c;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+  color: #171820;
+  font-size: clamp(32px, 4vw, 46px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.heading p {
+  margin: 10px 0 0;
+  color: #747684;
+  font-size: 14px;
+  line-height: 1.55;
+}
 
 .headingActions {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 auto;
 }
 
+/* ============================================================
+   BUTTONS HEADER
+============================================================ */
+
+.refreshButton,
+.mapButton,
 .addDriverButton {
   display: inline-flex;
   min-height: 42px;
   align-items: center;
   justify-content: center;
   gap: 8px;
-
-  padding: 0 17px;
-
-  border: 1px solid #dc143c;
+  padding: 0 16px;
   border-radius: 12px;
-
-  background: #dc143c;
-
-  color: #fff;
-
   font-size: 12px;
-  font-weight: 900;
-
+  font-weight: 850;
+  text-decoration: none;
   cursor: pointer;
-
-  box-shadow:
-    0 10px 24px
-    rgba(220, 20, 60, 0.18);
-
   transition:
     transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.refreshButton,
+.mapButton {
+  border: 1px solid #ffc7d4;
+  background: #fff;
+  color: #dc143c;
+}
+
+.addDriverButton {
+  border: 1px solid #dc143c;
+  background: #dc143c;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(220, 20, 60, 0.18);
+}
+
+.refreshButton:hover,
+.mapButton:hover,
+.addDriverButton:hover {
+  transform: translateY(-2px);
+}
+
+.refreshButton:hover,
+.mapButton:hover {
+  box-shadow: 0 12px 25px rgba(31, 29, 42, 0.08);
+}
+
+.addDriverButton:hover {
+  background: #c41237;
+  border-color: #c41237;
+  box-shadow: 0 15px 30px rgba(220, 20, 60, 0.24);
+}
+
+.refreshButton:disabled,
+.addDriverButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
+/* ============================================================
+   MESSAGES
+============================================================ */
+
+.errorBanner,
+.successBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 14px 15px;
+  border-radius: 13px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.errorBanner {
+  border: 1px solid #ffc2cf;
+  background: #fff1f4;
+  color: #c50032;
+}
+
+.successBanner {
+  border: 1px solid #b9ead6;
+  background: #effcf7;
+  color: #087a55;
+}
+
+.errorBanner button,
+.successBanner button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ============================================================
+   STATS
+============================================================ */
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.statCard {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+  padding: 18px;
+  border: 1px solid #e6e7ed;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 12px 35px rgba(29, 28, 40, 0.04);
+}
+
+.statCard > span {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.stat_total {
+  background: #f1ecff;
+  color: #6c43dd;
+}
+
+.stat_available {
+  background: #eafbf4;
+  color: #07845e;
+}
+
+.stat_busy {
+  background: #fff0f3;
+  color: #dc143c;
+}
+
+.stat_offline {
+  background: #eef0f4;
+  color: #5e616b;
+}
+
+.statCard div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statCard small {
+  color: #838591;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.statCard strong {
+  color: #171820;
+  font-size: 25px;
+  line-height: 1;
+}
+
+/* ============================================================
+   PANEL
+============================================================ */
+
+.panel {
+  overflow: visible;
+  border: 1px solid #e5e6ec;
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 16px 42px rgba(30, 29, 41, 0.05);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border-bottom: 1px solid #ececf1;
+}
+
+/* ============================================================
+   SEARCH
+============================================================ */
+
+.searchBox {
+  display: flex;
+  width: min(430px, 100%);
+  min-height: 43px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid #e3e4ea;
+  border-radius: 11px;
+  background: #f8f8fb;
+  color: #a0a1ac;
+  transition:
+    border-color 0.18s ease,
     box-shadow 0.18s ease,
     background 0.18s ease;
 }
 
-.addDriverButton:hover {
-  transform: translateY(-2px);
+.searchBox:focus-within {
+  border-color: #ff9ab3;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(220, 20, 60, 0.08);
+}
 
-  background: #c41237;
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #20212a;
+  font: inherit;
+  font-size: 13px;
+}
 
-  box-shadow:
-    0 15px 30px
-    rgba(220, 20, 60, 0.24);
+.searchBox input::placeholder {
+  color: #9fa1ab;
 }
 
 /* ============================================================
-   MODAL
+   FILTERS
+============================================================ */
+
+.filters {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #e6e7ec;
+  border-radius: 11px;
+  background: #f7f7fa;
+}
+
+.filterButton,
+.filterActive {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filterButton {
+  background: transparent;
+  color: #7c7e89;
+}
+
+.filterButton:hover {
+  color: #dc143c;
+}
+
+.filterActive {
+  background: #fff;
+  color: #dc143c;
+  box-shadow: 0 5px 15px rgba(25, 24, 35, 0.08);
+}
+
+/* ============================================================
+   TABLE
+============================================================ */
+
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 0 0 19px 19px;
+}
+
+.table {
+  width: 100%;
+  min-width: 1200px;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 15px 16px;
+  border-bottom: 1px solid #efeff3;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  color: #9395a0;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table td {
+  color: #5d5f69;
+  font-size: 12px;
+}
+
+.table tbody tr {
+  transition: background 0.16s ease;
+}
+
+.table tbody tr:hover {
+  background: #fdfdfe;
+}
+
+/* ============================================================
+   DRIVER IDENTITY
+============================================================ */
+
+.identity,
+.contact,
+.vehicleCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.identity > span {
+  display: grid;
+  width: 39px;
+  height: 39px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: #fff0f4;
+  color: #dc143c;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.identity div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.identity strong {
+  color: #25262f;
+  white-space: nowrap;
+}
+
+.identity small {
+  color: #9b9da6;
+}
+
+.contact {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.contact span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.vehicleCell {
+  min-width: 180px;
+}
+
+.vehicleCell svg {
+  flex: 0 0 auto;
+  color: #7d7f89;
+}
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+.statusBadge {
+  display: inline-flex;
+  min-height: 27px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.statusAvailable {
+  background: #e9faf3;
+  color: #087d5a;
+}
+
+.statusBusy {
+  background: #fff0f3;
+  color: #cf0034;
+}
+
+.statusBreak {
+  background: #fff5dd;
+  color: #b97000;
+}
+
+.statusOffline {
+  background: #eef0f4;
+  color: #62646f;
+}
+
+/* ============================================================
+   ACTIONS
+============================================================ */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viewButton,
+.moreButton {
+  display: grid;
+  width: 33px;
+  height: 33px;
+  place-items: center;
+  border: 1px solid #dfe0e7;
+  border-radius: 9px;
+  background: #fff;
+  color: #555761;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.viewButton:hover,
+.moreButton:hover {
+  border-color: #ffc1cf;
+  background: #fff4f6;
+  color: #dc143c;
+}
+
+.statusMenu {
+  position: relative;
+}
+
+.statusDropdown {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 7px);
+  right: 0;
+  display: none;
+  width: 160px;
+  overflow: hidden;
+  border: 1px solid #e2e3e8;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(25, 24, 35, 0.16);
+}
+
+.statusMenu:hover .statusDropdown,
+.statusMenu:focus-within .statusDropdown {
+  display: block;
+}
+
+.statusDropdown button {
+  width: 100%;
+  min-height: 39px;
+  padding: 0 12px;
+  border: 0;
+  background: #fff;
+  color: #444650;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.statusDropdown button:hover {
+  background: #fff3f6;
+  color: #dc143c;
+}
+
+/* ============================================================
+   LOADING
+============================================================ */
+
+.skeleton {
+  height: 47px;
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    #f0f1f4,
+    #fafafd,
+    #f0f1f4
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.3s infinite;
+}
+
+/* ============================================================
+   EMPTY STATE
+============================================================ */
+
+.emptyState {
+  display: flex;
+  min-height: 280px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #9a9ca7;
+  text-align: center;
+}
+
+.emptyState svg {
+  color: #dc143c;
+}
+
+.emptyState h2 {
+  margin: 13px 0 5px;
+  color: #272832;
+  font-size: 17px;
+}
+
+.emptyState p {
+  margin: 0;
+  max-width: 340px;
+  line-height: 1.55;
+}
+
+/* ============================================================
+   PAGINATION
+============================================================ */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 18px;
+  border-top: 1px solid #efeff3;
+  color: #858793;
+  font-size: 11px;
+}
+
+.pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pagination button {
+  min-height: 33px;
+  padding: 0 11px;
+  border: 1px solid #e1e2e8;
+  border-radius: 9px;
+  background: #fff;
+  color: #555761;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled) {
+  border-color: #ffc0cf;
+  color: #dc143c;
+}
+
+.pagination button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+/* ============================================================
+   LIVE MAP
+============================================================ */
+
+.liveMapPreview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid #e5e6ec;
+  border-radius: 18px;
+  background:
+    radial-gradient(
+      circle at right,
+      rgba(220, 20, 60, 0.08),
+      transparent 35%
+    ),
+    #fff;
+  box-shadow: 0 12px 35px rgba(29, 28, 40, 0.035);
+}
+
+.liveMapPreview h2 {
+  margin: 0;
+  color: #21222b;
+  font-size: 21px;
+}
+
+.liveMapPreview p {
+  margin: 8px 0 0;
+  color: #777985;
+  font-size: 13px;
+}
+
+/* ============================================================
+   MODAL OVERLAY
 ============================================================ */
 
 .modalOverlay {
   position: fixed;
   z-index: 9999;
-
   inset: 0;
 
   display: flex;
@@ -65,62 +695,42 @@
 
   padding: 24px;
 
-  background:
-    rgba(15, 16, 22, 0.58);
-
-  backdrop-filter:
-    blur(7px);
+  background: rgba(13, 14, 21, 0.6);
+  backdrop-filter: blur(8px);
 }
 
-.modal {
-  width: min(
-    820px,
-    100%
-  );
+/* ============================================================
+   MODAL
+============================================================ */
 
-  max-height:
-    calc(100dvh - 48px);
+.modal {
+  width: min(820px, 100%);
+  max-height: calc(100dvh - 48px);
 
   overflow: hidden;
 
-  border:
-    1px solid
-    rgba(
-      255,
-      255,
-      255,
-      0.6
-    );
-
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 22px;
 
   background: #fff;
 
   box-shadow:
-    0 35px 90px
-    rgba(
-      10,
-      10,
-      18,
-      0.28
-    );
+    0 35px 90px rgba(10, 10, 18, 0.3);
 }
 
 .modalHeader {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-
   gap: 20px;
 
-  padding:
-    23px
-    25px
-    20px;
+  padding: 23px 25px 20px;
 
-  border-bottom:
-    1px solid
-    #ececf1;
+  border-bottom: 1px solid #ececf1;
+}
+
+.modalHeader > div {
+  min-width: 0;
 }
 
 .modalEyebrow {
@@ -135,11 +745,8 @@
   font-size: 10px;
   font-weight: 900;
 
-  letter-spacing:
-    0.08em;
-
-  text-transform:
-    uppercase;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .modalHeader h2 {
@@ -148,18 +755,18 @@
   color: #1d1e26;
 
   font-size: 25px;
+  line-height: 1.15;
 
-  letter-spacing:
-    -0.03em;
+  letter-spacing: -0.03em;
 }
 
 .modalHeader p {
-  margin:
-    6px 0 0;
+  margin: 6px 0 0;
 
   color: #81838e;
 
   font-size: 12px;
+  line-height: 1.5;
 }
 
 .modalClose {
@@ -172,10 +779,7 @@
 
   place-items: center;
 
-  border:
-    1px solid
-    #e2e3e8;
-
+  border: 1px solid #e2e3e8;
   border-radius: 11px;
 
   background: #fff;
@@ -185,31 +789,28 @@
   cursor: pointer;
 }
 
+.modalClose:hover {
+  border-color: #ffc2d0;
+  background: #fff4f6;
+  color: #dc143c;
+}
+
 /* ============================================================
-   FORM
+   DRIVER FORM
 ============================================================ */
 
 .driverForm {
-  max-height:
-    calc(
-      100dvh -
-      175px
-    );
-
+  max-height: calc(100dvh - 175px);
   overflow-y: auto;
 
-  padding:
-    22px 25px 0;
+  padding: 22px 25px 0;
 }
 
 .formSection {
   margin-bottom: 22px;
-
   padding-bottom: 22px;
 
-  border-bottom:
-    1px solid
-    #eeeeF2;
+  border-bottom: 1px solid #eeeef2;
 }
 
 .formSection:last-of-type {
@@ -219,49 +820,36 @@
 .formSectionHeading {
   display: flex;
   align-items: flex-start;
-
   gap: 10px;
 
   margin-bottom: 15px;
 }
 
 .formSectionHeading > svg {
+  flex: 0 0 auto;
   margin-top: 1px;
-
   color: #dc143c;
 }
 
 .formSectionHeading div {
   display: flex;
   flex-direction: column;
-
   gap: 3px;
 }
 
 .formSectionHeading strong {
   color: #282931;
-
   font-size: 13px;
 }
 
 .formSectionHeading span {
   color: #93949e;
-
   font-size: 10px;
 }
 
 .formGrid {
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(
-        0,
-        1fr
-      )
-    );
-
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -271,20 +859,17 @@
 }
 
 .formFieldFull {
-  grid-column:
-    1 / -1;
+  grid-column: 1 / -1;
 }
 
 .formField {
   display: flex;
   flex-direction: column;
-
   gap: 7px;
 }
 
 .formField label {
   color: #585a65;
-
   font-size: 10px;
   font-weight: 850;
 }
@@ -293,19 +878,14 @@
   width: 100%;
   min-height: 43px;
 
-  padding:
-    0 12px;
+  padding: 0 12px;
 
-  border:
-    1px solid
-    #dfe0e6;
-
+  border: 1px solid #dfe0e6;
   border-radius: 10px;
 
   outline: none;
 
-  background:
-    #fafafd;
+  background: #fafafd;
 
   color: #22232b;
 
@@ -313,33 +893,29 @@
   font-size: 12px;
 
   transition:
-    border-color
-      0.18s ease,
-    box-shadow
-      0.18s ease,
-    background
-      0.18s ease;
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.formField input:hover {
+  border-color: #d3d4db;
 }
 
 .formField input:focus {
-  border-color:
-    #ee8ba1;
-
+  border-color: #ee8ba1;
   background: #fff;
-
-  box-shadow:
-    0 0 0 4px
-    rgba(
-      220,
-      20,
-      60,
-      0.08
-    );
+  box-shadow: 0 0 0 4px rgba(220, 20, 60, 0.08);
 }
 
 .formField input:disabled {
   opacity: 0.65;
+  cursor: default;
 }
+
+/* ============================================================
+   PASSWORD
+============================================================ */
 
 .passwordField {
   position: relative;
@@ -353,7 +929,7 @@
   position: absolute;
 
   top: 50%;
-  right: 8px;
+  right: 7px;
 
   display: grid;
 
@@ -362,15 +938,12 @@
 
   place-items: center;
 
-  transform:
-    translateY(-50%);
+  transform: translateY(-50%);
 
   border: 0;
-
   border-radius: 8px;
 
-  background:
-    transparent;
+  background: transparent;
 
   color: #858791;
 
@@ -379,18 +952,21 @@
 
 .passwordField button:hover {
   background: #f1f1f5;
-
   color: #dc143c;
 }
 
 .passwordHint {
-  margin:
-    11px 0 0;
+  margin: 11px 0 0;
+
+  padding: 10px 12px;
+
+  border-radius: 9px;
+
+  background: #f8f8fb;
 
   color: #8b8d97;
 
   font-size: 10px;
-
   line-height: 1.5;
 }
 
@@ -403,32 +979,21 @@
 
   bottom: 0;
 
+  z-index: 5;
+
   display: flex;
   align-items: center;
   justify-content: flex-end;
-
   gap: 9px;
 
-  margin:
-    5px -25px 0;
+  margin: 5px -25px 0;
+  padding: 17px 25px;
 
-  padding:
-    17px 25px;
+  border-top: 1px solid #e8e9ee;
 
-  border-top:
-    1px solid
-    #e8e9ee;
+  background: rgba(255, 255, 255, 0.96);
 
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      0.96
-    );
-
-  backdrop-filter:
-    blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 .cancelButton,
@@ -442,8 +1007,7 @@
 
   gap: 8px;
 
-  padding:
-    0 16px;
+  padding: 0 16px;
 
   border-radius: 11px;
 
@@ -451,105 +1015,180 @@
   font-weight: 900;
 
   cursor: pointer;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .cancelButton {
-  border:
-    1px solid
-    #dedfe5;
+  border: 1px solid #dedfe5;
 
   background: #fff;
 
   color: #696b76;
 }
 
+.cancelButton:hover:not(:disabled) {
+  border-color: #cfd0d7;
+  background: #f7f7fa;
+}
+
 .createButton {
-  border:
-    1px solid
-    #dc143c;
+  border: 1px solid #dc143c;
 
   background: #dc143c;
 
   color: #fff;
 
-  box-shadow:
-    0 10px 24px
-    rgba(
-      220,
-      20,
-      60,
-      0.16
-    );
+  box-shadow: 0 10px 24px rgba(220, 20, 60, 0.16);
+}
+
+.createButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #c41237;
+  border-color: #c41237;
 }
 
 .cancelButton:disabled,
 .createButton:disabled {
   opacity: 0.55;
-
   cursor: default;
 }
 
 /* ============================================================
-   RESPONSIVE MODAL
+   ANIMATIONS
 ============================================================ */
 
-@media (
-  max-width: 650px
-) {
-  .headingActions {
-    width: 100%;
+.spin {
+  animation: spin 0.8s linear infinite;
+}
 
-    flex-direction:
-      column;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes skeleton {
+  0% {
+    background-position: 200% 0;
   }
 
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE TABLET
+============================================================ */
+
+@media (max-width: 1100px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .searchBox {
+    width: 100%;
+  }
+
+  .filters {
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE MOBILE
+============================================================ */
+
+@media (max-width: 650px) {
+  .page {
+    padding: 20px 14px;
+  }
+
+  .heading,
+  .liveMapPreview {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .headingActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .refreshButton,
+  .mapButton,
   .addDriverButton {
     width: 100%;
   }
 
-  .modalOverlay {
-    align-items:
-      flex-end;
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
 
+  .toolbar {
+    padding: 14px;
+  }
+
+  .filters {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .filterButton,
+  .filterActive {
+    flex: 1 0 auto;
+  }
+
+  .pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .liveMapPreview {
+    padding: 18px;
+  }
+
+  /* Modal mobile */
+
+  .modalOverlay {
+    align-items: flex-end;
     padding: 0;
   }
 
   .modal {
     width: 100%;
+    max-height: 94dvh;
 
-    max-height:
-      94dvh;
-
-    border-radius:
-      22px
-      22px
-      0
-      0;
+    border-radius: 22px 22px 0 0;
   }
 
   .modalHeader {
-    padding:
-      19px
-      17px
-      16px;
+    padding: 19px 17px 16px;
+  }
+
+  .modalHeader h2 {
+    font-size: 21px;
   }
 
   .driverForm {
-    max-height:
-      calc(
-        94dvh -
-        105px
-      );
+    max-height: calc(94dvh - 105px);
 
-    padding:
-      18px
-      17px
-      0;
+    padding: 18px 17px 0;
   }
 
   .formGrid {
-    grid-template-columns:
-      1fr;
+    grid-template-columns: 1fr;
   }
 
   .formFieldFull {
@@ -557,11 +1196,8 @@
   }
 
   .modalFooter {
-    margin:
-      5px -17px 0;
-
-    padding:
-      14px 17px;
+    margin: 5px -17px 0;
+    padding: 14px 17px;
   }
 
   .cancelButton,
