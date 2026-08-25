@@ -63,6 +63,67 @@ exports.getDrivers = async (req, res) => {
 };
 
 /* =====================================================
+   GET CURRENT DRIVER
+   GET /api/drivers/me
+===================================================== */
+
+exports.getCurrentDriver = async (
+  req,
+  res
+) => {
+  try {
+    const userId = Number(
+      req.user?.id ||
+      req.user?.user_id
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Utilisateur non authentifié.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverByUserId(
+        userId
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Aucun profil chauffeur associé à cet utilisateur.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Profil chauffeur récupéré avec succès.",
+      driver,
+      data: driver,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getCurrentDriver :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de récupérer le profil chauffeur.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
    GET DRIVER BY ID
 ===================================================== */
 
@@ -333,11 +394,6 @@ exports.updateDriver = async (
     delete updateData.created_at;
     delete updateData.updated_at;
 
-    /*
-     * Le véhicule est maintenant géré dans la table vehicles.
-     * On empêche donc la modification directe de ces anciens
-     * champs présents dans drivers.
-     */
     delete updateData.vehicle_name;
     delete updateData.vehicle_plate;
     delete updateData.vehicle_id;

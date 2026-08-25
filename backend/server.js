@@ -4,21 +4,21 @@ const dotenv = require("dotenv");
 const http = require("http");
 const { Server } = require("socket.io");
 
-/* =====================================================
-   VARIABLES D’ENVIRONNEMENT
-===================================================== */
+/* ============================================================
+   VARIABLES D'ENVIRONNEMENT
+============================================================ */
 
 dotenv.config();
 
-/* =====================================================
+/* ============================================================
    BASE DE DONNÉES
-===================================================== */
+============================================================ */
 
 const db = require("./config/db");
 
-/* =====================================================
+/* ============================================================
    ROUTES
-===================================================== */
+============================================================ */
 
 const authRoutes = require(
   "./routes/authRoutes"
@@ -60,9 +60,17 @@ const quoteRoutes = require(
   "./routes/quoteRoutes"
 );
 
-/* =====================================================
-   EXPRESS ET SERVEUR HTTP
-===================================================== */
+/* ============================================================
+   NOUVEAU — TRACKING GPS
+============================================================ */
+
+const trackingRoutes = require(
+  "./routes/trackingRoutes"
+);
+
+/* ============================================================
+   EXPRESS + SERVEUR HTTP
+============================================================ */
 
 const app = express();
 
@@ -74,17 +82,17 @@ const PORT =
 const HOST =
   process.env.HOST || "0.0.0.0";
 
-/* =====================================================
+/* ============================================================
    CORS
-===================================================== */
+============================================================ */
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
 
+  /* LOCAL */
+
   "http://localhost:3000",
   "http://127.0.0.1:3000",
-
-  /* IP LOCALES */
 
   "http://172.20.10.6:3000",
   "http://192.168.2.22:3000",
@@ -99,10 +107,11 @@ const allowedOrigins = [
 const corsOptions = {
   origin(origin, callback) {
     /*
-     * Autorise :
+     * Autorise notamment :
+     * - curl
      * - Postman
-     * - applications mobiles
-     * - requêtes serveur sans Origin
+     * - requêtes serveur
+     * - certains clients mobiles
      */
 
     if (!origin) {
@@ -113,8 +122,8 @@ const corsOptions = {
     }
 
     /*
-     * En développement,
-     * autoriser les origines locales.
+     * En développement local,
+     * accepter les origines locales.
      */
 
     if (
@@ -128,7 +137,7 @@ const corsOptions = {
     }
 
     /*
-     * En production,
+     * Production :
      * seulement les domaines autorisés.
      */
 
@@ -169,20 +178,30 @@ const corsOptions = {
   credentials: true,
 };
 
-/* =====================================================
+/* ============================================================
    SOCKET.IO
-===================================================== */
+============================================================ */
 
 const io = new Server(
   server,
   {
     cors: corsOptions,
+
+    /*
+     * WebSocket en priorité.
+     * Polling reste disponible en fallback.
+     */
+
+    transports: [
+      "websocket",
+      "polling",
+    ],
   }
 );
 
-/* =====================================================
-   MIDDLEWARES
-===================================================== */
+/* ============================================================
+   MIDDLEWARES EXPRESS
+============================================================ */
 
 app.use(
   cors(corsOptions)
@@ -201,112 +220,125 @@ app.use(
   })
 );
 
-/* =====================================================
-   RENDRE SOCKET.IO ACCESSIBLE
-===================================================== */
+/* ============================================================
+   RENDRE SOCKET.IO ACCESSIBLE AUX CONTROLLERS
+
+   trackingController peut maintenant faire :
+
+   const io = req.app.get("io");
+============================================================ */
 
 app.set(
   "io",
   io
 );
 
-/* =====================================================
+/* ============================================================
    ROUTES API
-===================================================== */
+============================================================ */
 
-/* -------------------------
+/* ------------------------------------------------------------
    AUTHENTIFICATION
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/auth",
   authRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    UTILISATEURS
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/users",
   userRoutes
 );
 
-/* -------------------------
-   DEMANDES D’INSCRIPTION
-------------------------- */
+/* ------------------------------------------------------------
+   DEMANDES D'INSCRIPTION
+------------------------------------------------------------ */
 
 app.use(
   "/api/registration-requests",
   registrationRequestRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    CLIENTS
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/clients",
   clientRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    CHAUFFEURS
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/drivers",
   driverRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    VÉHICULES
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/vehicles",
   vehicleRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    COMMANDES
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/orders",
   orderRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
+   TRACKING GPS — NOUVEAU
+------------------------------------------------------------ */
+
+app.use(
+  "/api/tracking",
+  trackingRoutes
+);
+
+/* ------------------------------------------------------------
    DASHBOARD
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/dashboard",
   dashboardRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    CONTACT
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/contact",
   contactRoutes
 );
 
-/* -------------------------
+/* ------------------------------------------------------------
    SOUMISSIONS
-------------------------- */
+------------------------------------------------------------ */
 
 app.use(
   "/api/quote",
   quoteRoutes
 );
 
-/* =====================================================
+/* ============================================================
    ROUTE PRINCIPALE
-===================================================== */
+============================================================ */
 
 app.get(
   "/",
@@ -323,15 +355,19 @@ app.get(
           process.env.NODE_ENV ||
           "development",
 
+        tracking: true,
+
+        socket: true,
+
         timestamp:
           new Date().toISOString(),
       });
   }
 );
 
-/* =====================================================
+/* ============================================================
    HEALTH CHECK
-===================================================== */
+============================================================ */
 
 app.get(
   "/api/health",
@@ -350,15 +386,74 @@ app.get(
           process.env.NODE_ENV ||
           "development",
 
+        features: {
+          database: true,
+          socketIO: true,
+          tracking: true,
+        },
+
         timestamp:
           new Date().toISOString(),
       });
   }
 );
 
-/* =====================================================
+/* ============================================================
+   TEST MYSQL
+============================================================ */
+
+app.get(
+  "/api/db-test",
+  async (req, res) => {
+    try {
+      const [rows] =
+        await db.query(`
+          SELECT
+            NOW() AS current_time,
+            DATABASE() AS database_name
+        `);
+
+      return res
+        .status(200)
+        .json({
+          success: true,
+
+          message:
+            "Connexion Aiven MySQL réussie.",
+
+          database:
+            rows[0].database_name,
+
+          database_time:
+            rows[0].current_time,
+        });
+    } catch (error) {
+      console.error(
+        "Erreur test MySQL :",
+        error
+      );
+
+      return res
+        .status(500)
+        .json({
+          success: false,
+
+          message:
+            "Erreur de connexion à la base de données.",
+
+          error:
+            process.env.NODE_ENV ===
+            "production"
+              ? undefined
+              : error.message,
+        });
+    }
+  }
+);
+
+/* ============================================================
    TEST SMTP
-===================================================== */
+============================================================ */
 
 app.get(
   "/api/contact/test",
@@ -382,18 +477,22 @@ app.get(
           });
       }
 
+      const smtpPort =
+        Number(
+          process.env.SMTP_PORT ||
+            465
+        );
+
       const transporter =
         nodemailer.createTransport({
           host:
             process.env.SMTP_HOST,
 
           port:
-            Number(
-              process.env.SMTP_PORT ||
-                465
-            ),
+            smtpPort,
 
-          secure: true,
+          secure:
+            smtpPort === 465,
 
           auth: {
             user:
@@ -419,10 +518,7 @@ app.get(
             process.env.SMTP_HOST,
 
           port:
-            Number(
-              process.env.SMTP_PORT ||
-                465
-            ),
+            smtpPort,
 
           user:
             process.env.SMTP_USER,
@@ -451,58 +547,9 @@ app.get(
   }
 );
 
-/* =====================================================
-   TEST MYSQL
-===================================================== */
-
-app.get(
-  "/api/db-test",
-  async (req, res) => {
-    try {
-      const [rows] =
-        await db.query(`
-          SELECT
-            NOW() AS current_time,
-            DATABASE() AS database_name
-        `);
-
-      return res
-        .status(200)
-        .json({
-          success: true,
-
-          message:
-            "Connexion Aiven MySQL réussie.",
-
-          database:
-            rows[0]
-              .database_name,
-
-          database_time:
-            rows[0]
-              .current_time,
-        });
-    } catch (error) {
-      console.error(
-        "Erreur pendant le test MySQL :",
-        error
-      );
-
-      return res
-        .status(500)
-        .json({
-          success: false,
-
-          message:
-            "Erreur de connexion à la base de données.",
-        });
-    }
-  }
-);
-
-/* =====================================================
-   SOCKET.IO
-===================================================== */
+/* ============================================================
+   SOCKET.IO — TRACKING TEMPS RÉEL
+============================================================ */
 
 io.on(
   "connection",
@@ -511,9 +558,123 @@ io.on(
       `🟢 Socket.IO connecté : ${socket.id}`
     );
 
-    /* ===================================================
+    /* ========================================================
+       ADMIN / DISPATCHER
+
+       Le dashboard admin peut rejoindre cette room pour
+       recevoir les positions de tous les chauffeurs.
+    ======================================================== */
+
+    socket.on(
+      "join-tracking",
+      () => {
+        socket.join(
+          "tracking"
+        );
+
+        socket.emit(
+          "tracking:joined",
+          {
+            success: true,
+
+            room:
+              "tracking",
+          }
+        );
+
+        console.log(
+          `🗺️ ${socket.id} → tracking`
+        );
+      }
+    );
+
+    /* ========================================================
+       REJOINDRE LE CANAL D'UN CHAUFFEUR
+    ======================================================== */
+
+    socket.on(
+      "join-driver",
+      (driverId) => {
+        const normalizedDriverId =
+          Number(driverId);
+
+        if (
+          !Number.isInteger(
+            normalizedDriverId
+          ) ||
+          normalizedDriverId <= 0
+        ) {
+          socket.emit(
+            "socket:error",
+            {
+              success: false,
+
+              message:
+                "Identifiant chauffeur invalide.",
+            }
+          );
+
+          return;
+        }
+
+        const roomName =
+          `driver:${normalizedDriverId}`;
+
+        socket.join(
+          roomName
+        );
+
+        socket.emit(
+          "driver:joined",
+          {
+            success: true,
+
+            driverId:
+              normalizedDriverId,
+
+            room:
+              roomName,
+          }
+        );
+
+        console.log(
+          `🚚 ${socket.id} → ${roomName}`
+        );
+      }
+    );
+
+    /* ========================================================
+       QUITTER LE CANAL D'UN CHAUFFEUR
+    ======================================================== */
+
+    socket.on(
+      "leave-driver",
+      (driverId) => {
+        const normalizedDriverId =
+          Number(driverId);
+
+        if (
+          !Number.isInteger(
+            normalizedDriverId
+          ) ||
+          normalizedDriverId <= 0
+        ) {
+          return;
+        }
+
+        socket.leave(
+          `driver:${normalizedDriverId}`
+        );
+      }
+    );
+
+    /* ========================================================
        REJOINDRE UNE COMMANDE
-    =================================================== */
+
+       IMPORTANT :
+       même format que trackingController :
+       order:123
+    ======================================================== */
 
     socket.on(
       "join-order",
@@ -528,7 +689,7 @@ io.on(
           normalizedOrderId <= 0
         ) {
           socket.emit(
-            "socket-error",
+            "socket:error",
             {
               success: false,
 
@@ -541,14 +702,14 @@ io.on(
         }
 
         const roomName =
-          `order-${normalizedOrderId}`;
+          `order:${normalizedOrderId}`;
 
         socket.join(
           roomName
         );
 
         socket.emit(
-          "joined-order",
+          "order:joined",
           {
             success: true,
 
@@ -561,14 +722,14 @@ io.on(
         );
 
         console.log(
-          `📦 Socket ${socket.id} a rejoint ${roomName}`
+          `📦 ${socket.id} → ${roomName}`
         );
       }
     );
 
-    /* ===================================================
+    /* ========================================================
        QUITTER UNE COMMANDE
-    =================================================== */
+    ======================================================== */
 
     socket.on(
       "leave-order",
@@ -585,53 +746,55 @@ io.on(
           return;
         }
 
-        const roomName =
-          `order-${normalizedOrderId}`;
-
         socket.leave(
-          roomName
+          `order:${normalizedOrderId}`
         );
 
         socket.emit(
-          "left-order",
+          "order:left",
           {
             success: true,
 
             orderId:
               normalizedOrderId,
-
-            room:
-              roomName,
           }
-        );
-
-        console.log(
-          `📤 Socket ${socket.id} a quitté ${roomName}`
         );
       }
     );
 
-    /* ===================================================
-       POSITION CHAUFFEUR
-    =================================================== */
+    /* ========================================================
+       POSITION GPS EN TEMPS RÉEL
+
+       Cette méthode Socket.IO sert à transmettre rapidement
+       une position.
+
+       L'enregistrement permanent MySQL sera fait par :
+       POST /api/tracking/location
+
+       On ne fait PAS directement d'INSERT MySQL ici.
+    ======================================================== */
 
     socket.on(
-      "driver-location-update",
+      "driver:location:update",
       (data) => {
         const {
-          orderId,
           driverId,
+          orderId = null,
           latitude,
           longitude,
           speed = null,
           heading = null,
+          accuracy = null,
+          batteryLevel = null,
         } = data || {};
-
-        const normalizedOrderId =
-          Number(orderId);
 
         const normalizedDriverId =
           Number(driverId);
+
+        const normalizedOrderId =
+          orderId
+            ? Number(orderId)
+            : null;
 
         const normalizedLatitude =
           Number(latitude);
@@ -639,43 +802,73 @@ io.on(
         const normalizedLongitude =
           Number(longitude);
 
+        /* ----------------------------------------------------
+           VALIDATION DRIVER
+        ---------------------------------------------------- */
+
         if (
-          !Number.isInteger(
-            normalizedOrderId
-          ) ||
-          normalizedOrderId <= 0 ||
           !Number.isInteger(
             normalizedDriverId
           ) ||
-          normalizedDriverId <= 0 ||
-          !Number.isFinite(
-            normalizedLatitude
-          ) ||
-          !Number.isFinite(
-            normalizedLongitude
-          )
+          normalizedDriverId <= 0
         ) {
           socket.emit(
-            "socket-error",
+            "socket:error",
             {
               success: false,
 
               message:
-                "Données GPS invalides.",
+                "Identifiant chauffeur invalide.",
             }
           );
 
           return;
         }
 
+        /* ----------------------------------------------------
+           VALIDATION ORDER
+        ---------------------------------------------------- */
+
         if (
+          normalizedOrderId !== null &&
+          (
+            !Number.isInteger(
+              normalizedOrderId
+            ) ||
+            normalizedOrderId <= 0
+          )
+        ) {
+          socket.emit(
+            "socket:error",
+            {
+              success: false,
+
+              message:
+                "Identifiant commande invalide.",
+            }
+          );
+
+          return;
+        }
+
+        /* ----------------------------------------------------
+           VALIDATION GPS
+        ---------------------------------------------------- */
+
+        if (
+          !Number.isFinite(
+            normalizedLatitude
+          ) ||
+          !Number.isFinite(
+            normalizedLongitude
+          ) ||
           normalizedLatitude < -90 ||
           normalizedLatitude > 90 ||
           normalizedLongitude < -180 ||
           normalizedLongitude > 180
         ) {
           socket.emit(
-            "socket-error",
+            "socket:error",
             {
               success: false,
 
@@ -687,12 +880,16 @@ io.on(
           return;
         }
 
-        const locationData = {
-          orderId:
-            normalizedOrderId,
+        /* ----------------------------------------------------
+           PAYLOAD
+        ---------------------------------------------------- */
 
-          driverId:
+        const locationData = {
+          driver_id:
             normalizedDriverId,
+
+          order_id:
+            normalizedOrderId,
 
           latitude:
             normalizedLatitude,
@@ -716,23 +913,69 @@ io.on(
               ? Number(heading)
               : null,
 
-          timestamp:
+          accuracy:
+            accuracy !== null &&
+            Number.isFinite(
+              Number(accuracy)
+            )
+              ? Number(accuracy)
+              : null,
+
+          battery_level:
+            batteryLevel !== null &&
+            Number.isFinite(
+              Number(batteryLevel)
+            )
+              ? Number(batteryLevel)
+              : null,
+
+          recorded_at:
             new Date()
               .toISOString(),
         };
 
+        /* ----------------------------------------------------
+           ADMIN / DISPATCH
+        ---------------------------------------------------- */
+
         io.to(
-          `order-${normalizedOrderId}`
+          "tracking"
         ).emit(
-          "order-location-update",
+          "driver:location",
           locationData
         );
+
+        /* ----------------------------------------------------
+           ROOM DU CHAUFFEUR
+        ---------------------------------------------------- */
+
+        io.to(
+          `driver:${normalizedDriverId}`
+        ).emit(
+          "driver:location",
+          locationData
+        );
+
+        /* ----------------------------------------------------
+           ROOM COMMANDE
+        ---------------------------------------------------- */
+
+        if (
+          normalizedOrderId
+        ) {
+          io.to(
+            `order:${normalizedOrderId}`
+          ).emit(
+            "order:location",
+            locationData
+          );
+        }
       }
     );
 
-    /* ===================================================
+    /* ========================================================
        DÉCONNEXION
-    =================================================== */
+    ======================================================== */
 
     socket.on(
       "disconnect",
@@ -744,15 +987,15 @@ io.on(
       }
     );
 
-    /* ===================================================
+    /* ========================================================
        ERREUR SOCKET
-    =================================================== */
+    ======================================================== */
 
     socket.on(
       "error",
       (error) => {
         console.error(
-          `Erreur Socket.IO ${socket.id} :`,
+          `❌ Socket.IO ${socket.id} :`,
           error
         );
       }
@@ -760,13 +1003,11 @@ io.on(
   }
 );
 
-/* =====================================================
+/* ============================================================
    ROUTE INTROUVABLE
 
-   IMPORTANT :
-   Toujours garder ce middleware APRÈS toutes les
-   routes app.use("/api/...")
-===================================================== */
+   TOUJOURS APRÈS LES ROUTES app.use("/api/...")
+============================================================ */
 
 app.use(
   (req, res) => {
@@ -781,9 +1022,9 @@ app.use(
   }
 );
 
-/* =====================================================
+/* ============================================================
    ERREURS GLOBALES
-===================================================== */
+============================================================ */
 
 app.use(
   (
@@ -797,9 +1038,9 @@ app.use(
       error
     );
 
-    /* -------------------------
+    /* --------------------------------------------------------
        CORS
-    ------------------------- */
+    -------------------------------------------------------- */
 
     if (
       error.message?.includes(
@@ -816,9 +1057,9 @@ app.use(
         });
     }
 
-    /* -------------------------
+    /* --------------------------------------------------------
        JSON INVALIDE
-    ------------------------- */
+    -------------------------------------------------------- */
 
     if (
       error instanceof
@@ -835,9 +1076,9 @@ app.use(
         });
     }
 
-    /* -------------------------
+    /* --------------------------------------------------------
        AUTRES ERREURS
-    ------------------------- */
+    -------------------------------------------------------- */
 
     return res
       .status(
@@ -856,9 +1097,9 @@ app.use(
   }
 );
 
-/* =====================================================
+/* ============================================================
    TEST MYSQL AU DÉMARRAGE
-===================================================== */
+============================================================ */
 
 const testDatabaseConnection =
   async () => {
@@ -891,9 +1132,9 @@ const testDatabaseConnection =
     }
   };
 
-/* =====================================================
+/* ============================================================
    TEST SMTP AU DÉMARRAGE
-===================================================== */
+============================================================ */
 
 const testSmtpConnection =
   async () => {
@@ -913,18 +1154,22 @@ const testSmtpConnection =
       const nodemailer =
         require("nodemailer");
 
+      const smtpPort =
+        Number(
+          process.env.SMTP_PORT ||
+            465
+        );
+
       const transporter =
         nodemailer.createTransport({
           host:
             process.env.SMTP_HOST,
 
           port:
-            Number(
-              process.env.SMTP_PORT ||
-                465
-            ),
+            smtpPort,
 
-          secure: true,
+          secure:
+            smtpPort === 465,
 
           auth: {
             user:
@@ -953,9 +1198,9 @@ const testSmtpConnection =
     }
   };
 
-/* =====================================================
+/* ============================================================
    ARRÊT PROPRE
-===================================================== */
+============================================================ */
 
 let isShuttingDown = false;
 
@@ -1007,6 +1252,11 @@ const shutdownServer =
       }
     );
 
+    /*
+     * Sécurité :
+     * arrêter de force après 10 secondes.
+     */
+
     setTimeout(
       () => {
         console.error(
@@ -1037,9 +1287,9 @@ process.on(
   }
 );
 
-/* =====================================================
+/* ============================================================
    ERREURS NON GÉRÉES
-===================================================== */
+============================================================ */
 
 process.on(
   "unhandledRejection",
@@ -1065,9 +1315,9 @@ process.on(
   }
 );
 
-/* =====================================================
-   DÉMARRAGE
-===================================================== */
+/* ============================================================
+   DÉMARRAGE DU SERVEUR
+============================================================ */
 
 const startServer =
   async () => {
@@ -1085,8 +1335,8 @@ const startServer =
     }
 
     /*
-     * SMTP n'empêche pas le backend
-     * de démarrer si le mail est mal configuré.
+     * Une erreur SMTP ne doit pas empêcher
+     * le backend de démarrer.
      */
 
     await testSmtpConnection();
@@ -1114,10 +1364,6 @@ const startServer =
         );
 
         console.log(
-          `🌐 Réseau : http://172.20.10.6:${PORT}`
-        );
-
-        console.log(
           `❤️ Health : http://localhost:${PORT}/api/health`
         );
 
@@ -1126,19 +1372,11 @@ const startServer =
         );
 
         console.log(
-          `📧 Test SMTP : http://localhost:${PORT}/api/contact/test`
+          `📧 SMTP : http://localhost:${PORT}/api/contact/test`
         );
 
         console.log(
-          `📩 Contact : POST http://localhost:${PORT}/api/contact`
-        );
-
-        console.log(
-          `📊 Dashboard stats : http://localhost:${PORT}/api/dashboard/stats`
-        );
-
-        console.log(
-          `📈 Dashboard overview : http://localhost:${PORT}/api/dashboard/overview`
+          `📊 Dashboard : http://localhost:${PORT}/api/dashboard/stats`
         );
 
         console.log(
@@ -1146,7 +1384,7 @@ const startServer =
         );
 
         console.log(
-          `🧑 Utilisateurs : http://localhost:${PORT}/api/users`
+          `👤 Utilisateurs : http://localhost:${PORT}/api/users`
         );
 
         console.log(
@@ -1157,10 +1395,24 @@ const startServer =
           `🚚 Chauffeurs : http://localhost:${PORT}/api/drivers`
         );
 
-        /* NOUVEAU */
-
         console.log(
           `🚛 Véhicules : http://localhost:${PORT}/api/vehicles`
+        );
+
+        /* ====================================================
+           TRACKING
+        ==================================================== */
+
+        console.log(
+          `📍 Tracking : http://localhost:${PORT}/api/tracking`
+        );
+
+        console.log(
+          `🗺️ Positions : http://localhost:${PORT}/api/tracking/drivers`
+        );
+
+        console.log(
+          `📡 Socket.IO : activé`
         );
 
         console.log(
@@ -1178,5 +1430,9 @@ const startServer =
       }
     );
   };
+
+/* ============================================================
+   LANCEMENT
+============================================================ */
 
 startServer();

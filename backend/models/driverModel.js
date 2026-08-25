@@ -42,9 +42,9 @@ const DriverModel = {
         d.created_at,
         d.updated_at,
 
-        /* ===============================================
+        /* ==========================
            VÉHICULE ACTUEL
-        =============================================== */
+        ========================== */
 
         v.id AS vehicle_id,
 
@@ -70,9 +70,9 @@ const DriverModel = {
           v.model
         ) AS vehicle_name,
 
-        /* ===============================================
+        /* ==========================
            STATISTIQUES COMMANDES
-        =============================================== */
+        ========================== */
 
         (
           SELECT COUNT(*)
@@ -118,7 +118,7 @@ const DriverModel = {
   },
 
   /* =====================================================
-     RÉCUPÉRER UN CHAUFFEUR
+     RÉCUPÉRER UN CHAUFFEUR PAR DRIVER ID
   ===================================================== */
 
   async getDriverById(id) {
@@ -159,9 +159,9 @@ const DriverModel = {
           d.created_at,
           d.updated_at,
 
-          /* =============================================
+          /* ==========================
              VÉHICULE ASSIGNÉ
-          ============================================= */
+          ========================== */
 
           v.id AS vehicle_id,
 
@@ -194,9 +194,9 @@ const DriverModel = {
             v.model
           ) AS vehicle_name,
 
-          /* =============================================
+          /* ==========================
              STATISTIQUES
-          ============================================= */
+          ========================== */
 
           (
             SELECT COUNT(*)
@@ -234,6 +234,148 @@ const DriverModel = {
         LIMIT 1
       `,
       [id]
+    );
+
+    return rows[0] || null;
+  },
+
+  /* =====================================================
+     NOUVEAU :
+     RÉCUPÉRER LE CHAUFFEUR PAR USER ID
+
+     Utilisé notamment par :
+     GET /api/drivers/me
+  ===================================================== */
+
+  async getDriverByUserId(userId) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          d.id,
+          d.user_id,
+
+          u.first_name,
+          u.last_name,
+          u.email,
+
+          COALESCE(
+            d.phone,
+            u.phone
+          ) AS phone,
+
+          u.status,
+
+          d.availability_status,
+          d.profile_photo_url,
+
+          d.license_number,
+          d.license_expiry,
+
+          d.address,
+          d.city,
+          d.province,
+          d.postal_code,
+
+          d.emergency_contact_name,
+          d.emergency_contact_phone,
+
+          d.last_seen_at,
+          d.onfleet_worker_id,
+
+          d.created_at,
+          d.updated_at,
+
+          /* ==========================
+             VÉHICULE ASSIGNÉ
+          ========================== */
+
+          v.id AS vehicle_id,
+
+          v.make AS vehicle_make,
+          v.model AS vehicle_model,
+          v.year AS vehicle_year,
+
+          v.plate AS vehicle_plate,
+          v.vin AS vehicle_vin,
+
+          v.vehicle_type,
+
+          v.capacity_kg,
+          v.capacity_pallets,
+
+          v.fuel_type,
+          v.mileage,
+
+          v.status AS vehicle_status,
+
+          v.insurance_number,
+          v.insurance_expiry,
+
+          v.registration_number,
+          v.registration_expiry,
+
+          CONCAT_WS(
+            ' ',
+            v.make,
+            v.model
+          ) AS vehicle_name,
+
+          /* ==========================
+             STATISTIQUES
+          ========================== */
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+          ) AS total_orders,
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+              AND o.status = 'completed'
+          ) AS completed_orders,
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+              AND o.status NOT IN (
+                'completed',
+                'cancelled'
+              )
+          ) AS active_orders,
+
+          (
+            SELECT COUNT(*)
+            FROM orders o
+            WHERE o.driver_id = d.id
+              AND DATE(
+                COALESCE(
+                  o.pickup_date,
+                  o.created_at
+                )
+              ) = CURDATE()
+              AND o.status NOT IN (
+                'completed',
+                'cancelled'
+              )
+          ) AS current_orders
+
+        FROM drivers d
+
+        INNER JOIN users u
+          ON u.id = d.user_id
+
+        LEFT JOIN vehicles v
+          ON v.driver_id = d.id
+
+        WHERE d.user_id = ?
+
+        LIMIT 1
+      `,
+      [userId]
     );
 
     return rows[0] || null;
@@ -370,9 +512,7 @@ const DriverModel = {
         )
       ) {
         fields.push(`${field} = ?`);
-        values.push(
-          data[field] ?? null
-        );
+        values.push(data[field] ?? null);
       }
     }
 
@@ -405,10 +545,9 @@ const DriverModel = {
 
   async deleteDriver(id) {
     /*
-     * Grâce à ta FK vehicles.driver_id
+     * Grâce à FK vehicles.driver_id
      * ON DELETE SET NULL,
-     * le véhicule ne sera pas supprimé.
-     * Il sera seulement désassigné.
+     * le véhicule n'est pas supprimé.
      */
 
     const [result] = await db.query(
@@ -461,11 +600,8 @@ const DriverModel = {
     const [rows] = await db.query(
       `
         SELECT id
-
         FROM drivers
-
         WHERE user_id = ?
-
         LIMIT 1
       `,
       [userId]
@@ -529,10 +665,7 @@ const DriverModel = {
      ASSIGNER UN VÉHICULE AU CHAUFFEUR
   ===================================================== */
 
-  async assignVehicle(
-    driverId,
-    vehicleId
-  ) {
+  async assignVehicle(driverId, vehicleId) {
     const connection =
       await db.getConnection();
 
@@ -540,7 +673,8 @@ const DriverModel = {
       await connection.beginTransaction();
 
       /*
-       * Désassigner les anciens véhicules du chauffeur.
+       * Désassigner les anciens véhicules
+       * du chauffeur.
        */
 
       await connection.query(
