@@ -1,0 +1,832 @@
+/* ============================================================
+   PAGE
+============================================================ */
+
+.page {
+  min-height: calc(100vh - 74px);
+  padding: 28px;
+  color: #181922;
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  color: #777985;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: #dc143c;
+}
+
+.eyebrow {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  color: #dc143c;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+  color: #171820;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.heading p {
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: #747684;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.refreshButton {
+  display: inline-flex;
+  min-height: 43px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid #ffc7d4;
+  border-radius: 12px;
+  background: #fff;
+  color: #dc143c;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.refreshButton:hover:not(:disabled) {
+  background: #fff5f7;
+}
+
+.refreshButton:disabled {
+  opacity: 0.6;
+}
+
+/* ============================================================
+   ERROR
+============================================================ */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border: 1px solid #ffc6d1;
+  border-radius: 13px;
+  background: #fff2f4;
+  color: #bc1334;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+/* ============================================================
+   STATS
+============================================================ */
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid #e5e6ec;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(28, 28, 39, 0.035);
+}
+
+.statCard > span {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.stat_total {
+  background: #f1ecff;
+  color: #6943d8;
+}
+
+.stat_available {
+  background: #e9faf3;
+  color: #087d59;
+}
+
+.stat_busy {
+  background: #fff0f3;
+  color: #dc143c;
+}
+
+.stat_gps {
+  background: #edf5ff;
+  color: #2877cc;
+}
+
+.statCard div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statCard small {
+  color: #858792;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.statCard strong {
+  color: #202129;
+  font-size: 23px;
+  line-height: 1;
+}
+
+/* ============================================================
+   WORKSPACE
+============================================================ */
+
+.workspace {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 630px;
+}
+
+/* ============================================================
+   DRIVER PANEL
+============================================================ */
+
+.driverPanel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e4e5eb;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 15px 40px rgba(29, 28, 40, 0.045);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px;
+  border-bottom: 1px solid #eeeef2;
+}
+
+.panelHeader h2 {
+  margin: 0;
+  color: #22232b;
+  font-size: 17px;
+}
+
+.panelHeader p {
+  margin: 4px 0 0;
+  color: #9698a2;
+  font-size: 10px;
+}
+
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #eefaf5;
+  color: #087d59;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.liveBadge > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #0daa76;
+  box-shadow: 0 0 0 4px rgba(13, 170, 118, 0.12);
+}
+
+/* ============================================================
+   SEARCH
+============================================================ */
+
+.searchBox {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 14px 9px;
+  padding: 0 12px;
+  border: 1px solid #e1e2e7;
+  border-radius: 11px;
+  background: #f8f8fa;
+  color: #999ba5;
+}
+
+.searchBox:focus-within {
+  border-color: #ec9daf;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(220, 20, 60, 0.07);
+}
+
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #25262e;
+  font: inherit;
+  font-size: 11px;
+}
+
+/* ============================================================
+   FILTERS
+============================================================ */
+
+.filters {
+  display: flex;
+  gap: 5px;
+  margin: 0 14px 13px;
+  overflow-x: auto;
+}
+
+.filterButton,
+.filterActive {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.filterButton {
+  background: #f5f5f8;
+  color: #858792;
+}
+
+.filterActive {
+  background: #dc143c;
+  color: #fff;
+}
+
+/* ============================================================
+   DRIVER LIST
+============================================================ */
+
+.driverList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 12px;
+}
+
+.driverCard {
+  display: flex;
+  width: 100%;
+  gap: 11px;
+  margin-bottom: 7px;
+  padding: 11px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.driverCard:hover {
+  border-color: #ececf1;
+  background: #fafafd;
+}
+
+.driverCardSelected {
+  border-color: #ffc5d1;
+  background: #fff3f6;
+}
+
+.driverAvatar {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: #fff0f3;
+  color: #dc143c;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.presenceDot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+}
+
+.presenceAvailable {
+  background: #0ca876;
+}
+
+.presenceBusy {
+  background: #dc143c;
+}
+
+.presenceOffline {
+  background: #9496a0;
+}
+
+.driverContent {
+  min-width: 0;
+  flex: 1;
+}
+
+.driverTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.driverTop strong {
+  overflow: hidden;
+  color: #292a32;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driverTop svg {
+  flex: 0 0 auto;
+  color: #dc143c;
+}
+
+.driverContent > span {
+  display: block;
+  margin: 3px 0 6px;
+  color: #dc143c;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.driverContent small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #888a94;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   EMPTY / SKELETON
+============================================================ */
+
+.emptyDrivers {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: #999ba5;
+  text-align: center;
+}
+
+.emptyDrivers svg {
+  margin-bottom: 10px;
+  color: #dc143c;
+}
+
+.emptyDrivers strong {
+  color: #34353d;
+  font-size: 12px;
+}
+
+.emptyDrivers span {
+  margin-top: 4px;
+  font-size: 9px;
+}
+
+.driverSkeleton {
+  display: flex;
+  gap: 11px;
+  margin: 7px 4px;
+  padding: 11px;
+}
+
+.driverSkeleton > span {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 12px;
+  background: #f0f1f4;
+}
+
+.driverSkeleton div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.driverSkeleton i {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: #f0f1f4;
+}
+
+.driverSkeleton i:nth-child(1) {
+  width: 70%;
+}
+
+.driverSkeleton i:nth-child(2) {
+  width: 45%;
+}
+
+.driverSkeleton i:nth-child(3) {
+  width: 85%;
+}
+
+/* ============================================================
+   MAP CARD
+============================================================ */
+
+.mapCard {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e4e5eb;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 15px 40px rgba(29, 28, 40, 0.045);
+}
+
+.mapToolbar {
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #ececf1;
+}
+
+.mapToolbar > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mapToolbar strong {
+  color: #24252d;
+  font-size: 13px;
+}
+
+.mapToolbar span {
+  color: #91939d;
+  font-size: 9px;
+}
+
+.mapStatus {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid #d3efe2;
+  border-radius: 999px;
+  background: #effbf6;
+  color: #087a55;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.mapStatus > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #09a874;
+}
+
+/* ============================================================
+   MAP
+============================================================ */
+
+.mapContainer {
+  position: relative;
+  flex: 1;
+  min-height: 500px;
+  overflow: hidden;
+  background: #eef0f3;
+}
+
+.map {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.noGpsOverlay {
+  position: absolute;
+  z-index: 500;
+  top: 50%;
+  left: 50%;
+  width: min(320px, calc(100% - 40px));
+  padding: 20px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(223, 224, 231, 0.9);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 20px 55px rgba(22, 23, 31, 0.14);
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.noGpsIcon {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 11px;
+  place-items: center;
+  border-radius: 15px;
+  background: #fff0f3;
+  color: #dc143c;
+}
+
+.noGpsOverlay strong {
+  display: block;
+  color: #292a32;
+  font-size: 13px;
+}
+
+.noGpsOverlay p {
+  margin: 6px 0 0;
+  color: #7d7f89;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+/* ============================================================
+   LEAFLET MARKER
+============================================================ */
+
+.markerWrapper {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.marker {
+  position: relative;
+  width: 46px;
+  height: 46px;
+}
+
+.markerPulse {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: rgba(220, 20, 60, 0.18);
+  animation: markerPulse 1.8s infinite;
+}
+
+.markerInner {
+  position: absolute;
+  inset: 7px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #dc143c;
+  box-shadow: 0 6px 18px rgba(220, 20, 60, 0.35);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+/* ============================================================
+   MAP FOOTER
+============================================================ */
+
+.mapFooter {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 17px;
+  border-top: 1px solid #ececf1;
+  background: #fff;
+  color: #777985;
+  font-size: 9px;
+}
+
+.mapFooter > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.mapFooter > div > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legendAvailable {
+  background: #0ca876;
+}
+
+.legendBusy {
+  background: #dc143c;
+}
+
+.legendOffline {
+  background: #9799a2;
+}
+
+.mapFooter p {
+  margin: 0 0 0 auto;
+  color: #a0a2ab;
+  text-align: right;
+}
+
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes markerPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+
+  70% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   TABLET
+============================================================ */
+
+@media (max-width: 1100px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+}
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 760px) {
+  .page {
+    padding: 18px 13px 30px;
+  }
+
+  .heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .refreshButton {
+    width: 100%;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .statCard {
+    padding: 13px;
+  }
+
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .driverPanel {
+    max-height: 420px;
+  }
+
+  .mapContainer {
+    min-height: 460px;
+  }
+
+  .mapToolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mapFooter {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .mapFooter p {
+    width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+@media (max-width: 430px) {
+  .heading h1 {
+    font-size: 30px;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .statCard > span {
+    width: 37px;
+    height: 37px;
+    flex-basis: 37px;
+  }
+
+  .statCard strong {
+    font-size: 20px;
+  }
+
+  .mapContainer {
+    min-height: 400px;
+  }
+}
