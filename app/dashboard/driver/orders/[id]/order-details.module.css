@@ -1,379 +1,807 @@
+/* ============================================================
+   PAGE
+============================================================ */
+
 .page {
   width: 100%;
   max-width: 760px;
   min-height: 100dvh;
+
   margin: 0 auto;
-  padding: 20px 15px 45px;
+
+  padding: 20px 15px 50px;
+
   background: #f7f7fa;
+
   color: #18181d;
 }
 
+/* ============================================================
+   HEADER
+============================================================ */
+
 .header {
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
-  gap: 12px;
+
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    44px;
+
   align-items: start;
+
+  gap: 12px;
+
   margin-bottom: 18px;
 }
 
 .iconButton {
   display: grid;
-  place-items: center;
+
   width: 44px;
   height: 44px;
+
+  place-items: center;
+
   padding: 0;
+
   border: 1px solid #e4e4e9;
   border-radius: 14px;
+
   background: #ffffff;
+
   color: #222228;
+
   cursor: pointer;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.iconButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+
+  border-color: #ffc4d0;
+
+  background: #fff5f7;
+
+  color: #dc143c;
 }
 
 .iconButton:disabled {
   opacity: 0.6;
+
   cursor: default;
 }
 
+/* ============================================================
+   HEADER TEXT
+============================================================ */
+
 .headerText {
   min-width: 0;
+
+  padding-top: 2px;
 }
 
 .headerText > span {
   display: block;
+
   margin-bottom: 4px;
+
   color: #dc143c;
+
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 900;
+
   letter-spacing: 0.11em;
+
+  text-transform: uppercase;
 }
 
 .headerText h1 {
   margin: 0;
+
   overflow: hidden;
+
+  color: #202026;
+
   font-size: 23px;
   line-height: 1.15;
+
+  letter-spacing: -0.035em;
+
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .headerText p {
   margin: 5px 0 0;
+
   color: #82828b;
+
   font-size: 11px;
 }
 
+/* ============================================================
+   STATUS
+============================================================ */
+
 .statusCard {
   display: flex;
+
   align-items: center;
+
   gap: 13px;
+
   margin-bottom: 12px;
+
   padding: 15px;
+
   border: 1px solid #f0ccd4;
   border-radius: 17px;
-  background: #ffffff;
+
+  background:
+    radial-gradient(
+      circle at right top,
+      rgba(220, 20, 60, 0.06),
+      transparent 38%
+    ),
+    #ffffff;
+
+  box-shadow:
+    0 9px 28px
+    rgba(25, 25, 35, 0.035);
 }
 
 .statusIcon {
   display: grid;
-  place-items: center;
+
   width: 45px;
   height: 45px;
+
   flex: 0 0 45px;
+
+  place-items: center;
+
   border-radius: 14px;
+
   background: #fff0f3;
+
   color: #dc143c;
+}
+
+.statusCard > div:last-child {
+  min-width: 0;
 }
 
 .statusCard span {
   display: block;
+
   margin-bottom: 3px;
+
   color: #96969f;
+
   font-size: 9px;
   font-weight: 800;
+
   letter-spacing: 0.08em;
+
+  text-transform: uppercase;
 }
 
 .statusCard strong {
+  display: block;
+
+  color: #292930;
+
   font-size: 15px;
 }
+
+/* ============================================================
+   CARDS
+============================================================ */
 
 .card,
 .actionCard {
   margin-top: 12px;
+
   padding: 17px;
+
   border: 1px solid #e7e7ec;
   border-radius: 18px;
+
   background: #ffffff;
+
+  box-shadow:
+    0 8px 24px
+    rgba(28, 28, 38, 0.03);
 }
+
+/* ============================================================
+   SECTION TITLE
+============================================================ */
 
 .sectionTitle {
   display: flex;
+
   align-items: center;
+
   gap: 8px;
+
   margin-bottom: 14px;
+
   color: #dc143c;
 }
 
 .sectionTitle h2 {
   margin: 0;
+
   color: #25252b;
+
   font-size: 14px;
+
+  letter-spacing: -0.01em;
 }
+
+/* ============================================================
+   CLIENT
+============================================================ */
 
 .clientRow {
   display: flex;
+
   align-items: center;
   justify-content: space-between;
+
   gap: 15px;
+}
+
+.clientRow > div {
+  min-width: 0;
 }
 
 .clientRow > div span {
   display: block;
+
   margin-bottom: 4px;
+
   color: #96969f;
+
   font-size: 9px;
 }
 
 .clientRow strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #27272d;
+
   font-size: 13px;
+
+  text-overflow: ellipsis;
 }
 
 .phoneButton {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
+
   min-height: 38px;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 6px;
+
   padding: 0 12px;
+
+  border: 1px solid #e7e7eb;
   border-radius: 11px;
+
   background: #f4f4f7;
+
   color: #26262c;
+
   font-size: 10px;
   font-weight: 800;
+
   text-decoration: none;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
 }
+
+.phoneButton:hover {
+  border-color: #ffc1ce;
+
+  background: #fff2f5;
+
+  color: #dc143c;
+}
+
+/* ============================================================
+   LOCATION
+============================================================ */
 
 .locationHeader {
   display: flex;
+
   align-items: center;
+
   gap: 11px;
+
   margin-bottom: 16px;
 }
 
 .locationIcon {
   display: grid;
-  place-items: center;
+
   width: 41px;
   height: 41px;
+
   flex: 0 0 41px;
+
+  place-items: center;
+
   border-radius: 13px;
+
   background: #fff0f3;
+
   color: #dc143c;
+}
+
+.locationHeader > div:last-child {
+  min-width: 0;
 }
 
 .locationHeader span {
   display: block;
+
   margin-bottom: 2px;
+
   color: #dc143c;
+
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 900;
+
   letter-spacing: 0.1em;
+
+  text-transform: uppercase;
 }
 
 .locationHeader h2 {
   margin: 0;
+
+  color: #28282e;
+
   font-size: 14px;
 }
 
+/* ============================================================
+   ADDRESS
+============================================================ */
+
 .address {
   display: flex;
+
   align-items: flex-start;
+
   gap: 9px;
+
   padding: 12px;
+
+  border: 1px solid #eeeeF2;
   border-radius: 12px;
+
   background: #f8f8fa;
 }
 
 .address svg {
   flex: 0 0 auto;
+
   margin-top: 1px;
+
   color: #dc143c;
 }
 
 .address strong {
+  color: #34343b;
+
   font-size: 11px;
+  font-weight: 750;
+
   line-height: 1.5;
 }
 
+/* ============================================================
+   DATE / TIME
+============================================================ */
+
 .dateGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
   gap: 8px;
+
   margin-top: 9px;
 }
 
 .dateGrid div {
   display: flex;
+
+  min-width: 0;
+
   align-items: center;
+
   gap: 7px;
+
   padding: 10px;
+
+  border: 1px solid #f0f0f3;
   border-radius: 11px;
+
   background: #f8f8fa;
+
   color: #696972;
+
   font-size: 10px;
 }
 
 .dateGrid svg {
   flex: 0 0 auto;
+
   color: #dc143c;
 }
 
+.dateGrid span {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+/* ============================================================
+   NAVIGATION BUTTON
+============================================================ */
+
 .navigationButton {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
+
   width: 100%;
   min-height: 43px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
   margin-top: 11px;
+
+  padding: 0 12px;
+
   border: 1px solid #e4e4e9;
   border-radius: 12px;
+
   background: #ffffff;
+
   color: #28282e;
+
   font-size: 10px;
   font-weight: 800;
+
   cursor: pointer;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.navigationButton:hover {
+  transform: translateY(-1px);
+
+  border-color: #ffc0cd;
+
+  background: #fff6f8;
+
+  color: #dc143c;
 }
 
 .navigationButton svg:first-child {
   color: #dc143c;
 }
 
+/* ============================================================
+   VEHICLE
+============================================================ */
+
 .vehicle {
   display: flex;
+
   align-items: center;
   justify-content: space-between;
+
   gap: 10px;
 }
 
 .vehicle strong {
+  min-width: 0;
+
+  color: #29292f;
+
   font-size: 12px;
+
+  line-height: 1.4;
 }
 
 .vehicle span {
+  flex: 0 0 auto;
+
   padding: 6px 9px;
+
   border-radius: 8px;
+
   background: #f2f2f5;
+
+  color: #55555e;
+
   font-size: 9px;
   font-weight: 800;
 }
 
+/* ============================================================
+   NOTES / TEXT
+============================================================ */
+
 .notes,
 .helperText {
   margin: 0;
+
   color: #71717a;
+
   font-size: 11px;
+
   line-height: 1.6;
 }
 
+/* ============================================================
+   GPS BUTTON
+============================================================ */
+
 .gpsButton {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+
   width: 100%;
   min-height: 45px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
   margin-top: 13px;
+
+  padding: 0 15px;
+
   border: 0;
   border-radius: 13px;
+
   background: #222228;
+
   color: #ffffff;
+
   font-size: 11px;
   font-weight: 800;
+
   cursor: pointer;
+
+  box-shadow:
+    0 9px 22px
+    rgba(20, 20, 26, 0.12);
+
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.gpsButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+
+  background: #121216;
+
+  box-shadow:
+    0 12px 28px
+    rgba(20, 20, 26, 0.16);
 }
 
 .gpsButton:disabled,
 .primaryButton:disabled {
   opacity: 0.65;
+
   cursor: default;
+
+  transform: none;
 }
+
+/* ============================================================
+   NEXT ACTION
+============================================================ */
 
 .actionCard {
   border-color: #f0c4ce;
-  background: #fffafb;
+
+  background:
+    radial-gradient(
+      circle at right top,
+      rgba(220, 20, 60, 0.07),
+      transparent 40%
+    ),
+    #fffafb;
 }
 
 .actionCard > div > span {
   display: block;
+
   margin-bottom: 4px;
+
   color: #dc143c;
+
   font-size: 8px;
   font-weight: 900;
+
   letter-spacing: 0.1em;
+
+  text-transform: uppercase;
 }
 
 .actionCard h2 {
   margin: 0;
+
+  color: #27272d;
+
   font-size: 16px;
+
+  letter-spacing: -0.015em;
 }
 
 .actionCard p {
   margin: 5px 0 0;
+
   color: #797982;
+
   font-size: 10px;
+
+  line-height: 1.5;
 }
+
+/* ============================================================
+   PRIMARY BUTTON
+============================================================ */
 
 .primaryButton {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+
   width: 100%;
   min-height: 49px;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
   margin-top: 15px;
+
+  padding: 0 15px;
+
   border: 0;
   border-radius: 14px;
+
   background: #dc143c;
+
   color: #ffffff;
+
   font-size: 11px;
   font-weight: 900;
+
   cursor: pointer;
+
+  box-shadow:
+    0 12px 28px
+    rgba(220, 20, 60, 0.18);
+
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
 }
+
+.primaryButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+
+  background: #c41237;
+
+  box-shadow:
+    0 16px 34px
+    rgba(220, 20, 60, 0.23);
+}
+
+/* ============================================================
+   ALERTS
+============================================================ */
 
 .success,
 .error {
   display: flex;
+
   align-items: center;
+
   gap: 9px;
+
   margin-bottom: 11px;
+
   padding: 12px;
+
   border-radius: 12px;
+
   font-size: 10px;
   font-weight: 700;
+
+  line-height: 1.45;
 }
 
 .success {
   border: 1px solid #c8eadb;
+
   background: #effbf5;
+
   color: #176846;
 }
 
 .error {
   border: 1px solid #f1c3cc;
+
   background: #fff1f3;
+
   color: #a91230;
 }
 
+/* ============================================================
+   COMPLETED CARD
+============================================================ */
+
 .completedCard {
   display: flex;
+
   align-items: center;
+
   gap: 13px;
+
   margin-top: 12px;
+
   padding: 17px;
+
   border: 1px solid #c8eadb;
   border-radius: 18px;
+
   background: #effbf5;
+
   color: #176846;
+
+  box-shadow:
+    0 8px 22px
+    rgba(23, 104, 70, 0.05);
 }
 
 .completedCard svg {
@@ -382,55 +810,80 @@
 
 .completedCard strong {
   display: block;
+
   font-size: 13px;
 }
 
 .completedCard p {
   margin: 4px 0 0;
+
   font-size: 10px;
+
+  line-height: 1.45;
 }
+
+/* ============================================================
+   LOADING
+============================================================ */
 
 .loadingPage {
   display: flex;
+
   min-height: 100dvh;
-  padding: 25px;
+
+  flex-direction: column;
+
   align-items: center;
   justify-content: center;
-  flex-direction: column;
+
   gap: 12px;
+
+  padding: 25px;
+
   background: #f7f7fa;
+
   color: #777780;
+
   text-align: center;
 }
 
 .loadingPage h1 {
   margin: 5px 0 0;
+
   color: #222228;
+
   font-size: 20px;
 }
 
 .loadingPage p {
   margin: 0;
+
   font-size: 11px;
 }
 
 .loadingPage button {
   min-height: 40px;
+
   padding: 0 18px;
+
   border: 0;
   border-radius: 11px;
+
   background: #dc143c;
-  color: white;
+
+  color: #ffffff;
+
   font-weight: 800;
+
   cursor: pointer;
 }
 
+/* ============================================================
+   ANIMATION
+============================================================ */
+
 .spinner {
   animation: spin 0.8s linear infinite;
-}
-
-.bottomSpace {
-  height: 30px;
 }
 
 @keyframes spin {
@@ -439,27 +892,158 @@
   }
 }
 
+/* ============================================================
+   BOTTOM SPACING
+============================================================ */
+
+.bottomSpace {
+  height: 30px;
+}
+
+/* ============================================================
+   TABLET / DESKTOP
+============================================================ */
+
+@media (min-width: 760px) {
+  .page {
+    padding:
+      28px
+      22px
+      60px;
+  }
+
+  .headerText h1 {
+    font-size: 26px;
+  }
+
+  .card,
+  .actionCard {
+    padding: 20px;
+  }
+
+  .statusCard {
+    padding: 18px;
+  }
+
+  .address strong {
+    font-size: 12px;
+  }
+}
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
 @media (max-width: 520px) {
   .page {
-    padding: 17px 12px 35px;
+    padding:
+      17px
+      12px
+      40px;
   }
 
   .header {
-    grid-template-columns: 40px 1fr 40px;
+    grid-template-columns:
+      40px
+      minmax(0, 1fr)
+      40px;
+
     gap: 9px;
   }
 
   .iconButton {
     width: 40px;
     height: 40px;
+
+    border-radius: 12px;
   }
 
   .headerText h1 {
     font-size: 20px;
   }
 
+  .headerText p {
+    font-size: 10px;
+  }
+
   .card,
   .actionCard {
     padding: 15px;
+
+    border-radius: 16px;
+  }
+
+  .statusCard {
+    padding: 13px;
+
+    border-radius: 15px;
+  }
+
+  .statusIcon {
+    width: 41px;
+    height: 41px;
+
+    flex-basis: 41px;
+  }
+
+  .clientRow {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+  .phoneButton {
+    width: 100%;
+  }
+
+  .dateGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicle {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .primaryButton,
+  .gpsButton {
+    min-height: 48px;
+  }
+}
+
+/* ============================================================
+   VERY SMALL MOBILE
+============================================================ */
+
+@media (max-width: 360px) {
+  .page {
+    padding:
+      14px
+      9px
+      35px;
+  }
+
+  .header {
+    grid-template-columns:
+      38px
+      minmax(0, 1fr)
+      38px;
+
+    gap: 7px;
+  }
+
+  .iconButton {
+    width: 38px;
+    height: 38px;
+  }
+
+  .headerText h1 {
+    font-size: 18px;
+  }
+
+  .card,
+  .actionCard {
+    padding: 13px;
   }
 }
