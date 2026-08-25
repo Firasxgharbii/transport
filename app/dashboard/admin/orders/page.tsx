@@ -1,74 +1,46 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+
 import {
   AlertTriangle,
+  ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  ChevronRight,
   Clock3,
-  Eye,
-  FileText,
+  Loader2,
   MapPin,
-  Package,
-  Plus,
-  Printer,
+  Navigation,
+  PackageCheck,
+  Phone,
   RefreshCw,
-  Search,
   Truck,
-  X,
-  XCircle,
+  User,
 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
 
 import styles from "./orders.module.css";
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
-type OrderStatus =
-  | "pending"
-  | "assigned"
-  | "pickup_in_progress"
-  | "picked_up"
-  | "delivery_in_progress"
-  | "arrived"
-  | "completed"
-  | "cancelled"
-  | "incident";
-
-type OrderPriority =
-  | "low"
-  | "normal"
-  | "high"
-  | "urgent";
-
 type Order = {
   id: number;
   order_number?: string;
 
-  client_id?: number;
-  driver_id?: number | null;
-  vehicle_id?: number | null;
+  status?: string;
+  priority?: string;
 
   client_first_name?: string;
   client_last_name?: string;
-  company_name?: string | null;
-  client_phone?: string | null;
-  client_email?: string | null;
-
-  driver_first_name?: string | null;
-  driver_last_name?: string | null;
-  driver_phone?: string | null;
-
-  vehicle_name?: string | null;
-  vehicle_plate?: string | null;
+  company_name?: string;
+  client_phone?: string;
+  client_email?: string;
 
   pickup_address?: string;
   delivery_address?: string;
@@ -79,121 +51,18 @@ type Order = {
   delivery_date?: string | null;
   delivery_time?: string | null;
 
-  pallets_count?: number;
+  notes?: string;
 
-  description?: string | null;
-  notes?: string | null;
-
-  subtotal?: number | string;
-  taxes?: number | string;
-  total_amount?: number | string;
-
-  estimated_distance?:
-    | number
-    | string
-    | null;
-
-  estimated_duration?: number | null;
-
-  priority?: OrderPriority;
-  status?: OrderStatus;
-
-  stop_count?: number;
-  completed_stops?: number;
-
-  created_at?: string;
-  updated_at?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_plate?: string;
 };
-
-type OrdersResponse = {
-  success?: boolean;
-  count?: number;
-  data?: Order[];
-  orders?: Order[];
-  message?: string;
-};
-
-type StatusFilter =
-  | "all"
-  | OrderStatus;
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://192.168.2.22:5000";
-
-const ITEMS_PER_PAGE = 8;
 
 /* ============================================================
-   UTILITAIRES
+   HELPERS
 ============================================================ */
 
-function getToken() {
-  if (
-    typeof window === "undefined"
-  ) {
-    return "";
-  }
-
-  return (
-    window.localStorage.getItem(
-      "glory_token",
-    ) || ""
-  );
-}
-
-function getClientName(
-  order: Order,
-) {
-  if (order.company_name) {
-    return order.company_name;
-  }
-
-  const personName = [
-    order.client_first_name,
-    order.client_last_name,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    personName ||
-    `Client #${order.client_id || "—"}`
-  );
-}
-
-function getClientContact(
-  order: Order,
-) {
-  if (!order.company_name) {
-    return null;
-  }
-
-  return [
-    order.client_first_name,
-    order.client_last_name,
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
-function getDriverName(
-  order: Order,
-) {
-  const driverName = [
-    order.driver_first_name,
-    order.driver_last_name,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    driverName || "Non assigné"
-  );
-}
-
-function getStatusLabel(
-  status?: string,
-) {
+function statusLabel(status?: string) {
   switch (status) {
     case "pending":
       return "En attente";
@@ -202,16 +71,16 @@ function getStatusLabel(
       return "Assignée";
 
     case "pickup_in_progress":
-      return "Ramassage";
+      return "Ramassage en cours";
 
     case "picked_up":
-      return "Récupérée";
+      return "Ramassée";
 
     case "delivery_in_progress":
-      return "En livraison";
+      return "Livraison en cours";
 
     case "arrived":
-      return "Arrivée";
+      return "Arrivé";
 
     case "completed":
       return "Terminée";
@@ -223,124 +92,91 @@ function getStatusLabel(
       return "Incident";
 
     default:
-      return "Inconnu";
+      return status || "En attente";
   }
 }
 
-function getPriorityLabel(
-  priority?: string,
-) {
-  switch (priority) {
-    case "low":
-      return "Faible";
+function formatDate(value?: string | null) {
+  if (!value) return "Non définie";
 
-    case "high":
-      return "Élevée";
+  const date = new Date(`${value}T12:00:00`);
 
-    case "urgent":
-      return "Urgente";
-
-    default:
-      return "Normale";
-  }
-}
-
-function formatMoney(
-  value?: number | string,
-) {
-  const amount =
-    Number(value || 0);
-
-  return new Intl.NumberFormat(
-    "fr-CA",
-    {
-      style: "currency",
-      currency: "CAD",
-    },
-  ).format(amount);
-}
-
-function formatDate(
-  value?: string | null,
-) {
-  if (!value) {
-    return "Non définie";
-  }
-
-  const normalizedValue =
-    value.includes("T")
-      ? value
-      : `${value}T00:00:00`;
-
-  const date =
-    new Date(normalizedValue);
-
-  if (
-    Number.isNaN(date.getTime())
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return new Intl.DateTimeFormat(
-    "fr-CA",
-    {
-      dateStyle: "medium",
-    },
-  ).format(date);
+  return new Intl.DateTimeFormat("fr-CA", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
 }
 
-function formatTime(
-  value?: string | null,
-) {
-  if (!value) {
-    return "";
-  }
+function formatTime(value?: string | null) {
+  if (!value) return "—";
 
-  return value
-    .split(":")
-    .slice(0, 2)
-    .join(":");
+  return value.slice(0, 5);
 }
 
-function getStatusClass(
-  status?: OrderStatus,
-) {
-  if (status === "completed") {
-    return styles.statusCompleted;
+function clientName(order: Order) {
+  if (order.company_name) {
+    return order.company_name;
   }
 
-  if (
-    status === "cancelled" ||
-    status === "incident"
-  ) {
-    return styles.statusDanger;
-  }
+  const name = [
+    order.client_first_name,
+    order.client_last_name,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  if (
-    status === "pending" ||
-    status === "assigned"
-  ) {
-    return styles.statusPending;
-  }
-
-  return styles.statusActive;
+  return name || "Client";
 }
 
-function getPriorityClass(
-  priority?: OrderPriority,
-) {
-  switch (priority) {
-    case "urgent":
-      return styles.priorityUrgent;
+/* ============================================================
+   PROCHAIN STATUT
+============================================================ */
 
-    case "high":
-      return styles.priorityHigh;
+function getNextAction(status?: string) {
+  switch (status) {
+    case "pending":
+    case "assigned":
+      return {
+        status: "pickup_in_progress",
+        label: "Commencer le ramassage",
+        description: "Je pars vers le point de ramassage",
+      };
 
-    case "low":
-      return styles.priorityLow;
+    case "pickup_in_progress":
+      return {
+        status: "picked_up",
+        label: "Colis ramassé",
+        description: "Confirmer que la marchandise est chargée",
+      };
+
+    case "picked_up":
+      return {
+        status: "delivery_in_progress",
+        label: "Commencer la livraison",
+        description: "Je pars vers l'adresse de livraison",
+      };
+
+    case "delivery_in_progress":
+      return {
+        status: "arrived",
+        label: "Je suis arrivé",
+        description: "Confirmer l'arrivée chez le client",
+      };
+
+    case "arrived":
+      return {
+        status: "completed",
+        label: "Terminer la livraison",
+        description: "Confirmer que la livraison est terminée",
+      };
 
     default:
-      return styles.priorityNormal;
+      return null;
   }
 }
 
@@ -348,1073 +184,699 @@ function getPriorityClass(
    PAGE
 ============================================================ */
 
-export default function OrdersPage() {
+export default function DriverOrderDetailsPage() {
   const router = useRouter();
+  const params = useParams();
 
-  const [orders, setOrders] =
-    useState<Order[]>([]);
+  const orderId = String(params.id || "");
 
-  const [loading, setLoading] =
-    useState(true);
+  const [order, setOrder] = useState<Order | null>(null);
 
-  const [error, setError] =
-    useState("");
+  const [loading, setLoading] = useState(true);
 
-  const [search, setSearch] =
-    useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    statusFilter,
-    setStatusFilter,
-  ] =
-    useState<StatusFilter>("all");
+  const [updating, setUpdating] = useState(false);
 
-  const [
-    priorityFilter,
-    setPriorityFilter,
-  ] = useState("all");
+  const [sharingLocation, setSharingLocation] = useState(false);
 
-  const [
-    currentPage,
-    setCurrentPage,
-  ] = useState(1);
+  const [error, setError] = useState("");
 
-  /* ============================================================
-     FETCH AUTHENTIFIÉ
-  ============================================================ */
+  const [success, setSuccess] = useState("");
 
-  const authenticatedFetch =
-    useCallback(
-      async <T,>(
-        endpoint: string,
-        options: RequestInit = {},
-      ): Promise<T> => {
-        const token = getToken();
+  /* ==========================================================
+     CHARGER LA COMMANDE
+  ========================================================== */
 
-        if (!token) {
+  const loadOrder = useCallback(async () => {
+    const token = localStorage.getItem("glory_token");
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      setError("");
+
+      /*
+       * Cette route suppose que ton backend possède :
+       * GET /api/orders/:id
+       */
+
+      const response = await fetch(
+        `${API_URL}/api/orders/${orderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("glory_token");
+          localStorage.removeItem("glory_user");
+
           router.replace("/login");
-
-          throw new Error(
-            "Votre session a expiré.",
-          );
+          return;
         }
 
-        const response =
-          await fetch(
-            `${API_URL}${endpoint}`,
+        throw new Error(
+          result.message ||
+            "Impossible de récupérer cette livraison.",
+        );
+      }
+
+      const receivedOrder =
+        result.order || result.data || result;
+
+      setOrder(receivedOrder);
+    } catch (err) {
+      console.error("Erreur loadOrder :", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de charger la livraison.",
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [orderId, router]);
+
+  useEffect(() => {
+    if (orderId) {
+      loadOrder();
+    }
+  }, [loadOrder, orderId]);
+
+  /* ==========================================================
+     CHANGER LE STATUT
+  ========================================================== */
+
+  const updateStatus = async (newStatus: string) => {
+    if (!order) return;
+
+    const token = localStorage.getItem("glory_token");
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      setError("");
+      setSuccess("");
+
+      /*
+       * Cette route doit correspondre à ton backend.
+       *
+       * Si ton orderRoutes utilise PATCH au lieu de PUT,
+       * remplace simplement PUT par PATCH.
+       */
+
+      const response = await fetch(
+        `${API_URL}/api/orders/${order.id}/status`,
+        {
+          method: "PUT",
+
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+
+          body: JSON.stringify({
+            status: newStatus,
+          }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.message ||
+            "Impossible de modifier le statut.",
+        );
+      }
+
+      setOrder((current) =>
+        current
+          ? {
+              ...current,
+              status: newStatus,
+            }
+          : current,
+      );
+
+      setSuccess("Statut de la livraison mis à jour.");
+
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+    } catch (err) {
+      console.error("Erreur updateStatus :", err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible de modifier le statut.",
+      );
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  /* ==========================================================
+     GPS
+  ========================================================== */
+
+  const sendLocation = () => {
+    if (!navigator.geolocation) {
+      setError(
+        "La géolocalisation n'est pas disponible sur cet appareil.",
+      );
+
+      return;
+    }
+
+    const token = localStorage.getItem("glory_token");
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    setSharingLocation(true);
+    setError("");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const response = await fetch(
+            `${API_URL}/api/tracking/location`,
             {
-              ...options,
+              method: "POST",
 
               headers: {
-                "Content-Type":
-                  "application/json",
-
-                Authorization:
-                  `Bearer ${token}`,
-
-                ...options.headers,
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
               },
 
-              cache: "no-store",
+              body: JSON.stringify({
+                order_id: order?.id || null,
+
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+
+                accuracy: position.coords.accuracy,
+
+                speed:
+                  position.coords.speed !== null
+                    ? position.coords.speed
+                    : null,
+
+                heading:
+                  position.coords.heading !== null
+                    ? position.coords.heading
+                    : null,
+
+                recorded_at: new Date().toISOString(),
+              }),
             },
           );
 
-        let responseData:
-          | unknown = null;
+          const result = await response.json();
 
-        try {
-          responseData =
-            await response.json();
-        } catch {
-          responseData = null;
-        }
-
-        if (
-          response.status === 401
-        ) {
-          window.localStorage.removeItem(
-            "glory_token",
-          );
-
-          window.localStorage.removeItem(
-            "glory_user",
-          );
-
-          router.replace("/login");
-
-          throw new Error(
-            "Votre session a expiré.",
-          );
-        }
-
-        if (!response.ok) {
-          const apiError =
-            responseData as {
-              message?: string;
-            } | null;
-
-          throw new Error(
-            apiError?.message ||
-              "Une erreur est survenue.",
-          );
-        }
-
-        return responseData as T;
-      },
-      [router],
-    );
-
-  /* ============================================================
-     CHARGEMENT DES COMMANDES
-  ============================================================ */
-
-  const loadOrders =
-    useCallback(async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const response =
-          await authenticatedFetch<OrdersResponse>(
-            "/api/orders",
-          );
-
-        const receivedOrders =
-          Array.isArray(response.data)
-            ? response.data
-            : Array.isArray(
-                  response.orders,
-                )
-              ? response.orders
-              : [];
-
-        setOrders(receivedOrders);
-      } catch (reason) {
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Impossible de charger les commandes.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    }, [authenticatedFetch]);
-
-  useEffect(() => {
-    void loadOrders();
-  }, [loadOrders]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    search,
-    statusFilter,
-    priorityFilter,
-  ]);
-
-  /* ============================================================
-     STATISTIQUES
-  ============================================================ */
-
-  const pendingCount = useMemo(
-    () =>
-      orders.filter(
-        (order) =>
-          order.status === "pending" ||
-          order.status === "assigned",
-      ).length,
-    [orders],
-  );
-
-  const activeCount = useMemo(
-    () =>
-      orders.filter((order) =>
-        [
-          "pickup_in_progress",
-          "picked_up",
-          "delivery_in_progress",
-          "arrived",
-        ].includes(
-          order.status || "",
-        ),
-      ).length,
-    [orders],
-  );
-
-  const completedCount = useMemo(
-    () =>
-      orders.filter(
-        (order) =>
-          order.status ===
-          "completed",
-      ).length,
-    [orders],
-  );
-
-  const cancelledCount = useMemo(
-    () =>
-      orders.filter((order) =>
-        [
-          "cancelled",
-          "incident",
-        ].includes(
-          order.status || "",
-        ),
-      ).length,
-    [orders],
-  );
-
-  const totalRevenue = useMemo(
-    () =>
-      orders
-        .filter(
-          (order) =>
-            order.status ===
-            "completed",
-        )
-        .reduce(
-          (total, order) =>
-            total +
-            Number(
-              order.total_amount || 0,
-            ),
-          0,
-        ),
-    [orders],
-  );
-
-  /* ============================================================
-     FILTRAGE
-  ============================================================ */
-
-  const filteredOrders =
-    useMemo(() => {
-      const normalizedSearch =
-        search
-          .trim()
-          .toLowerCase();
-
-      return orders.filter(
-        (order) => {
-          const searchableContent = [
-            order.order_number,
-            order.company_name,
-            order.client_first_name,
-            order.client_last_name,
-            order.client_phone,
-            order.client_email,
-            order.driver_first_name,
-            order.driver_last_name,
-            order.pickup_address,
-            order.delivery_address,
-            order.vehicle_name,
-            order.vehicle_plate,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-
-          const matchesSearch =
-            !normalizedSearch ||
-            searchableContent.includes(
-              normalizedSearch,
+          if (!response.ok) {
+            throw new Error(
+              result.message ||
+                "Impossible d'envoyer votre position.",
             );
+          }
 
-          const matchesStatus =
-            statusFilter === "all" ||
-            order.status ===
-              statusFilter;
+          setSuccess("Position GPS envoyée avec succès.");
 
-          const matchesPriority =
-            priorityFilter === "all" ||
-            order.priority ===
-              priorityFilter;
+          setTimeout(() => {
+            setSuccess("");
+          }, 3000);
+        } catch (err) {
+          console.error("Erreur GPS :", err);
 
-          return (
-            matchesSearch &&
-            matchesStatus &&
-            matchesPriority
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Impossible d'envoyer votre position.",
           );
-        },
-      );
-    }, [
-      orders,
-      search,
-      statusFilter,
-      priorityFilter,
-    ]);
+        } finally {
+          setSharingLocation(false);
+        }
+      },
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(
-      filteredOrders.length /
-        ITEMS_PER_PAGE,
-    ),
-  );
+      (locationError) => {
+        console.error("Erreur geolocation :", locationError);
 
-  useEffect(() => {
-    if (
-      currentPage > totalPages
-    ) {
-      setCurrentPage(totalPages);
-    }
-  }, [
-    currentPage,
-    totalPages,
-  ]);
+        setSharingLocation(false);
 
-  const visibleOrders =
-    useMemo(() => {
-      const startIndex =
-        (currentPage - 1) *
-        ITEMS_PER_PAGE;
+        if (locationError.code === 1) {
+          setError(
+            "Vous devez autoriser Glory Solutions à utiliser votre position.",
+          );
 
-      return filteredOrders.slice(
-        startIndex,
-        startIndex +
-          ITEMS_PER_PAGE,
-      );
-    }, [
-      filteredOrders,
-      currentPage,
-    ]);
+          return;
+        }
+
+        setError("Impossible d'obtenir votre position GPS.");
+      },
+
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000,
+      },
+    );
+  };
+
+  /* ==========================================================
+     GOOGLE / APPLE MAPS
+  ========================================================== */
+
+  const openNavigation = (address?: string) => {
+    if (!address) return;
+
+    const destination = encodeURIComponent(address);
+
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
+
+  /* ==========================================================
+     LOADING
+  ========================================================== */
+
+  if (loading) {
+    return (
+      <main className={styles.loadingPage}>
+        <Loader2 className={styles.spinner} size={38} />
+
+        <p>Chargement de la livraison...</p>
+      </main>
+    );
+  }
+
+  /* ==========================================================
+     NOT FOUND
+  ========================================================== */
+
+  if (!order) {
+    return (
+      <main className={styles.loadingPage}>
+        <AlertTriangle size={40} />
+
+        <h1>Livraison introuvable</h1>
+
+        <p>{error || "Cette livraison n'existe pas."}</p>
+
+        <button
+          type="button"
+          onClick={() =>
+            router.push("/dashboard/driver/orders")
+          }
+        >
+          Retour
+        </button>
+      </main>
+    );
+  }
+
+  const nextAction = getNextAction(order.status);
+
+  /* ==========================================================
+     UI
+  ========================================================== */
 
   return (
     <main className={styles.page}>
-      {/* =====================================================
-          EN-TÊTE
+      {/* ======================================================
+          HEADER
       ====================================================== */}
 
-      <section
-        className={styles.heading}
-      >
-        <div>
-          <span
-            className={
-              styles.eyebrow
-            }
-          >
-            <Package size={16} />
-            Gestion des commandes
-          </span>
+      <header className={styles.header}>
+        <button
+          type="button"
+          className={styles.iconButton}
+          onClick={() =>
+            router.push("/dashboard/driver/orders")
+          }
+          aria-label="Retour"
+        >
+          <ArrowLeft size={20} />
+        </button>
 
-          <h1>Commandes</h1>
+        <div className={styles.headerText}>
+          <span>GLORY SOLUTIONS</span>
 
-          <p>
-            Créez, assignez et
-            suivez toutes les
-            opérations de transport.
-          </p>
+          <h1>
+            {order.order_number || `Commande #${order.id}`}
+          </h1>
+
+          <p>Détails de votre livraison</p>
         </div>
 
-        <div
-          className={
-            styles.headingActions
-          }
+        <button
+          type="button"
+          className={styles.iconButton}
+          onClick={() => {
+            setRefreshing(true);
+            loadOrder();
+          }}
+          disabled={refreshing}
+          aria-label="Actualiser"
         >
-          <button
-            type="button"
-            className={
-              styles.refreshButton
-            }
-            onClick={() =>
-              void loadOrders()
-            }
-            disabled={loading}
-          >
-            <RefreshCw
-              size={17}
-              className={
-                loading
-                  ? styles.spin
-                  : ""
-              }
-            />
+          <RefreshCw
+            size={19}
+            className={refreshing ? styles.spinner : ""}
+          />
+        </button>
+      </header>
 
-            Actualiser
-          </button>
+      {/* ======================================================
+          STATUS
+      ====================================================== */}
 
-          <Link
-            href="/dashboard/admin/orders/new"
-            className={
-              styles.createButton
-            }
-          >
-            <Plus size={18} />
-            Nouvelle commande
-          </Link>
+      <section className={styles.statusCard}>
+        <div className={styles.statusIcon}>
+          <Truck size={23} />
+        </div>
+
+        <div>
+          <span>STATUT ACTUEL</span>
+
+          <strong>{statusLabel(order.status)}</strong>
         </div>
       </section>
 
-      {/* =====================================================
-          ERREUR
+      {/* ======================================================
+          SUCCESS / ERROR
       ====================================================== */}
 
-      {error && (
-        <div
-          className={
-            styles.errorBanner
-          }
-        >
-          <AlertTriangle
-            size={18}
-          />
+      {success && (
+        <div className={styles.success}>
+          <CheckCircle2 size={18} />
 
-          <span>{error}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              setError("")
-            }
-            aria-label="Fermer"
-          >
-            <X size={16} />
-          </button>
+          <span>{success}</span>
         </div>
       )}
 
-      {/* =====================================================
-          CARTES STATISTIQUES
+      {error && (
+        <div className={styles.error}>
+          <AlertTriangle size={18} />
+
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* ======================================================
+          CLIENT
       ====================================================== */}
 
-      <section
-        className={
-          styles.statsGrid
-        }
-      >
-        <StatCard
-          label="Total commandes"
-          value={orders.length}
-          icon={
-            <Package size={20} />
-          }
-          variant="total"
-        />
+      <section className={styles.card}>
+        <div className={styles.sectionTitle}>
+          <User size={18} />
 
-        <StatCard
-          label="En attente"
-          value={pendingCount}
-          icon={
-            <Clock3 size={20} />
-          }
-          variant="pending"
-        />
+          <h2>Client</h2>
+        </div>
 
-        <StatCard
-          label="En cours"
-          value={activeCount}
-          icon={<Truck size={20} />}
-          variant="active"
-        />
-
-        <StatCard
-          label="Terminées"
-          value={completedCount}
-          icon={
-            <CheckCircle2
-              size={20}
-            />
-          }
-          variant="completed"
-        />
-
-        <StatCard
-          label="Annulées / incidents"
-          value={cancelledCount}
-          icon={
-            <XCircle size={20} />
-          }
-          variant="cancelled"
-        />
-
-        <article
-          className={
-            styles.revenueCard
-          }
-        >
-          <span>
-            <FileText size={20} />
-          </span>
-
+        <div className={styles.clientRow}>
           <div>
-            <small>
-              Revenus terminés
-            </small>
+            <span>Nom</span>
 
-            <strong>
-              {formatMoney(
-                totalRevenue,
-              )}
-            </strong>
+            <strong>{clientName(order)}</strong>
           </div>
-        </article>
+
+          {order.client_phone && (
+            <a
+              href={`tel:${order.client_phone}`}
+              className={styles.phoneButton}
+            >
+              <Phone size={17} />
+              Appeler
+            </a>
+          )}
+        </div>
       </section>
 
-      {/* =====================================================
-          TABLEAU
+      {/* ======================================================
+          RAMASSAGE
       ====================================================== */}
 
-      <section
-        className={styles.panel}
-      >
-        <div
-          className={
-            styles.toolbar
-          }
-        >
-          <label
-            className={
-              styles.searchBox
-            }
-          >
-            <Search size={18} />
+      <section className={styles.card}>
+        <div className={styles.locationHeader}>
+          <div className={styles.locationIcon}>
+            <PackageCheck size={20} />
+          </div>
 
-            <input
-              type="search"
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value,
-                )
-              }
-              placeholder="Rechercher une commande, un client, une entreprise..."
-            />
-          </label>
+          <div>
+            <span>RAMASSAGE</span>
 
-          <div
-            className={
-              styles.filterGroup
-            }
-          >
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target
-                    .value as StatusFilter,
-                )
-              }
-            >
-              <option value="all">
-                Tous les statuts
-              </option>
-
-              <option value="pending">
-                En attente
-              </option>
-
-              <option value="assigned">
-                Assignée
-              </option>
-
-              <option value="pickup_in_progress">
-                Ramassage
-              </option>
-
-              <option value="picked_up">
-                Récupérée
-              </option>
-
-              <option value="delivery_in_progress">
-                En livraison
-              </option>
-
-              <option value="arrived">
-                Arrivée
-              </option>
-
-              <option value="completed">
-                Terminée
-              </option>
-
-              <option value="cancelled">
-                Annulée
-              </option>
-
-              <option value="incident">
-                Incident
-              </option>
-            </select>
-
-            <select
-              value={priorityFilter}
-              onChange={(event) =>
-                setPriorityFilter(
-                  event.target.value,
-                )
-              }
-            >
-              <option value="all">
-                Toutes les priorités
-              </option>
-
-              <option value="low">
-                Faible
-              </option>
-
-              <option value="normal">
-                Normale
-              </option>
-
-              <option value="high">
-                Élevée
-              </option>
-
-              <option value="urgent">
-                Urgente
-              </option>
-            </select>
+            <h2>Point de départ</h2>
           </div>
         </div>
 
-        <div
-          className={
-            styles.tableWrapper
-          }
-        >
-          <table
-            className={styles.table}
-          >
-            <thead>
-              <tr>
-                <th>Commande</th>
-                <th>Client</th>
-                <th>Trajet</th>
-                <th>Chauffeur</th>
-                <th>Arrêts</th>
-                <th>Priorité</th>
-                <th>Statut</th>
-                <th>Montant</th>
-                <th>Date</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+        <div className={styles.address}>
+          <MapPin size={18} />
 
-            <tbody>
-              {loading ? (
-                Array.from({
-                  length: 5,
-                }).map(
-                  (_, index) => (
-                    <tr key={index}>
-                      <td colSpan={10}>
-                        <div
-                          className={
-                            styles.skeleton
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ),
-                )
-              ) : visibleOrders.length ===
-                0 ? (
-                <tr>
-                  <td colSpan={10}>
-                    <div
-                      className={
-                        styles.emptyState
-                      }
-                    >
-                      <Package
-                        size={40}
-                      />
-
-                      <h2>
-                        Aucune commande
-                        trouvée
-                      </h2>
-
-                      <p>
-                        Créez votre première
-                        commande ou modifiez
-                        les filtres.
-                      </p>
-
-                      <Link
-                        href="/dashboard/admin/orders/new"
-                        className={
-                          styles.emptyButton
-                        }
-                      >
-                        <Plus
-                          size={17}
-                        />
-
-                        Créer une commande
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                visibleOrders.map(
-                  (order) => {
-                    const clientContact =
-                      getClientContact(
-                        order,
-                      );
-
-                    return (
-                      <tr
-                        key={
-                          order.id
-                        }
-                      >
-                        <td>
-                          <div
-                            className={
-                              styles.orderIdentity
-                            }
-                          >
-                            <span>
-                              <Package
-                                size={
-                                  17
-                                }
-                              />
-                            </span>
-
-                            <div>
-                              <strong>
-                                {order.order_number ||
-                                  `CMD-${order.id}`}
-                              </strong>
-
-                              <small>
-                                ID #
-                                {
-                                  order.id
-                                }
-                              </small>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div
-                            className={
-                              styles.clientCell
-                            }
-                          >
-                            <strong>
-                              {getClientName(
-                                order,
-                              )}
-                            </strong>
-
-                            {clientContact && (
-                              <small>
-                                Contact :{" "}
-                                {
-                                  clientContact
-                                }
-                              </small>
-                            )}
-
-                            <small>
-                              {order.client_phone ||
-                                order.client_email ||
-                                "Coordonnées non disponibles"}
-                            </small>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div
-                            className={
-                              styles.routeCell
-                            }
-                          >
-                            <span>
-                              <MapPin
-                                size={
-                                  14
-                                }
-                              />
-
-                              <strong>
-                                Départ
-                              </strong>
-
-                              <em>
-                                {order.pickup_address ||
-                                  "Non défini"}
-                              </em>
-                            </span>
-
-                            <span>
-                              <MapPin
-                                size={
-                                  14
-                                }
-                              />
-
-                              <strong>
-                                Arrivée
-                              </strong>
-
-                              <em>
-                                {order.delivery_address ||
-                                  "Non définie"}
-                              </em>
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div
-                            className={
-                              styles.driverCell
-                            }
-                          >
-                            <Truck
-                              size={15}
-                            />
-
-                            <div>
-                              <strong>
-                                {getDriverName(
-                                  order,
-                                )}
-                              </strong>
-
-                              <small>
-                                {order.vehicle_name ||
-                                  "Aucun véhicule"}
-
-                                {order.vehicle_plate
-                                  ? ` · ${order.vehicle_plate}`
-                                  : ""}
-                              </small>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span
-                            className={
-                              styles.stopsBadge
-                            }
-                          >
-                            {Number(
-                              order.completed_stops ||
-                                0,
-                            )}
-                            /
-                            {Number(
-                              order.stop_count ||
-                                0,
-                            )}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span
-                            className={`${styles.priorityBadge} ${getPriorityClass(
-                              order.priority,
-                            )}`}
-                          >
-                            {getPriorityLabel(
-                              order.priority,
-                            )}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span
-                            className={`${styles.statusBadge} ${getStatusClass(
-                              order.status,
-                            )}`}
-                          >
-                            {getStatusLabel(
-                              order.status,
-                            )}
-                          </span>
-                        </td>
-
-                        <td>
-                          <strong
-                            className={
-                              styles.amount
-                            }
-                          >
-                            {formatMoney(
-                              order.total_amount,
-                            )}
-                          </strong>
-                        </td>
-
-                        <td>
-                          <div
-                            className={
-                              styles.dateCell
-                            }
-                          >
-                            <CalendarDays
-                              size={14}
-                            />
-
-                            <span>
-                              {formatDate(
-                                order.pickup_date,
-                              )}
-
-                              {order.pickup_time
-                                ? ` · ${formatTime(
-                                    order.pickup_time,
-                                  )}`
-                                : ""}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div
-                            className={
-                              styles.actions
-                            }
-                          >
-                            <Link
-                              href={`/dashboard/admin/orders/${order.id}`}
-                              className={
-                                styles.actionButton
-                              }
-                              title="Voir les détails"
-                            >
-                              <Eye
-                                size={
-                                  16
-                                }
-                              />
-                            </Link>
-
-                            <Link
-                              href={`/dashboard/admin/orders/${order.id}/print`}
-                              className={
-                                styles.actionButton
-                              }
-                              title="Imprimer"
-                            >
-                              <Printer
-                                size={
-                                  16
-                                }
-                              />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  },
-                )
-              )}
-            </tbody>
-          </table>
+          <strong>
+            {order.pickup_address ||
+              "Adresse de ramassage non disponible"}
+          </strong>
         </div>
 
-        <footer
-          className={
-            styles.pagination
-          }
-        >
-          <span>
-            {filteredOrders.length}{" "}
-            commande
-            {filteredOrders.length >
-            1
-              ? "s"
-              : ""}
-          </span>
+        <div className={styles.dateGrid}>
+          <div>
+            <CalendarDays size={16} />
+
+            <span>{formatDate(order.pickup_date)}</span>
+          </div>
 
           <div>
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentPage(
-                  (current) =>
-                    Math.max(
-                      1,
-                      current - 1,
-                    ),
-                )
-              }
-              disabled={
-                currentPage === 1
-              }
-            >
-              Précédent
-            </button>
+            <Clock3 size={16} />
 
-            <span>
-              Page {currentPage} sur{" "}
-              {totalPages}
-            </span>
-
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentPage(
-                  (current) =>
-                    Math.min(
-                      totalPages,
-                      current + 1,
-                    ),
-                )
-              }
-              disabled={
-                currentPage ===
-                totalPages
-              }
-            >
-              Suivant
-            </button>
+            <span>{formatTime(order.pickup_time)}</span>
           </div>
-        </footer>
+        </div>
+
+        {order.pickup_address && (
+          <button
+            type="button"
+            className={styles.navigationButton}
+            onClick={() =>
+              openNavigation(order.pickup_address)
+            }
+          >
+            <Navigation size={18} />
+
+            Navigation vers le ramassage
+
+            <ChevronRight size={17} />
+          </button>
+        )}
       </section>
+
+      {/* ======================================================
+          LIVRAISON
+      ====================================================== */}
+
+      <section className={styles.card}>
+        <div className={styles.locationHeader}>
+          <div className={styles.locationIcon}>
+            <MapPin size={20} />
+          </div>
+
+          <div>
+            <span>LIVRAISON</span>
+
+            <h2>Destination</h2>
+          </div>
+        </div>
+
+        <div className={styles.address}>
+          <MapPin size={18} />
+
+          <strong>
+            {order.delivery_address ||
+              "Adresse de livraison non disponible"}
+          </strong>
+        </div>
+
+        <div className={styles.dateGrid}>
+          <div>
+            <CalendarDays size={16} />
+
+            <span>{formatDate(order.delivery_date)}</span>
+          </div>
+
+          <div>
+            <Clock3 size={16} />
+
+            <span>{formatTime(order.delivery_time)}</span>
+          </div>
+        </div>
+
+        {order.delivery_address && (
+          <button
+            type="button"
+            className={styles.navigationButton}
+            onClick={() =>
+              openNavigation(order.delivery_address)
+            }
+          >
+            <Navigation size={18} />
+
+            Navigation vers le client
+
+            <ChevronRight size={17} />
+          </button>
+        )}
+      </section>
+
+      {/* ======================================================
+          VÉHICULE
+      ====================================================== */}
+
+      <section className={styles.card}>
+        <div className={styles.sectionTitle}>
+          <Truck size={18} />
+
+          <h2>Véhicule</h2>
+        </div>
+
+        <div className={styles.vehicle}>
+          <strong>
+            {[order.vehicle_make, order.vehicle_model]
+              .filter(Boolean)
+              .join(" ") || "Véhicule non assigné"}
+          </strong>
+
+          {order.vehicle_plate && (
+            <span>{order.vehicle_plate}</span>
+          )}
+        </div>
+      </section>
+
+      {/* ======================================================
+          NOTES
+      ====================================================== */}
+
+      {order.notes && (
+        <section className={styles.card}>
+          <div className={styles.sectionTitle}>
+            <AlertTriangle size={18} />
+
+            <h2>Instructions</h2>
+          </div>
+
+          <p className={styles.notes}>{order.notes}</p>
+        </section>
+      )}
+
+      {/* ======================================================
+          GPS
+      ====================================================== */}
+
+      <section className={styles.card}>
+        <div className={styles.sectionTitle}>
+          <Navigation size={18} />
+
+          <h2>Position GPS</h2>
+        </div>
+
+        <p className={styles.helperText}>
+          Envoyez votre position afin que Glory Solutions puisse
+          suivre la livraison.
+        </p>
+
+        <button
+          type="button"
+          className={styles.gpsButton}
+          onClick={sendLocation}
+          disabled={sharingLocation}
+        >
+          {sharingLocation ? (
+            <>
+              <Loader2 className={styles.spinner} size={18} />
+              Localisation...
+            </>
+          ) : (
+            <>
+              <Navigation size={18} />
+              Envoyer ma position
+            </>
+          )}
+        </button>
+      </section>
+
+      {/* ======================================================
+          ACTION PRINCIPALE
+      ====================================================== */}
+
+      {nextAction && (
+        <section className={styles.actionCard}>
+          <div>
+            <span>PROCHAINE ÉTAPE</span>
+
+            <h2>{nextAction.label}</h2>
+
+            <p>{nextAction.description}</p>
+          </div>
+
+          <button
+            type="button"
+            className={styles.primaryButton}
+            disabled={updating}
+            onClick={() =>
+              updateStatus(nextAction.status)
+            }
+          >
+            {updating ? (
+              <>
+                <Loader2 className={styles.spinner} size={19} />
+                Mise à jour...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={19} />
+                {nextAction.label}
+              </>
+            )}
+          </button>
+        </section>
+      )}
+
+      {order.status === "completed" && (
+        <section className={styles.completedCard}>
+          <CheckCircle2 size={30} />
+
+          <div>
+            <strong>Livraison terminée</strong>
+
+            <p>
+              Cette livraison a été complétée avec succès.
+            </p>
+          </div>
+        </section>
+      )}
+
+      <div className={styles.bottomSpace} />
     </main>
-  );
-}
-
-/* ============================================================
-   COMPOSANT STATISTIQUE
-============================================================ */
-
-function StatCard({
-  label,
-  value,
-  icon,
-  variant,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-
-  variant:
-    | "total"
-    | "pending"
-    | "active"
-    | "completed"
-    | "cancelled";
-}) {
-  return (
-    <article
-      className={styles.statCard}
-    >
-      <span
-        className={
-          styles[
-            `stat_${variant}`
-          ]
-        }
-      >
-        {icon}
-      </span>
-
-      <div>
-        <small>{label}</small>
-        <strong>{value}</strong>
-      </div>
-    </article>
   );
 }
