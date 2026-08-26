@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -117,12 +116,20 @@ export default function TemperatureControlledPage() {
       <Navbar />
 
       <main className={styles.main}>
+        {/* =====================================================
+            HERO
+        ====================================================== */}
         <section className={styles.hero}>
-          <div className={styles.heroOverlay} aria-hidden="true" />
+          <div
+            className={styles.heroOverlay}
+            aria-hidden="true"
+          />
 
           <div className={styles.heroInner}>
             <div className={styles.heroContent}>
-              <p className={styles.eyebrow}>Glory Solutions</p>
+              <p className={styles.eyebrow}>
+                Glory Solutions
+              </p>
 
               <h1>
                 Température
@@ -130,18 +137,29 @@ export default function TemperatureControlledPage() {
               </h1>
 
               <p className={styles.heroDescription}>
-                Une solution professionnelle pour le transport de marchandises
-                réfrigérées, surgelées et sensibles à la température partout au
-                Québec.
+                Une solution professionnelle pour le transport de
+                marchandises réfrigérées, surgelées et sensibles
+                à la température partout au Québec.
               </p>
 
               <div className={styles.heroActions}>
-                <Link href="/quote" className={styles.primaryButton}>
+                <Link
+                  href="/quote"
+                  className={styles.primaryButton}
+                >
                   Demander une soumission
-                  <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+
+                  <ArrowRight
+                    size={18}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
                 </Link>
 
-                <Link href="/contact" className={styles.secondaryButton}>
+                <Link
+                  href="/contact"
+                  className={styles.secondaryButton}
+                >
                   Nous contacter
                 </Link>
               </div>
@@ -149,7 +167,12 @@ export default function TemperatureControlledPage() {
               <div className={styles.heroHighlights}>
                 {heroHighlights.map((highlight) => (
                   <span key={highlight}>
-                    <Check size={17} strokeWidth={2.2} aria-hidden="true" />
+                    <Check
+                      size={17}
+                      strokeWidth={2.2}
+                      aria-hidden="true"
+                    />
+
                     {highlight}
                   </span>
                 ))}
@@ -158,6 +181,9 @@ export default function TemperatureControlledPage() {
           </div>
         </section>
 
+        {/* =====================================================
+            AVANTAGES
+        ====================================================== */}
         <section className={styles.advantagesSection}>
           <div className={styles.container}>
             <div className={styles.sectionHeading}>
@@ -171,9 +197,9 @@ export default function TemperatureControlledPage() {
               </h2>
 
               <p className={styles.sectionDescription}>
-                Nous mettons l'accent sur la fiabilité, la sécurité et le
-                respect des conditions nécessaires pour vos marchandises
-                thermosensibles.
+                Nous mettons l&apos;accent sur la fiabilité, la
+                sécurité et le respect des conditions nécessaires
+                pour vos marchandises thermosensibles.
               </p>
             </div>
 
@@ -191,10 +217,15 @@ export default function TemperatureControlledPage() {
                     </span>
 
                     <div className={styles.advantageIcon}>
-                      <Icon size={27} strokeWidth={1.8} aria-hidden="true" />
+                      <Icon
+                        size={27}
+                        strokeWidth={1.8}
+                        aria-hidden="true"
+                      />
                     </div>
 
                     <h3>{advantage.title}</h3>
+
                     <p>{advantage.description}</p>
                   </article>
                 );
@@ -203,8 +234,13 @@ export default function TemperatureControlledPage() {
           </div>
         </section>
 
+        {/* =====================================================
+            INTRODUCTION
+        ====================================================== */}
         <section className={styles.introductionSection}>
-          <div className={`${styles.container} ${styles.introductionGrid}`}>
+          <div
+            className={`${styles.container} ${styles.introductionGrid}`}
+          >
             <div className={styles.introductionContent}>
               <p className={styles.sectionLabel}>
                 Transport spécialisé
@@ -216,31 +252,36 @@ export default function TemperatureControlledPage() {
               </h2>
 
               <p className={styles.introductionLead}>
-                Glory Solutions offre des solutions de transport adaptées aux
-                marchandises qui exigent des conditions de température
-                particulières.
+                Glory Solutions offre des solutions de transport
+                adaptées aux marchandises qui exigent des
+                conditions de température particulières.
               </p>
 
               <p>
-                Que vous transportiez des produits alimentaires, réfrigérés,
-                surgelés ou d'autres marchandises sensibles, notre objectif est
-                d'assurer un transport structuré, sécuritaire et efficace.
+                Que vous transportiez des produits alimentaires,
+                réfrigérés, surgelés ou d&apos;autres marchandises
+                sensibles, notre objectif est d&apos;assurer un
+                transport structuré, sécuritaire et efficace.
               </p>
 
               <p>
-                Chaque livraison est planifiée en fonction de la nature de la
-                marchandise, des délais requis et des conditions nécessaires
-                pendant le transport.
+                Chaque livraison est planifiée en fonction de la
+                nature de la marchandise, des délais requis et des
+                conditions nécessaires pendant le transport.
               </p>
 
               <div className={styles.controlList}>
                 {controlPoints.map((point) => (
-                  <div key={point} className={styles.controlItem}>
+                  <div
+                    key={point}
+                    className={styles.controlItem}
+                  >
                     <CheckCircle2
                       size={20}
                       strokeWidth={2}
                       aria-hidden="true"
                     />
+
                     <span>{point}</span>
                   </div>
                 ))}
@@ -248,33 +289,35 @@ export default function TemperatureControlledPage() {
             </div>
 
             <div className={styles.introductionVisual}>
-              <Image
-                src="/h.jpeg"
-                alt="Transport à température contrôlée Glory Solutions"
-                fill
-                sizes="(max-width: 1000px) 100vw, 50vw"
-                className={styles.introductionImage}
-              />
+              <div className={styles.introductionPlaceholder}>
+                <div className={styles.placeholderIcon}>
+                  <Thermometer
+                    size={48}
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                  />
+                </div>
 
-              <div className={styles.imageOverlay} aria-hidden="true" />
-              <div className={styles.imageFrame} aria-hidden="true" />
+                <span>Transport spécialisé</span>
 
-              <div className={styles.imageBadge}>
-                <Thermometer
-                  size={27}
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
+                <strong>
+                  Température
+                  <br />
+                  contrôlée
+                </strong>
 
-                <span>
-                  Transport spécialisé
-                  <strong>Température contrôlée</strong>
-                </span>
+                <p>
+                  Une logistique professionnelle conçue pour
+                  protéger vos marchandises thermosensibles.
+                </p>
               </div>
             </div>
           </div>
         </section>
 
+        {/* =====================================================
+            SERVICES
+        ====================================================== */}
         <section className={styles.servicesSection}>
           <div className={styles.container}>
             <div className={styles.servicesHeader}>
@@ -291,14 +334,22 @@ export default function TemperatureControlledPage() {
 
               <div className={styles.servicesIntroWrap}>
                 <p>
-                  Nous adaptons notre service selon le type de marchandise, les
-                  conditions de conservation nécessaires et votre calendrier de
-                  livraison.
+                  Nous adaptons notre service selon le type de
+                  marchandise, les conditions de conservation
+                  nécessaires et votre calendrier de livraison.
                 </p>
 
-                <Link href="/quote" className={styles.textLink}>
+                <Link
+                  href="/quote"
+                  className={styles.textLink}
+                >
                   Obtenir une soumission
-                  <ArrowRight size={17} strokeWidth={2} aria-hidden="true" />
+
+                  <ArrowRight
+                    size={17}
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
                 </Link>
               </div>
             </div>
@@ -308,14 +359,26 @@ export default function TemperatureControlledPage() {
                 const Icon = service.icon;
 
                 return (
-                  <article key={service.title} className={styles.serviceCard}>
+                  <article
+                    key={service.title}
+                    className={styles.serviceCard}
+                  >
                     <div className={styles.serviceTop}>
-                      <span className={styles.serviceNumber} aria-hidden="true">
+                      <span
+                        className={styles.serviceNumber}
+                        aria-hidden="true"
+                      >
                         {String(index + 1).padStart(2, "0")}
                       </span>
 
-                      <div className={styles.serviceIcon} aria-hidden="true">
-                        <Icon size={27} strokeWidth={1.8} />
+                      <div
+                        className={styles.serviceIcon}
+                        aria-hidden="true"
+                      >
+                        <Icon
+                          size={27}
+                          strokeWidth={1.8}
+                        />
                       </div>
                     </div>
 
@@ -327,8 +390,14 @@ export default function TemperatureControlledPage() {
                     <div className={styles.serviceFooter}>
                       <span>En savoir plus</span>
 
-                      <span className={styles.serviceArrow} aria-hidden="true">
-                        <ArrowRight size={18} strokeWidth={2} />
+                      <span
+                        className={styles.serviceArrow}
+                        aria-hidden="true"
+                      >
+                        <ArrowRight
+                          size={18}
+                          strokeWidth={2}
+                        />
                       </span>
                     </div>
                   </article>
@@ -337,9 +406,17 @@ export default function TemperatureControlledPage() {
             </div>
 
             <div className={styles.servicesAction}>
-              <Link href="/quote" className={styles.servicesButton}>
+              <Link
+                href="/quote"
+                className={styles.servicesButton}
+              >
                 Demander une soumission
-                <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
+
+                <ArrowRight
+                  size={18}
+                  strokeWidth={2}
+                  aria-hidden="true"
+                />
               </Link>
             </div>
           </div>
