@@ -249,7 +249,7 @@ export default function TemperatureControlledPage() {
 
             <div className={styles.introductionVisual}>
               <Image
-                src="/images/temperature-controlee.jpeg"
+                src="/h.jpeg"
                 alt="Transport à température contrôlée Glory Solutions"
                 fill
                 sizes="(max-width: 1000px) 100vw, 50vw"
