@@ -6,11 +6,15 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  ExternalLink,
+  IdCard,
   Loader2,
   Mail,
   MapPin,
+  Navigation,
   Phone,
   RefreshCw,
+  Route,
   ShieldCheck,
   Truck,
   UserRound,
@@ -33,7 +37,7 @@ import {
 import styles from "./driver-details.module.css";
 
 /* ============================================================
-   CONFIGURATION
+   CONFIG
 ============================================================ */
 
 const API_URL =
@@ -113,19 +117,15 @@ type Order = {
 
 type DriverResponse = {
   success?: boolean;
-
   driver?: Driver;
   data?: Driver;
-
   message?: string;
 };
 
 type OrdersResponse = {
   success?: boolean;
-
   orders?: Order[];
   data?: Order[];
-
   message?: string;
 };
 
@@ -213,7 +213,7 @@ function orderStatusLabel(
       return "Assignée";
 
     case "pickup_in_progress":
-      return "Ramassage en cours";
+      return "Ramassage";
 
     case "picked_up":
       return "Ramassée";
@@ -351,7 +351,7 @@ export default function AdminDriverDetailsPage() {
   ] = useState("");
 
   /* ==========================================================
-     FETCH AUTHENTIFIÉ
+     AUTH FETCH
   ========================================================== */
 
   const authenticatedFetch =
@@ -434,7 +434,7 @@ export default function AdminDriverDetailsPage() {
     );
 
   /* ==========================================================
-     CHARGER LE CHAUFFEUR
+     LOAD DRIVER
   ========================================================== */
 
   const loadDriver =
@@ -458,10 +458,6 @@ export default function AdminDriverDetailsPage() {
       try {
         setError("");
 
-        /* ------------------------------------------------------
-           PROFIL
-        ------------------------------------------------------ */
-
         const driverResult =
           await authenticatedFetch<DriverResponse>(
             `/api/drivers/${driverId}`,
@@ -481,10 +477,6 @@ export default function AdminDriverDetailsPage() {
         setDriver(
           receivedDriver,
         );
-
-        /* ------------------------------------------------------
-           COMMANDES
-        ------------------------------------------------------ */
 
         try {
           const orderResult =
@@ -576,26 +568,32 @@ export default function AdminDriverDetailsPage() {
           styles.loadingPage
         }
       >
-        <Loader2
-          size={38}
+        <div
           className={
-            styles.spin
+            styles.loadingIcon
           }
-        />
+        >
+          <Loader2
+            size={30}
+            className={
+              styles.spin
+            }
+          />
+        </div>
 
         <h1>
           Chargement du chauffeur
         </h1>
 
         <p>
-          Récupération du profil...
+          Préparation de la fiche chauffeur...
         </p>
       </main>
     );
   }
 
   /* ==========================================================
-     ERROR
+     NOT FOUND
   ========================================================== */
 
   if (!driver) {
@@ -607,37 +605,50 @@ export default function AdminDriverDetailsPage() {
       >
         <div
           className={
-            styles.errorBanner
+            styles.errorState
           }
         >
-          <AlertTriangle
-            size={18}
-          />
+          <div
+            className={
+              styles.errorIcon
+            }
+          >
+            <AlertTriangle
+              size={28}
+            />
+          </div>
 
-          <span>
+          <h1>
+            Chauffeur introuvable
+          </h1>
+
+          <p>
             {error ||
-              "Chauffeur introuvable."}
-          </span>
+              "Impossible de retrouver ce chauffeur."}
+          </p>
+
+          <Link
+            href="/dashboard/admin/drivers"
+            className={
+              styles.primaryBackButton
+            }
+          >
+            <ArrowLeft
+              size={17}
+            />
+
+            Retour aux chauffeurs
+          </Link>
         </div>
-
-        <Link
-          href="/dashboard/admin/drivers"
-          className={
-            styles.backButton
-          }
-        >
-          <ArrowLeft
-            size={17}
-          />
-
-          Retour aux chauffeurs
-        </Link>
       </main>
     );
   }
 
+  const address =
+    fullAddress(driver);
+
   /* ==========================================================
-     UI
+     RENDER
   ========================================================== */
 
   return (
@@ -647,7 +658,7 @@ export default function AdminDriverDetailsPage() {
       }
     >
       {/* ======================================================
-          TOP BAR
+          TOP ACTIONS
       ====================================================== */}
 
       <div
@@ -662,10 +673,12 @@ export default function AdminDriverDetailsPage() {
           }
         >
           <ArrowLeft
-            size={18}
+            size={17}
           />
 
-          Retour aux chauffeurs
+          <span>
+            Retour aux chauffeurs
+          </span>
         </Link>
 
         <button
@@ -677,10 +690,7 @@ export default function AdminDriverDetailsPage() {
             refreshing
           }
           onClick={() => {
-            setRefreshing(
-              true,
-            );
-
+            setRefreshing(true);
             void loadDriver();
           }}
         >
@@ -693,13 +703,13 @@ export default function AdminDriverDetailsPage() {
             }
           />
 
-          Actualiser
+          <span>
+            {refreshing
+              ? "Actualisation..."
+              : "Actualiser"}
+          </span>
         </button>
       </div>
-
-      {/* ======================================================
-          ERROR
-      ====================================================== */}
 
       {error && (
         <div
@@ -723,94 +733,146 @@ export default function AdminDriverDetailsPage() {
 
       <section
         className={
-          styles.profileCard
+          styles.profileHero
         }
       >
         <div
           className={
-            styles.avatar
+            styles.profileMain
           }
         >
-          {initials(
-            driver,
-          )}
+          <div
+            className={
+              styles.avatar
+            }
+          >
+            {driver.profile_photo_url ? (
+              <img
+                src={
+                  driver.profile_photo_url
+                }
+                alt={
+                  driverName(driver)
+                }
+              />
+            ) : (
+              initials(driver)
+            )}
+          </div>
+
+          <div
+            className={
+              styles.profileContent
+            }
+          >
+            <div
+              className={
+                styles.profileLabel
+              }
+            >
+              <ShieldCheck
+                size={14}
+              />
+
+              PROFIL CHAUFFEUR
+            </div>
+
+            <h1>
+              {driverName(
+                driver,
+              )}
+            </h1>
+
+            <p
+              className={
+                styles.profileMeta
+              }
+            >
+              Chauffeur Glory Solutions
+              <span />
+              ID #{driver.id}
+            </p>
+
+            <div
+              className={
+                styles.badges
+              }
+            >
+              <span
+                className={`${styles.statusBadge} ${
+                  driver.availability_status ===
+                  "available"
+                    ? styles.available
+                    : driver.availability_status ===
+                        "busy"
+                      ? styles.busy
+                      : driver.availability_status ===
+                          "on_break"
+                        ? styles.breakStatus
+                        : styles.offline
+                }`}
+              >
+                <span
+                  className={
+                    styles.statusDot
+                  }
+                />
+
+                {availabilityLabel(
+                  driver.availability_status,
+                )}
+              </span>
+
+              <span
+                className={
+                  styles.accountBadge
+                }
+              >
+                <CheckCircle2
+                  size={13}
+                />
+
+                Compte{" "}
+                {driver.status ||
+                  "actif"}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div
           className={
-            styles.profileInfo
+            styles.heroActions
           }
         >
-          <span
+          {driver.phone && (
+            <a
+              href={`tel:${driver.phone}`}
+              className={
+                styles.secondaryAction
+              }
+            >
+              <Phone
+                size={17}
+              />
+
+              Appeler
+            </a>
+          )}
+
+          <Link
+            href="/dashboard/admin/drivers/live-map"
             className={
-              styles.eyebrow
+              styles.mapButton
             }
           >
-            <ShieldCheck
-              size={14}
+            <Navigation
+              size={17}
             />
 
-            Profil chauffeur
-          </span>
-
-          <h1>
-            {driverName(
-              driver,
-            )}
-          </h1>
-
-          <p>
-            Chauffeur Glory Solutions · ID #{driver.id}
-          </p>
-
-          <div
-            className={
-              styles.profileBadges
-            }
-          >
-            <span
-              className={
-                driver.availability_status ===
-                "available"
-                  ? styles.statusAvailable
-                  : driver.availability_status ===
-                      "busy"
-                    ? styles.statusBusy
-                    : driver.availability_status ===
-                        "on_break"
-                      ? styles.statusBreak
-                      : styles.statusOffline
-              }
-            >
-              {availabilityLabel(
-                driver.availability_status,
-              )}
-            </span>
-
-            <span
-              className={
-                styles.accountBadge
-              }
-            >
-              Compte{" "}
-              {driver.status ||
-                "actif"}
-            </span>
-          </div>
+            Voir sur la carte
+          </Link>
         </div>
-
-        <Link
-          href={`/dashboard/admin/drivers/live-map`}
-          className={
-            styles.mapButton
-          }
-        >
-          <MapPin
-            size={17}
-          />
-
-          Voir sur la carte
-        </Link>
       </section>
 
       {/* ======================================================
@@ -824,33 +886,26 @@ export default function AdminDriverDetailsPage() {
       >
         <StatCard
           label="Commandes"
-          value={
-            orders.length
-          }
+          value={orders.length}
+          description="Total assigné"
           icon={
-            <Truck
-              size={20}
-            />
+            <Truck size={20} />
           }
         />
 
         <StatCard
           label="Actives"
-          value={
-            activeOrders
-          }
+          value={activeOrders}
+          description="En opération"
           icon={
-            <Clock3
-              size={20}
-            />
+            <Clock3 size={20} />
           }
         />
 
         <StatCard
           label="Terminées"
-          value={
-            completedOrders
-          }
+          value={completedOrders}
+          description="Livraisons complétées"
           icon={
             <CheckCircle2
               size={20}
@@ -864,412 +919,564 @@ export default function AdminDriverDetailsPage() {
             driver.remaining_stops ||
             0
           }
+          description="À effectuer"
           icon={
-            <MapPin
-              size={20}
-            />
+            <Route size={20} />
           }
         />
       </section>
 
       {/* ======================================================
-          INFORMATIONS
+          TWO COLUMN CONTENT
       ====================================================== */}
 
       <section
         className={
-          styles.panel
+          styles.contentGrid
         }
       >
-        <div
-          className={
-            styles.panelHeader
-          }
-        >
-          <div>
-            <span>
-              Profil
-            </span>
-
-            <h2>
-              Informations personnelles
-            </h2>
-          </div>
-
-          <UserRound
-            size={21}
-          />
-        </div>
+        {/* LEFT */}
 
         <div
           className={
-            styles.detailsGrid
+            styles.mainColumn
           }
         >
-          <DetailItem
-            icon={
-              <Mail
-                size={17}
-              />
-            }
-            label="Courriel"
-            value={
-              driver.email ||
-              "Non fourni"
-            }
-          />
+          {/* PERSONAL */}
 
-          <DetailItem
-            icon={
-              <Phone
-                size={17}
-              />
-            }
-            label="Téléphone"
-            value={
-              driver.phone ||
-              "Non fourni"
-            }
-          />
-
-          <DetailItem
-            icon={
-              <MapPin
-                size={17}
-              />
-            }
-            label="Adresse"
-            value={
-              fullAddress(
-                driver,
-              ) ||
-              "Non fournie"
-            }
-          />
-
-          <DetailItem
-            icon={
-              <Clock3
-                size={17}
-              />
-            }
-            label="Dernière activité"
-            value={
-              formatDate(
-                driver.last_seen_at,
-              )
-            }
-          />
-        </div>
-      </section>
-
-      {/* ======================================================
-          PERMIS
-      ====================================================== */}
-
-      <section
-        className={
-          styles.panel
-        }
-      >
-        <div
-          className={
-            styles.panelHeader
-          }
-        >
-          <div>
-            <span>
-              Documents
-            </span>
-
-            <h2>
-              Permis de conduire
-            </h2>
-          </div>
-
-          <ShieldCheck
-            size={21}
-          />
-        </div>
-
-        <div
-          className={
-            styles.detailsGrid
-          }
-        >
-          <DetailItem
-            icon={
-              <ShieldCheck
-                size={17}
-              />
-            }
-            label="Numéro de permis"
-            value={
-              driver.license_number ||
-              "Non fourni"
-            }
-          />
-
-          <DetailItem
-            icon={
-              <CalendarDays
-                size={17}
-              />
-            }
-            label="Date d'expiration"
-            value={
-              simpleDate(
-                driver.license_expiry,
-              )
-            }
-          />
-        </div>
-      </section>
-
-      {/* ======================================================
-          VEHICLE
-      ====================================================== */}
-
-      <section
-        className={
-          styles.panel
-        }
-      >
-        <div
-          className={
-            styles.panelHeader
-          }
-        >
-          <div>
-            <span>
-              Véhicule
-            </span>
-
-            <h2>
-              Véhicule assigné
-            </h2>
-          </div>
-
-          <Truck
-            size={21}
-          />
-        </div>
-
-        <div
-          className={
-            styles.vehicleCard
-          }
-        >
-          <div
+          <section
             className={
-              styles.vehicleIcon
+              styles.panel
             }
           >
-            <Truck
-              size={24}
+            <PanelHeader
+              eyebrow="Profil"
+              title="Informations personnelles"
+              description="Coordonnées et informations principales du chauffeur."
+              icon={
+                <UserRound
+                  size={20}
+                />
+              }
             />
-          </div>
 
-          <div>
-            <strong>
-              {driver.vehicle_name ||
-                "Aucun véhicule assigné"}
-            </strong>
-
-            <span>
-              {driver.vehicle_plate ||
-                "Plaque non disponible"}
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* ======================================================
-          EMERGENCY
-      ====================================================== */}
-
-      <section
-        className={
-          styles.panel
-        }
-      >
-        <div
-          className={
-            styles.panelHeader
-          }
-        >
-          <div>
-            <span>
-              Sécurité
-            </span>
-
-            <h2>
-              Contact d'urgence
-            </h2>
-          </div>
-
-          <Phone
-            size={21}
-          />
-        </div>
-
-        <div
-          className={
-            styles.emergencyCard
-          }
-        >
-          <div>
-            <strong>
-              {driver.emergency_contact_name ||
-                "Non renseigné"}
-            </strong>
-
-            <span>
-              Contact d'urgence
-            </span>
-          </div>
-
-          {driver.emergency_contact_phone && (
-            <a
-              href={`tel:${driver.emergency_contact_phone}`}
+            <div
               className={
-                styles.callButton
+                styles.detailsGrid
               }
             >
-              <Phone
-                size={17}
+              <DetailItem
+                icon={
+                  <Mail
+                    size={17}
+                  />
+                }
+                label="Courriel"
+                value={
+                  driver.email ||
+                  "Non fourni"
+                }
               />
 
-              Appeler
-            </a>
-          )}
-        </div>
-      </section>
+              <DetailItem
+                icon={
+                  <Phone
+                    size={17}
+                  />
+                }
+                label="Téléphone"
+                value={
+                  driver.phone ||
+                  "Non fourni"
+                }
+              />
 
-      {/* ======================================================
-          ORDERS
-      ====================================================== */}
+              <DetailItem
+                icon={
+                  <MapPin
+                    size={17}
+                  />
+                }
+                label="Adresse"
+                value={
+                  address ||
+                  "Non fournie"
+                }
+                fullWidth
+              />
 
-      <section
-        className={
-          styles.panel
-        }
-      >
-        <div
-          className={
-            styles.panelHeader
-          }
-        >
-          <div>
-            <span>
-              Activité
-            </span>
+              <DetailItem
+                icon={
+                  <Clock3
+                    size={17}
+                  />
+                }
+                label="Dernière activité"
+                value={
+                  formatDate(
+                    driver.last_seen_at,
+                  )
+                }
+              />
+            </div>
+          </section>
 
-            <h2>
-              Commandes du chauffeur
-            </h2>
-          </div>
+          {/* ORDERS */}
 
-          <Truck
-            size={21}
-          />
-        </div>
-
-        {orders.length ===
-        0 ? (
-          <div
+          <section
             className={
-              styles.emptyState
+              styles.panel
             }
           >
-            <Truck
-              size={32}
+            <PanelHeader
+              eyebrow="Activité"
+              title="Commandes du chauffeur"
+              description={`${orders.length} commande${
+                orders.length > 1
+                  ? "s"
+                  : ""
+              } associée${
+                orders.length > 1
+                  ? "s"
+                  : ""
+              } à ce chauffeur.`}
+              icon={
+                <Truck
+                  size={20}
+                />
+              }
             />
 
-            <strong>
-              Aucune commande
-            </strong>
-
-            <p>
-              Ce chauffeur n'a aucune commande assignée.
-            </p>
-          </div>
-        ) : (
-          <div
-            className={
-              styles.ordersList
-            }
-          >
-            {orders.map(
-              (order) => (
-                <article
-                  key={
-                    order.id
-                  }
+            {orders.length ===
+            0 ? (
+              <div
+                className={
+                  styles.emptyState
+                }
+              >
+                <div
                   className={
-                    styles.orderCard
+                    styles.emptyIcon
                   }
                 >
-                  <div
-                    className={
-                      styles.orderHeader
-                    }
-                  >
-                    <div>
-                      <small>
-                        COMMANDE
-                      </small>
+                  <Truck
+                    size={27}
+                  />
+                </div>
 
-                      <strong>
-                        {order.order_number ||
-                          order.reference ||
-                          `#${order.id}`}
-                      </strong>
-                    </div>
+                <strong>
+                  Aucune commande
+                </strong>
 
-                    <span
+                <p>
+                  Ce chauffeur n’a actuellement
+                  aucune commande assignée.
+                </p>
+              </div>
+            ) : (
+              <div
+                className={
+                  styles.ordersList
+                }
+              >
+                {orders.map(
+                  (order) => (
+                    <article
+                      key={
+                        order.id
+                      }
                       className={
-                        styles.orderStatus
+                        styles.orderCard
                       }
                     >
-                      {orderStatusLabel(
-                        order.status,
-                      )}
-                    </span>
-                  </div>
+                      <div
+                        className={
+                          styles.orderTop
+                        }
+                      >
+                        <div>
+                          <span
+                            className={
+                              styles.orderEyebrow
+                            }
+                          >
+                            COMMANDE
+                          </span>
 
-                  <div
-                    className={
-                      styles.orderRoute
-                    }
-                  >
-                    <div>
-                      <MapPin
-                        size={15}
-                      />
+                          <strong>
+                            {order.order_number ||
+                              order.reference ||
+                              `#${order.id}`}
+                          </strong>
+                        </div>
 
-                      <span>
-                        {order.pickup_address ||
-                          "Ramassage non défini"}
-                      </span>
-                    </div>
+                        <span
+                          className={
+                            styles.orderStatus
+                          }
+                        >
+                          {orderStatusLabel(
+                            order.status,
+                          )}
+                        </span>
+                      </div>
 
-                    <div>
-                      <MapPin
-                        size={15}
-                      />
+                      <div
+                        className={
+                          styles.routeBox
+                        }
+                      >
+                        <div
+                          className={
+                            styles.routeRow
+                          }
+                        >
+                          <span
+                            className={
+                              styles.pickupDot
+                            }
+                          />
 
-                      <span>
-                        {order.delivery_address ||
-                          "Livraison non définie"}
-                      </span>
-                    </div>
-                  </div>
-                </article>
-              ),
+                          <div>
+                            <small>
+                              DÉPART
+                            </small>
+
+                            <strong>
+                              {order.pickup_address ||
+                                "Ramassage non défini"}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div
+                          className={
+                            styles.routeLine
+                          }
+                        />
+
+                        <div
+                          className={
+                            styles.routeRow
+                          }
+                        >
+                          <span
+                            className={
+                              styles.deliveryDot
+                            }
+                          />
+
+                          <div>
+                            <small>
+                              LIVRAISON
+                            </small>
+
+                            <strong>
+                              {order.delivery_address ||
+                                "Livraison non définie"}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={
+                          styles.orderFooter
+                        }
+                      >
+                        <span>
+                          <CalendarDays
+                            size={14}
+                          />
+
+                          {simpleDate(
+                            order.delivery_date ||
+                              order.pickup_date,
+                          )}
+                        </span>
+
+                        <Link
+                          href={`/dashboard/admin/orders/${order.id}`}
+                        >
+                          Voir la commande
+
+                          <ExternalLink
+                            size={14}
+                          />
+                        </Link>
+                      </div>
+                    </article>
+                  ),
+                )}
+              </div>
             )}
-          </div>
-        )}
+          </section>
+        </div>
+
+        {/* RIGHT */}
+
+        <aside
+          className={
+            styles.sideColumn
+          }
+        >
+          {/* LICENSE */}
+
+          <section
+            className={
+              styles.sidePanel
+            }
+          >
+            <PanelHeader
+              eyebrow="Documents"
+              title="Permis de conduire"
+              icon={
+                <IdCard
+                  size={20}
+                />
+              }
+            />
+
+            <div
+              className={
+                styles.documentBlock
+              }
+            >
+              <div
+                className={
+                  styles.documentIcon
+                }
+              >
+                <ShieldCheck
+                  size={22}
+                />
+              </div>
+
+              <div
+                className={
+                  styles.documentContent
+                }
+              >
+                <small>
+                  NUMÉRO DE PERMIS
+                </small>
+
+                <strong>
+                  {driver.license_number ||
+                    "Non fourni"}
+                </strong>
+
+                <div
+                  className={
+                    styles.expiry
+                  }
+                >
+                  <CalendarDays
+                    size={15}
+                  />
+
+                  Expire le{" "}
+                  {simpleDate(
+                    driver.license_expiry,
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* VEHICLE */}
+
+          <section
+            className={
+              styles.sidePanel
+            }
+          >
+            <PanelHeader
+              eyebrow="Transport"
+              title="Véhicule assigné"
+              icon={
+                <Truck
+                  size={20}
+                />
+              }
+            />
+
+            {driver.vehicle_id ||
+            driver.vehicle_name ? (
+              <div
+                className={
+                  styles.vehicleCard
+                }
+              >
+                <div
+                  className={
+                    styles.vehicleVisual
+                  }
+                >
+                  <Truck
+                    size={27}
+                  />
+                </div>
+
+                <div>
+                  <small>
+                    VÉHICULE ACTUEL
+                  </small>
+
+                  <strong>
+                    {driver.vehicle_name ||
+                      "Véhicule assigné"}
+                  </strong>
+
+                  <span>
+                    {driver.vehicle_plate ||
+                      "Plaque non disponible"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div
+                className={
+                  styles.noVehicle
+                }
+              >
+                <Truck
+                  size={24}
+                />
+
+                <div>
+                  <strong>
+                    Aucun véhicule
+                  </strong>
+
+                  <span>
+                    Aucun véhicule n’est
+                    actuellement assigné.
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* EMERGENCY */}
+
+          <section
+            className={
+              styles.sidePanel
+            }
+          >
+            <PanelHeader
+              eyebrow="Sécurité"
+              title="Contact d’urgence"
+              icon={
+                <Phone
+                  size={20}
+                />
+              }
+            />
+
+            <div
+              className={
+                styles.emergencyCard
+              }
+            >
+              <div
+                className={
+                  styles.emergencyAvatar
+                }
+              >
+                <UserRound
+                  size={19}
+                />
+              </div>
+
+              <div
+                className={
+                  styles.emergencyInfo
+                }
+              >
+                <small>
+                  CONTACT
+                </small>
+
+                <strong>
+                  {driver.emergency_contact_name ||
+                    "Non renseigné"}
+                </strong>
+
+                <span>
+                  {driver.emergency_contact_phone ||
+                    "Téléphone non renseigné"}
+                </span>
+              </div>
+            </div>
+
+            {driver.emergency_contact_phone && (
+              <a
+                href={`tel:${driver.emergency_contact_phone}`}
+                className={
+                  styles.callButton
+                }
+              >
+                <Phone
+                  size={16}
+                />
+
+                Appeler le contact
+              </a>
+            )}
+          </section>
+
+          {/* ACTIVITY */}
+
+          <section
+            className={
+              styles.sidePanel
+            }
+          >
+            <PanelHeader
+              eyebrow="Compte"
+              title="Activité du chauffeur"
+              icon={
+                <Clock3
+                  size={20}
+                />
+              }
+            />
+
+            <div
+              className={
+                styles.activityList
+              }
+            >
+              <ActivityRow
+                label="Création du profil"
+                value={
+                  simpleDate(
+                    driver.created_at,
+                  )
+                }
+              />
+
+              <ActivityRow
+                label="Dernière activité"
+                value={
+                  formatDate(
+                    driver.last_seen_at,
+                  )
+                }
+              />
+
+              <ActivityRow
+                label="Statut du compte"
+                value={
+                  driver.status ||
+                  "Actif"
+                }
+              />
+            </div>
+          </section>
+        </aside>
       </section>
 
       <div
@@ -1282,16 +1489,18 @@ export default function AdminDriverDetailsPage() {
 }
 
 /* ============================================================
-   STAT CARD
+   COMPONENTS
 ============================================================ */
 
 function StatCard({
   label,
   value,
+  description,
   icon,
 }: {
   label: string;
   value: number;
+  description: string;
   icon: React.ReactNode;
 }) {
   return (
@@ -1300,41 +1509,105 @@ function StatCard({
         styles.statCard
       }
     >
-      <span>
+      <span
+        className={
+          styles.statIcon
+        }
+      >
         {icon}
       </span>
 
-      <div>
+      <div
+        className={
+          styles.statContent
+        }
+      >
         <small>
           {label}
         </small>
 
-        <strong>
+        <div
+          className={
+            styles.statValue
+          }
+        >
           {value}
-        </strong>
+        </div>
+
+        <span>
+          {description}
+        </span>
       </div>
     </article>
   );
 }
 
-/* ============================================================
-   DETAIL
-============================================================ */
+function PanelHeader({
+  eyebrow,
+  title,
+  description,
+  icon,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div
+      className={
+        styles.panelHeader
+      }
+    >
+      <div>
+        <span
+          className={
+            styles.panelEyebrow
+          }
+        >
+          {eyebrow}
+        </span>
+
+        <h2>
+          {title}
+        </h2>
+
+        {description && (
+          <p>
+            {description}
+          </p>
+        )}
+      </div>
+
+      <span
+        className={
+          styles.panelHeaderIcon
+        }
+      >
+        {icon}
+      </span>
+    </div>
+  );
+}
 
 function DetailItem({
   icon,
   label,
   value,
+  fullWidth = false,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
+  fullWidth?: boolean;
 }) {
   return (
     <div
-      className={
-        styles.detailItem
-      }
+      className={`${styles.detailItem} ${
+        fullWidth
+          ? styles.detailFull
+          : ""
+      }`}
     >
       <span
         className={
@@ -1353,6 +1626,30 @@ function DetailItem({
           {value}
         </strong>
       </div>
+    </div>
+  );
+}
+
+function ActivityRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      className={
+        styles.activityRow
+      }
+    >
+      <span>
+        {label}
+      </span>
+
+      <strong>
+        {value}
+      </strong>
     </div>
   );
 }
