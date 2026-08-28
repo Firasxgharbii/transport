@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
+
 import { useRouter } from "next/navigation";
 
 import {
@@ -65,7 +66,6 @@ type NotificationItem = {
   audience_role?: string | null;
 
   type?: string | null;
-
   level?: NotificationLevel | null;
 
   title: string;
@@ -77,7 +77,6 @@ type NotificationItem = {
   action_url?: string | null;
 
   is_read?: number | boolean | null;
-
   read_at?: string | null;
 
   email_sent?: number | boolean | null;
@@ -87,9 +86,13 @@ type NotificationItem = {
 
 type NotificationsResponse = {
   success?: boolean;
+
   notifications?: NotificationItem[];
+
   data?: NotificationItem[];
+
   unreadCount?: number;
+
   message?: string;
 };
 
@@ -98,12 +101,19 @@ type NotificationsResponse = {
 ============================================================ */
 
 function getToken() {
-  if (typeof window === "undefined") {
+  if (
+    typeof window === "undefined"
+  ) {
     return "";
   }
 
   return (
-    localStorage.getItem("glory_token") ||
+    localStorage.getItem(
+      "glory_token",
+    ) ||
+    localStorage.getItem(
+      "token",
+    ) ||
     ""
   );
 }
@@ -117,6 +127,24 @@ function isUnread(
     notification.is_read === null ||
     notification.is_read === undefined
   );
+}
+
+function getNotificationIcon(
+  level?: NotificationLevel | null,
+) {
+  switch (level) {
+    case "success":
+      return CircleCheck;
+
+    case "warning":
+      return TriangleAlert;
+
+    case "urgent":
+      return CircleAlert;
+
+    default:
+      return Info;
+  }
 }
 
 function formatNotificationDate(
@@ -140,16 +168,16 @@ function formatNotificationDate(
   const now =
     Date.now();
 
-  const diff =
+  const difference =
     now - date.getTime();
 
   const minutes =
     Math.floor(
-      diff / 60000,
+      difference / 60000,
     );
 
   if (minutes < 1) {
-    return "À l’instant";
+    return "Maintenant";
   }
 
   if (minutes < 60) {
@@ -181,24 +209,6 @@ function formatNotificationDate(
       month: "short",
     },
   ).format(date);
-}
-
-function getLevelIcon(
-  level?: NotificationLevel | null,
-) {
-  switch (level) {
-    case "success":
-      return CircleCheck;
-
-    case "warning":
-      return TriangleAlert;
-
-    case "urgent":
-      return CircleAlert;
-
-    default:
-      return Info;
-  }
 }
 
 /* ============================================================
@@ -261,7 +271,7 @@ export default function AdminHeader({
   ] = useState("");
 
   /* ==========================================================
-     FETCH AUTHENTIFIÉ
+     AUTHENTICATED FETCH
   ========================================================== */
 
   const authenticatedFetch =
@@ -275,7 +285,7 @@ export default function AdminHeader({
 
         if (!token) {
           throw new Error(
-            "Token manquant.",
+            "Session expirée. Veuillez vous reconnecter.",
           );
         }
 
@@ -317,10 +327,15 @@ export default function AdminHeader({
         }
 
         if (
-          response.status === 401
+          response.status ===
+          401
         ) {
           localStorage.removeItem(
             "glory_token",
+          );
+
+          localStorage.removeItem(
+            "token",
           );
 
           localStorage.removeItem(
@@ -339,7 +354,7 @@ export default function AdminHeader({
         if (!response.ok) {
           throw new Error(
             result?.message ||
-              "Une erreur est survenue.",
+              `Erreur API (${response.status}).`,
           );
         }
 
@@ -393,7 +408,7 @@ export default function AdminHeader({
         setNotificationError(
           error instanceof Error
             ? error.message
-            : "Impossible de charger les notifications.",
+            : "Impossible de récupérer les notifications.",
         );
       } finally {
         setNotificationLoading(
@@ -405,7 +420,7 @@ export default function AdminHeader({
     ]);
 
   /* ==========================================================
-     LOAD COUNT
+     LOAD UNREAD COUNT
   ========================================================== */
 
   const loadUnreadCount =
@@ -422,16 +437,18 @@ export default function AdminHeader({
               0,
           ),
         );
-      } catch {
-        // On laisse le header fonctionner
-        // même si le compteur échoue.
+      } catch (error) {
+        console.error(
+          "Erreur compteur notifications :",
+          error,
+        );
       }
     }, [
       authenticatedFetch,
     ]);
 
   /* ==========================================================
-     INITIAL LOAD + POLLING
+     INITIAL LOAD
   ========================================================== */
 
   useEffect(() => {
@@ -463,40 +480,39 @@ export default function AdminHeader({
   ]);
 
   /* ==========================================================
-     CLICK OUTSIDE
+     CLOSE WHEN CLICKING OUTSIDE
   ========================================================== */
 
   useEffect(() => {
-    const handleClickOutside =
-      (
-        event: MouseEvent,
-      ) => {
-        const target =
-          event.target as Node;
+    function handleClickOutside(
+      event: MouseEvent,
+    ) {
+      const target =
+        event.target as Node;
 
-        if (
-          notificationWrapperRef
-            .current &&
-          !notificationWrapperRef.current.contains(
-            target,
-          )
-        ) {
-          setNotificationOpen(
-            false,
-          );
-        }
+      if (
+        notificationWrapperRef
+          .current &&
+        !notificationWrapperRef.current.contains(
+          target,
+        )
+      ) {
+        setNotificationOpen(
+          false,
+        );
+      }
 
-        if (
-          profileWrapperRef.current &&
-          !profileWrapperRef.current.contains(
-            target,
-          )
-        ) {
-          setProfileOpen(
-            false,
-          );
-        }
-      };
+      if (
+        profileWrapperRef.current &&
+        !profileWrapperRef.current.contains(
+          target,
+        )
+      ) {
+        setProfileOpen(
+          false,
+        );
+      }
+    }
 
     document.addEventListener(
       "mousedown",
@@ -515,29 +531,28 @@ export default function AdminHeader({
      SEARCH
   ========================================================== */
 
-  const handleSearch =
-    (
-      event:
-        FormEvent<HTMLFormElement>,
-    ) => {
-      event.preventDefault();
+  const handleSearch = (
+    event:
+      FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
 
-      const value =
-        searchTerm.trim();
+    const value =
+      searchTerm.trim();
 
-      if (!value) {
-        return;
-      }
+    if (!value) {
+      return;
+    }
 
-      router.push(
-        `/dashboard/admin/users?search=${encodeURIComponent(
-          value,
-        )}`,
-      );
-    };
+    router.push(
+      `/dashboard/admin/users?search=${encodeURIComponent(
+        value,
+      )}`,
+    );
+  };
 
   /* ==========================================================
-     OPEN / CLOSE NOTIFICATIONS
+     OPEN NOTIFICATIONS
   ========================================================== */
 
   const toggleNotifications =
@@ -559,7 +574,7 @@ export default function AdminHeader({
     };
 
   /* ==========================================================
-     MARK ONE READ
+     MARK ONE AS READ
   ========================================================== */
 
   const markAsRead =
@@ -592,8 +607,10 @@ export default function AdminHeader({
                 notification.id
                   ? {
                       ...item,
+
                       is_read:
                         true,
+
                       read_at:
                         new Date()
                           .toISOString(),
@@ -615,13 +632,13 @@ export default function AdminHeader({
         setNotificationError(
           error instanceof Error
             ? error.message
-            : "Impossible de marquer cette notification comme lue.",
+            : "Impossible de modifier la notification.",
         );
       }
     };
 
   /* ==========================================================
-     MARK ALL READ
+     MARK ALL AS READ
   ========================================================== */
 
   const markAllAsRead =
@@ -640,8 +657,10 @@ export default function AdminHeader({
             current.map(
               (item) => ({
                 ...item,
+
                 is_read:
                   true,
+
                 read_at:
                   item.read_at ||
                   new Date()
@@ -650,12 +669,14 @@ export default function AdminHeader({
             ),
         );
 
-        setUnreadCount(0);
+        setUnreadCount(
+          0,
+        );
       } catch (error) {
         setNotificationError(
           error instanceof Error
             ? error.message
-            : "Impossible de modifier les notifications.",
+            : "Impossible de marquer les notifications comme lues.",
         );
       }
     };
@@ -686,7 +707,7 @@ export default function AdminHeader({
     };
 
   /* ==========================================================
-     VISIBLE NOTIFICATIONS
+     DISPLAY LIMIT
   ========================================================== */
 
   const visibleNotifications =
@@ -760,7 +781,7 @@ export default function AdminHeader({
       </div>
 
       {/* ======================================================
-          RIGHT
+          ACTIONS
       ====================================================== */}
 
       <div
@@ -836,12 +857,12 @@ export default function AdminHeader({
 
                 <button
                   type="button"
+                  aria-label="Fermer"
                   onClick={() =>
                     setNotificationOpen(
                       false,
                     )
                   }
-                  aria-label="Fermer"
                 >
                   <X size={17} />
                 </button>
@@ -883,22 +904,30 @@ export default function AdminHeader({
                       styles.notificationState
                     }
                   >
-                    Chargement...
+                    <Bell
+                      size={22}
+                    />
+
+                    <strong>
+                      Chargement
+                    </strong>
+
+                    <span>
+                      Récupération des notifications...
+                    </span>
                   </div>
-                ) : notificationError &&
-                  visibleNotifications.length ===
-                    0 ? (
+                ) : notificationError ? (
                   <div
                     className={
                       styles.notificationState
                     }
                   >
                     <CircleAlert
-                      size={20}
+                      size={22}
                     />
 
                     <strong>
-                      Erreur
+                      Impossible de charger
                     </strong>
 
                     <span>
@@ -906,6 +935,18 @@ export default function AdminHeader({
                         notificationError
                       }
                     </span>
+
+                    <button
+                      type="button"
+                      className={
+                        styles.markAllRead
+                      }
+                      onClick={() =>
+                        void loadNotifications()
+                      }
+                    >
+                      Réessayer
+                    </button>
                   </div>
                 ) : visibleNotifications.length ===
                   0 ? (
@@ -914,18 +955,16 @@ export default function AdminHeader({
                       styles.notificationState
                     }
                   >
-                    <Bell
-                      size={23}
+                    <CircleCheck
+                      size={24}
                     />
 
                     <strong>
-                      Aucune notification
+                      Tout est à jour
                     </strong>
 
                     <span>
-                      Les nouvelles
-                      alertes apparaîtront
-                      ici.
+                      Vous n'avez aucune nouvelle notification.
                     </span>
                   </div>
                 ) : (
@@ -934,7 +973,7 @@ export default function AdminHeader({
                       notification,
                     ) => {
                       const Icon =
-                        getLevelIcon(
+                        getNotificationIcon(
                           notification.level,
                         );
 
@@ -942,6 +981,14 @@ export default function AdminHeader({
                         isUnread(
                           notification,
                         );
+
+                      const levelClass =
+                        styles[
+                          `notification_${
+                            notification.level ||
+                            "info"
+                          }`
+                        ] || "";
 
                       return (
                         <button
@@ -961,12 +1008,7 @@ export default function AdminHeader({
                           }
                         >
                           <span
-                            className={`${styles.notificationIcon} ${
-                              styles[
-                                `notification_${notification.level || "info"}`
-                              ] ||
-                              ""
-                            }`}
+                            className={`${styles.notificationIcon} ${levelClass}`}
                           >
                             <Icon
                               size={

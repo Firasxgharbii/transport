@@ -1,62 +1,111 @@
+/* ============================================================
+   SIDEBAR
+============================================================ */
+
 .sidebar {
   position: fixed;
   z-index: 1000;
+
   inset: 0 auto 0 0;
+
   width: 282px;
+
   display: flex;
   flex-direction: column;
+
   padding: 22px 14px 16px;
+
   background:
-    radial-gradient(circle at 20% 90%, rgba(220, 20, 60, 0.14), transparent 28%),
-    linear-gradient(180deg, #0d0c17 0%, #100d18 100%);
-  color: #fff;
-  transition: width 0.3s ease, transform 0.3s ease;
-  box-shadow: 18px 0 50px rgba(15, 14, 25, 0.06);
+    radial-gradient(
+      circle at 20% 90%,
+      rgba(220, 20, 60, 0.14),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      #0d0c17 0%,
+      #100d18 100%
+    );
+
+  color: #ffffff;
+
+  transition:
+    width 0.3s ease,
+    transform 0.3s ease;
+
+  box-shadow:
+    18px 0 50px
+    rgba(15, 14, 25, 0.06);
 }
 
 .sidebarCollapsed {
   width: 92px;
 }
 
+/* ============================================================
+   SIDEBAR HEADER
+============================================================ */
+
 .sidebarHeader {
   display: flex;
+
+  min-height: 58px;
+
   align-items: center;
   justify-content: space-between;
-  min-height: 58px;
+
   padding: 0 10px;
 }
 
 .brand {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  color: inherit;
-  text-decoration: none;
+
   min-width: 0;
+
+  align-items: center;
+
+  gap: 12px;
+
+  color: inherit;
+
+  text-decoration: none;
 }
 
 .logo {
   width: 38px;
   height: 38px;
+
+  flex: 0 0 auto;
+
   object-fit: contain;
 }
 
 .brandText {
   display: flex;
+
   min-width: 0;
+
   flex-direction: column;
 }
 
 .brandText strong {
+  overflow: hidden;
+
   font-size: 15px;
+  font-weight: 800;
+
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .brandText span,
 .userCard div span {
   color: #8e90a0;
+
   font-size: 10px;
+
   letter-spacing: 0.08em;
+
   text-transform: uppercase;
 }
 
@@ -64,35 +113,57 @@
   display: none;
 }
 
+/* ============================================================
+   NAVIGATION
+============================================================ */
+
 .navigation {
   display: flex;
+
   flex: 1;
+
   flex-direction: column;
+
   gap: 7px;
+
   margin-top: 32px;
 }
 
 .sectionTitle {
   padding: 0 12px 8px;
+
   color: #66697a;
+
   font-size: 10px;
   font-weight: 800;
+
   letter-spacing: 0.13em;
+
   text-transform: uppercase;
 }
 
 .navLink {
   position: relative;
+
   display: flex;
+
   min-height: 47px;
+
   align-items: center;
+
   gap: 13px;
+
   padding: 0 13px;
+
   border-radius: 13px;
+
   color: #afb0bd;
+
   text-decoration: none;
+
   font-size: 13px;
   font-weight: 700;
+
   transition:
     transform 0.18s ease,
     background 0.18s ease,
@@ -100,26 +171,58 @@
 }
 
 .navLink:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
   transform: translateX(3px);
+
+  background:
+    rgba(255, 255, 255, 0.06);
+
+  color: #ffffff;
 }
 
 .navLinkActive {
-  color: #fff;
-  background: linear-gradient(135deg, #ef0043, #dc143c);
-  box-shadow: 0 16px 35px rgba(220, 20, 60, 0.28);
+  background:
+    linear-gradient(
+      135deg,
+      #ef0043,
+      #dc143c
+    );
+
+  color: #ffffff;
+
+  box-shadow:
+    0 16px 35px
+    rgba(220, 20, 60, 0.28);
+}
+
+.navLinkActive:hover {
+  background:
+    linear-gradient(
+      135deg,
+      #f70749,
+      #dc143c
+    );
+
+  color: #ffffff;
 }
 
 .badge {
   display: grid;
+
   min-width: 22px;
   height: 22px;
+
   margin-left: auto;
+
+  padding: 0 6px;
+
   place-items: center;
+
   border-radius: 999px;
-  background: #fff;
+
+  background: #ffffff;
+
   color: #dc143c;
+
   font-size: 11px;
   font-weight: 900;
 }
@@ -128,169 +231,780 @@
   justify-content: center;
 }
 
+.sidebarCollapsed .brandText,
+.sidebarCollapsed .sectionTitle,
+.sidebarCollapsed .userCard > div,
+.sidebarCollapsed .logout span,
+.sidebarCollapsed .badge {
+  display: none;
+}
+
+/* ============================================================
+   SIDEBAR FOOTER
+============================================================ */
+
 .sidebarFooter {
   display: grid;
+
   gap: 9px;
 }
 
 .userCard,
 .logout {
   min-height: 52px;
-  border: 1px solid rgba(255,255,255,0.09);
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.09);
+
   border-radius: 13px;
-  background: rgba(255,255,255,0.035);
+
+  background:
+    rgba(255, 255, 255, 0.035);
 }
 
 .userCard {
   display: flex;
+
   align-items: center;
+
   gap: 10px;
+
   padding: 8px;
 }
 
 .avatar,
 .headerAvatar {
   display: grid;
+
   flex: 0 0 auto;
+
   place-items: center;
+
   border-radius: 11px;
-  background: linear-gradient(135deg, #ef0043, #dc143c);
-  color: #fff;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ef0043,
+      #dc143c
+    );
+
+  color: #ffffff;
+
   font-weight: 900;
 }
 
 .avatar {
   width: 38px;
   height: 38px;
+
   font-size: 12px;
 }
 
 .userCard div {
   display: flex;
+
   min-width: 0;
+
   flex-direction: column;
+
   gap: 3px;
 }
 
 .userCard div strong {
   overflow: hidden;
+
   font-size: 12px;
+
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .logout {
   display: flex;
+
   align-items: center;
+
   gap: 12px;
+
   padding: 0 13px;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.09);
+
   color: #b7b8c4;
+
+  font: inherit;
+
   cursor: pointer;
+
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
 }
 
 .logout:hover {
-  color: #fff;
-  border-color: rgba(255,255,255,0.18);
+  border-color:
+    rgba(255, 255, 255, 0.18);
+
+  background:
+    rgba(255, 255, 255, 0.06);
+
+  color: #ffffff;
 }
+
+/* ============================================================
+   COLLAPSE BUTTON
+============================================================ */
 
 .collapseButton {
   position: absolute;
+
   top: 90px;
   right: -14px;
+
   display: grid;
+
   width: 30px;
   height: 30px;
+
   place-items: center;
+
   border: 1px solid #dedfe6;
+
   border-radius: 10px;
-  background: #fff;
+
+  background: #ffffff;
+
   color: #5f6070;
+
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(20,20,30,0.12);
+
+  box-shadow:
+    0 8px 20px
+    rgba(20, 20, 30, 0.12);
+
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
 }
+
+.collapseButton:hover {
+  transform: scale(1.05);
+
+  border-color: #ffabc0;
+
+  color: #dc143c;
+}
+
+/* ============================================================
+   TOP HEADER
+============================================================ */
 
 .topHeader {
   position: sticky;
+
   z-index: 900;
+
   top: 0;
+
   display: flex;
+
   min-height: 74px;
+
   align-items: center;
   justify-content: space-between;
+
   gap: 24px;
+
   padding: 0 28px;
-  border-bottom: 1px solid #e9eaf0;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(16px);
+
+  border-bottom:
+    1px solid #e9eaf0;
+
+  background:
+    rgba(255, 255, 255, 0.92);
+
+  backdrop-filter:
+    blur(16px);
+
+  box-shadow:
+    0 5px 20px
+    rgba(25, 24, 35, 0.02);
 }
 
 .headerLeft,
 .headerActions {
   display: flex;
+
   align-items: center;
+
   gap: 14px;
+}
+
+.headerActions {
+  position: relative;
 }
 
 .mobileMenu {
   display: none;
 }
 
+/* ============================================================
+   SEARCH
+============================================================ */
+
 .searchForm {
   display: flex;
+
   width: min(430px, 42vw);
+
   min-height: 43px;
+
   align-items: center;
+
   gap: 10px;
+
   padding: 0 14px;
+
   border: 1px solid #e4e5ec;
+
   border-radius: 12px;
+
   background: #f7f8fb;
+
   color: #a0a2ae;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .searchForm:focus-within {
   border-color: #ff99b2;
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(220,20,60,0.08);
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(220, 20, 60, 0.08);
 }
 
 .searchForm input {
   width: 100%;
+
   border: 0;
+
   outline: 0;
+
   background: transparent;
+
   color: #20212a;
+
   font: inherit;
+}
+
+.searchForm input::placeholder {
+  color: #a2a4af;
+}
+
+/* ============================================================
+   NOTIFICATION BUTTON
+============================================================ */
+
+.notificationWrapper {
+  position: relative;
 }
 
 .notificationButton {
   position: relative;
+
   display: grid;
+
   width: 42px;
   height: 42px;
+
   place-items: center;
+
   border: 1px solid #e6e7ed;
+
   border-radius: 12px;
-  background: #fff;
+
+  background: #ffffff;
+
   color: #30313a;
+
   cursor: pointer;
+
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
 }
 
-.notificationButton span {
+.notificationButton:hover {
+  transform: translateY(-1px);
+
+  border-color: #ffb4c5;
+
+  background: #fff7f9;
+
+  color: #dc143c;
+}
+
+.notificationButton > span {
   position: absolute;
-  top: -4px;
-  right: -3px;
+
+  top: -5px;
+  right: -5px;
+
   display: grid;
-  min-width: 18px;
-  height: 18px;
+
+  min-width: 19px;
+  height: 19px;
+
+  padding: 0 5px;
+
   place-items: center;
-  border: 2px solid #fff;
+
+  border: 2px solid #ffffff;
+
   border-radius: 999px;
+
   background: #dc143c;
-  color: #fff;
+
+  color: #ffffff;
+
   font-size: 9px;
   font-weight: 900;
+
+  line-height: 1;
 }
+
+/* ============================================================
+   NOTIFICATION DROPDOWN
+============================================================ */
+
+.notificationMenu {
+  position: absolute;
+
+  z-index: 2000;
+
+  top: calc(100% + 14px);
+  right: 0;
+
+  width: min(
+    410px,
+    calc(100vw - 28px)
+  );
+
+  overflow: hidden;
+
+  border: 1px solid #e3e4e9;
+
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 28px 80px
+    rgba(24, 20, 30, 0.19);
+
+  animation:
+    dropdownIn 0.18s ease both;
+}
+
+/* ============================================================
+   NOTIFICATION HEADER
+============================================================ */
+
+.notificationHeader {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 18px;
+
+  padding: 18px 18px 14px;
+
+  border-bottom:
+    1px solid #ededf0;
+}
+
+.notificationHeader > div {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+.notificationHeader strong {
+  color: #22232b;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.notificationHeader span {
+  color: #92949e;
+
+  font-size: 10px;
+}
+
+.notificationHeader > button {
+  display: grid;
+
+  width: 30px;
+  height: 30px;
+
+  flex: 0 0 auto;
+
+  place-items: center;
+
+  border: 0;
+
+  border-radius: 8px;
+
+  background: #f5f5f7;
+
+  color: #686a74;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.notificationHeader > button:hover {
+  background: #fff0f3;
+
+  color: #dc143c;
+}
+
+/* ============================================================
+   MARK ALL READ
+============================================================ */
+
+.markAllRead {
+  display: flex;
+
+  width:
+    calc(100% - 30px);
+
+  min-height: 36px;
+
+  align-items: center;
+
+  gap: 7px;
+
+  margin: 10px 15px 0;
+
+  padding: 0 11px;
+
+  border: 0;
+
+  border-radius: 9px;
+
+  background: #fff1f4;
+
+  color: #dc143c;
+
+  font-size: 10px;
+  font-weight: 850;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.markAllRead:hover {
+  transform: translateY(-1px);
+
+  background: #ffe5eb;
+}
+
+/* ============================================================
+   NOTIFICATION LIST
+============================================================ */
+
+.notificationList {
+  max-height: 420px;
+
+  overflow-y: auto;
+
+  padding: 10px;
+}
+
+.notificationList::-webkit-scrollbar {
+  width: 5px;
+}
+
+.notificationList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notificationList::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+
+  background: #dfe0e5;
+}
+
+/* ============================================================
+   NOTIFICATION ITEM
+============================================================ */
+
+.notificationItem {
+  position: relative;
+
+  display: flex;
+
+  width: 100%;
+
+  gap: 11px;
+
+  padding: 12px;
+
+  border: 0;
+
+  border-radius: 12px;
+
+  background: transparent;
+
+  color: inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.notificationItem:hover {
+  transform: translateX(2px);
+
+  background: #f7f7fa;
+}
+
+.notificationUnread {
+  background: #fff9fa;
+}
+
+.notificationUnread:hover {
+  background: #fff3f6;
+}
+
+/* ============================================================
+   NOTIFICATION ICON
+============================================================ */
+
+.notificationIcon {
+  display: grid;
+
+  width: 38px;
+  height: 38px;
+
+  flex: 0 0 auto;
+
+  place-items: center;
+
+  border-radius: 11px;
+}
+
+.notification_info {
+  background: #edf5ff;
+
+  color: #2875c7;
+}
+
+.notification_success {
+  background: #e9faf3;
+
+  color: #087e5a;
+}
+
+.notification_warning {
+  background: #fff5dd;
+
+  color: #b87300;
+}
+
+.notification_urgent {
+  background: #fff0f3;
+
+  color: #dc143c;
+}
+
+/* ============================================================
+   NOTIFICATION CONTENT
+============================================================ */
+
+.notificationContent {
+  position: relative;
+
+  display: flex;
+
+  min-width: 0;
+
+  flex: 1;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.notificationTopLine {
+  display: flex;
+
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 10px;
+}
+
+.notificationTopLine strong {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #292a32;
+
+  font-size: 11px;
+  font-weight: 900;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.notificationTopLine small {
+  flex: 0 0 auto;
+
+  color: #a0a1aa;
+
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.notificationMessage {
+  display: -webkit-box;
+
+  overflow: hidden;
+
+  color: #767781;
+
+  font-size: 10px;
+  line-height: 1.5;
+
+  -webkit-box-orient:
+    vertical;
+
+  -webkit-line-clamp: 2;
+}
+
+.unreadDot {
+  position: absolute;
+
+  top: 1px;
+  right: -1px;
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: #dc143c;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(220, 20, 60, 0.09);
+}
+
+/* ============================================================
+   NOTIFICATION EMPTY / ERROR
+============================================================ */
+
+.notificationState {
+  display: flex;
+
+  min-height: 175px;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  padding: 25px;
+
+  color: #93949e;
+
+  text-align: center;
+
+  font-size: 10px;
+}
+
+.notificationState svg {
+  color: #dc143c;
+}
+
+.notificationState strong {
+  color: #34353e;
+
+  font-size: 12px;
+}
+
+.notificationState span {
+  max-width: 220px;
+
+  line-height: 1.5;
+}
+
+/* ============================================================
+   ALL NOTIFICATIONS LINK
+============================================================ */
+
+.allNotificationsLink {
+  display: flex;
+
+  min-height: 46px;
+
+  align-items: center;
+  justify-content: center;
+
+  border-top:
+    1px solid #ededf0;
+
+  color: #dc143c;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  text-decoration: none;
+
+  transition:
+    background 0.16s ease;
+}
+
+.allNotificationsLink:hover {
+  background: #fff7f9;
+}
+
+/* ============================================================
+   PROFILE
+============================================================ */
 
 .profileWrapper {
   position: relative;
@@ -298,93 +1012,184 @@
 
 .profileButton {
   display: flex;
+
   align-items: center;
+
   gap: 10px;
+
+  padding: 0;
+
   border: 0;
+
   background: transparent;
+
   cursor: pointer;
 }
 
 .headerAvatar {
   width: 39px;
   height: 39px;
+
   font-size: 12px;
 }
 
 .profileText {
   display: flex;
+
   min-width: 110px;
+
   flex-direction: column;
+
   align-items: flex-start;
 }
 
 .profileText strong {
+  overflow: hidden;
+
+  max-width: 150px;
+
+  color: #292a32;
+
   font-size: 12px;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
 }
 
 .profileText span {
+  margin-top: 2px;
+
   color: #8b8d99;
+
   font-size: 10px;
 }
 
+/* ============================================================
+   PROFILE MENU
+============================================================ */
+
 .profileMenu {
   position: absolute;
+
+  z-index: 2000;
+
   top: calc(100% + 12px);
   right: 0;
+
   width: 210px;
+
   overflow: hidden;
+
   border: 1px solid #e5e6ec;
+
   border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 22px 60px rgba(24,24,34,0.16);
-  animation: dropdownIn 0.18s ease both;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 22px 60px
+    rgba(24, 24, 34, 0.16);
+
+  animation:
+    dropdownIn 0.18s ease both;
 }
 
 .profileMenu a,
 .profileMenu button {
   display: flex;
+
   width: 100%;
+
   min-height: 45px;
+
   align-items: center;
+
   gap: 10px;
+
   padding: 0 14px;
+
   border: 0;
-  background: #fff;
+
+  background: #ffffff;
+
   color: #32333c;
+
+  font: inherit;
+
   text-decoration: none;
+
   cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
 }
 
 .profileMenu a:hover,
 .profileMenu button:hover {
   background: #faf1f4;
+
   color: #dc143c;
 }
 
+/* ============================================================
+   ANIMATIONS
+============================================================ */
+
 @keyframes dropdownIn {
-  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+
+    transform:
+      translateY(-6px)
+      scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+
+    transform:
+      translateY(0)
+      scale(1);
+  }
 }
+
+/* ============================================================
+   TABLET
+============================================================ */
 
 @media (max-width: 900px) {
   .sidebar {
     width: 282px;
-    transform: translateX(-105%);
+
+    transform:
+      translateX(-105%);
   }
 
   .sidebarMobileOpen {
-    transform: translateX(0);
+    transform:
+      translateX(0);
   }
 
   .mobileClose {
     display: grid;
+
     width: 36px;
     height: 36px;
+
     place-items: center;
+
     border: 0;
+
     border-radius: 10px;
-    background: rgba(255,255,255,0.08);
-    color: #fff;
+
+    background:
+      rgba(255, 255, 255, 0.08);
+
+    color: #ffffff;
+
+    cursor: pointer;
   }
 
   .collapseButton {
@@ -393,26 +1198,134 @@
 
   .mobileMenu {
     display: grid;
+
     width: 42px;
     height: 42px;
-    place-items: center;
-    border: 1px solid #e5e6ec;
-    border-radius: 11px;
-    background: #fff;
-  }
-}
 
-@media (max-width: 640px) {
+    place-items: center;
+
+    border: 1px solid #e5e6ec;
+
+    border-radius: 11px;
+
+    background: #ffffff;
+
+    color: #363740;
+
+    cursor: pointer;
+  }
+
   .topHeader {
-    padding: 0 14px;
+    padding: 0 18px;
   }
 
   .searchForm {
-    width: min(100%, 250px);
+    width:
+      min(380px, 48vw);
+  }
+}
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 640px) {
+  .topHeader {
+    min-height: 68px;
+
+    gap: 10px;
+
+    padding: 0 12px;
+  }
+
+  .headerLeft,
+  .headerActions {
+    gap: 8px;
+  }
+
+  .searchForm {
+    width:
+      min(100%, 220px);
+
+    min-height: 40px;
+
+    padding: 0 10px;
+  }
+
+  .searchForm input {
+    font-size: 11px;
+  }
+
+  .mobileMenu,
+  .notificationButton {
+    width: 40px;
+    height: 40px;
+
+    flex: 0 0 40px;
   }
 
   .profileText,
   .profileButton > svg {
     display: none;
+  }
+
+  .headerAvatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notificationMenu {
+    position: fixed;
+
+    top: 74px;
+    right: 10px;
+    left: 10px;
+
+    width: auto;
+
+    max-height:
+      calc(100vh - 90px);
+  }
+
+  .notificationList {
+    max-height:
+      calc(100vh - 265px);
+  }
+
+  .notificationHeader {
+    padding:
+      16px 15px 13px;
+  }
+
+  .notificationItem {
+    padding: 11px;
+  }
+}
+
+/* ============================================================
+   VERY SMALL MOBILE
+============================================================ */
+
+@media (max-width: 420px) {
+  .topHeader {
+    padding: 0 9px;
+  }
+
+  .searchForm {
+    width: 150px;
+  }
+
+  .searchForm input::placeholder {
+    font-size: 0;
+  }
+
+  .notificationMenu {
+    top: 70px;
+    right: 7px;
+    left: 7px;
+  }
+
+  .notificationTopLine strong {
+    max-width: 185px;
   }
 }
