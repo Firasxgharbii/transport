@@ -390,6 +390,46 @@ export default function DeliveryNotesPage() {
     [notes],
   );
 
+  const escapePrintHtml = (value: unknown) =>
+    cleanText(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+  const openPrintWindow = (
+    title: string,
+    html: string,
+    features = "width=900,height=900",
+  ) => {
+    const printWindow = window.open(
+      "",
+      "_blank",
+      features,
+    );
+
+    if (!printWindow) {
+      setError(
+        "Le navigateur a bloqué la fenêtre d’impression. Autorisez les fenêtres contextuelles.",
+      );
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(
+      html.replaceAll(
+        "__DOCUMENT_TITLE__",
+        escapePrintHtml(title),
+      ),
+    );
+    printWindow.document.close();
+  };
+
+  /* ==========================================================
+     IMPRESSION 4 x 6 — ÉTIQUETTE / BON DE LIVRAISON
+  ========================================================== */
+
   const printDeliveryNote = (
     note: DeliveryNote,
   ) => {
@@ -408,60 +448,37 @@ export default function DeliveryNotesPage() {
     );
 
     const reference = getOrderNumber(note);
-
     const cleanReference = reference
       .replace(/[^a-zA-Z0-9]/g, "")
       .toUpperCase();
 
-    const printWindow = window.open(
-      "",
-      "_blank",
-      "width=650,height=900",
-    );
-
-    if (!printWindow) {
-      setError(
-        "Le navigateur a bloqué la fenêtre d’impression. Autorisez les fenêtres contextuelles.",
-      );
-
-      return;
-    }
-
-    const escapeHtml = (value: unknown) =>
-      cleanText(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-
     const quantity =
       note.quantity !== null &&
       note.quantity !== undefined
-        ? escapeHtml(note.quantity)
+        ? escapePrintHtml(note.quantity)
         : "—";
 
     const weight =
       note.weight !== null &&
       note.weight !== undefined
-        ? `${escapeHtml(note.weight)} kg`
+        ? `${escapePrintHtml(note.weight)} kg`
         : "—";
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
+    const logoUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/images/logo1.png`
+        : "/images/logo1.png";
 
+    const html = `
+      <!DOCTYPE html>
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-
           <meta
             name="viewport"
             content="width=device-width, initial-scale=1"
           />
-
-          <title>
-            Bon de livraison ${escapeHtml(reference)}
-          </title>
+          <title>__DOCUMENT_TITLE__</title>
 
           <style>
             @page {
@@ -477,17 +494,11 @@ export default function DeliveryNotesPage() {
             body {
               width: 4in;
               min-height: 6in;
-
               margin: 0;
               padding: 0;
-
-              font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
-
+              font-family: Arial, Helvetica, sans-serif;
+              color: #070707;
               background: #ffffff;
-              color: #090909;
             }
 
             body {
@@ -498,12 +509,9 @@ export default function DeliveryNotesPage() {
             .label {
               width: 4in;
               min-height: 6in;
-
               display: flex;
               flex-direction: column;
-
               overflow: hidden;
-
               border: 2px solid #000;
               background: #fff;
             }
@@ -511,87 +519,102 @@ export default function DeliveryNotesPage() {
             .header {
               display: grid;
               grid-template-columns: 1fr auto;
-
               align-items: center;
-
               gap: 8px;
-
-              padding: 10px 11px;
-
+              padding: 9px 10px;
               border-bottom: 2px solid #000;
             }
 
-            .brand {
+            .brand-wrap {
               display: flex;
-              flex-direction: column;
+              align-items: center;
+              gap: 8px;
+              min-width: 0;
             }
 
-            .brand-name {
-              font-size: 20px;
+            .brand-logo {
+              width: 44px;
+              height: 44px;
+              object-fit: contain;
+              object-position: left center;
+            }
+
+            .brand-fallback {
+              display: none;
+              font-size: 14px;
               font-weight: 950;
-              line-height: 0.95;
-              letter-spacing: -0.03em;
+              line-height: .9;
             }
 
-            .brand-name span {
+            .brand-fallback span {
               display: block;
               color: #dc143c;
             }
 
-            .brand-subtitle {
-              margin-top: 5px;
+            .brand-copy {
+              min-width: 0;
+            }
 
-              font-size: 7px;
+            .brand-name {
+              font-size: 14px;
+              font-weight: 950;
+              line-height: .95;
+              text-transform: uppercase;
+            }
+
+            .brand-name span {
+              color: #dc143c;
+            }
+
+            .brand-subtitle {
+              margin-top: 4px;
+              font-size: 6px;
               font-weight: 800;
-              letter-spacing: 0.12em;
+              letter-spacing: .12em;
               text-transform: uppercase;
             }
 
             .service {
               padding: 6px 8px;
-
               border: 2px solid #000;
-
-              font-size: 9px;
+              font-size: 7px;
               font-weight: 900;
-
               text-transform: uppercase;
             }
 
             .reference-block {
-              padding: 9px 11px;
-
+              padding: 8px 10px;
               border-bottom: 2px solid #000;
             }
 
-            .reference-label {
-              margin-bottom: 4px;
-
-              font-size: 7px;
+            .reference-label,
+            .mini-label,
+            .route-title,
+            .field-label {
+              font-size: 6px;
               font-weight: 900;
-              letter-spacing: 0.11em;
+              letter-spacing: .08em;
               text-transform: uppercase;
             }
 
             .reference-number {
-              font-size: 24px;
+              margin-top: 4px;
+              font-size: 22px;
               font-weight: 950;
               line-height: 1;
-              letter-spacing: -0.04em;
+              letter-spacing: -.035em;
               word-break: break-word;
             }
 
             .route {
               display: grid;
               grid-template-columns: 1fr 1fr;
-
               border-bottom: 2px solid #000;
             }
 
             .route-card {
-              min-height: 112px;
-
-              padding: 9px 10px;
+              min-height: 100px;
+              padding: 8px 9px;
             }
 
             .route-card:first-child {
@@ -599,48 +622,37 @@ export default function DeliveryNotesPage() {
             }
 
             .route-title {
-              margin-bottom: 7px;
-
-              font-size: 8px;
-              font-weight: 950;
-
-              letter-spacing: 0.08em;
-              text-transform: uppercase;
+              margin-bottom: 6px;
             }
 
             .route-name {
               margin-bottom: 5px;
-
-              font-size: 12px;
+              font-size: 10px;
               font-weight: 950;
               line-height: 1.15;
             }
 
             .route-address {
-              font-size: 9px;
+              font-size: 8px;
               font-weight: 700;
               line-height: 1.35;
             }
 
             .route-date {
-              margin-top: 8px;
-
-              font-size: 8px;
+              margin-top: 7px;
+              font-size: 7px;
               font-weight: 800;
             }
 
             .transport {
               display: grid;
-              grid-template-columns: 1.1fr 1fr 0.75fr;
-
+              grid-template-columns: 1.1fr 1fr .75fr;
               border-bottom: 2px solid #000;
             }
 
             .transport-item {
-              min-height: 59px;
-
-              padding: 7px 8px;
-
+              min-height: 55px;
+              padding: 6px 7px;
               border-right: 1px solid #000;
             }
 
@@ -648,87 +660,56 @@ export default function DeliveryNotesPage() {
               border-right: 0;
             }
 
-            .mini-label {
-              display: block;
-
-              margin-bottom: 4px;
-
-              font-size: 6.5px;
-              font-weight: 900;
-
-              letter-spacing: 0.07em;
-              text-transform: uppercase;
-            }
-
             .mini-value {
               display: block;
-
-              font-size: 10px;
+              margin-top: 3px;
+              font-size: 9px;
               font-weight: 900;
               line-height: 1.2;
             }
 
             .barcode-zone {
-              padding: 8px 10px 9px;
-
+              padding: 7px 9px 8px;
               border-bottom: 2px solid #000;
-
               text-align: center;
             }
 
             .barcode {
               width: 100%;
-              height: 46px;
-
+              height: 42px;
               display: flex;
               align-items: stretch;
               justify-content: center;
-
               gap: 2px;
-
               overflow: hidden;
             }
 
             .barcode span {
               display: block;
-
               height: 100%;
-
               background: #000;
             }
 
-            .b1 {
-              width: 2px;
-            }
-
-            .b2 {
-              width: 4px;
-            }
-
-            .b3 {
-              width: 6px;
-            }
+            .b1 { width: 2px; }
+            .b2 { width: 4px; }
+            .b3 { width: 6px; }
 
             .barcode-text {
-              margin-top: 5px;
-
-              font-size: 8px;
+              margin-top: 4px;
+              font-size: 7px;
               font-weight: 900;
-
-              letter-spacing: 0.19em;
+              letter-spacing: .16em;
               word-break: break-all;
             }
 
             .details {
               display: grid;
               grid-template-columns: 1fr 1fr;
-
               border-bottom: 2px solid #000;
             }
 
             .detail {
-              padding: 7px 9px;
-
+              padding: 6px 8px;
               border-right: 1px solid #000;
             }
 
@@ -738,80 +719,59 @@ export default function DeliveryNotesPage() {
 
             .detail strong {
               display: block;
-
               margin-top: 3px;
-
-              font-size: 9px;
+              font-size: 8px;
               line-height: 1.25;
             }
 
             .proof {
-              padding: 9px 10px 10px;
-
               flex: 1;
+              padding: 8px 9px 9px;
             }
 
             .proof-title {
               display: flex;
               justify-content: space-between;
               align-items: center;
-
-              margin-bottom: 9px;
+              gap: 8px;
+              margin-bottom: 7px;
             }
 
             .proof-title strong {
-              font-size: 10px;
+              font-size: 9px;
               font-weight: 950;
-
               text-transform: uppercase;
             }
 
             .proof-title span {
-              font-size: 6px;
+              font-size: 5px;
               font-weight: 800;
-
-              letter-spacing: 0.08em;
+              letter-spacing: .06em;
               text-transform: uppercase;
             }
 
             .proof-row {
               display: grid;
               grid-template-columns: 1fr 1fr;
-
-              gap: 9px;
-
-              margin-bottom: 9px;
+              gap: 8px;
+              margin-bottom: 7px;
             }
 
             .field {
-              min-height: 29px;
-
-              padding-top: 4px;
-
+              min-height: 25px;
+              padding-top: 3px;
               border-bottom: 1px solid #000;
             }
 
-            .field-label {
-              font-size: 6px;
-              font-weight: 900;
-
-              letter-spacing: 0.05em;
-              text-transform: uppercase;
-            }
-
             .signature-box {
-              height: 51px;
-
-              margin-top: 4px;
-
+              height: 43px;
+              margin-top: 3px;
               border: 1px solid #000;
             }
 
             .notes-box {
-              height: 37px;
-
-              margin-top: 4px;
-
+              height: 29px;
+              margin-top: 3px;
               border: 1px solid #000;
             }
 
@@ -819,17 +779,12 @@ export default function DeliveryNotesPage() {
               display: flex;
               align-items: center;
               justify-content: space-between;
-
-              gap: 8px;
-
-              padding: 6px 9px;
-
+              gap: 6px;
+              padding: 5px 8px;
               border-top: 2px solid #000;
-
-              font-size: 6px;
+              font-size: 5px;
               font-weight: 800;
-
-              letter-spacing: 0.05em;
+              letter-spacing: .04em;
               text-transform: uppercase;
             }
 
@@ -855,14 +810,30 @@ export default function DeliveryNotesPage() {
         <body>
           <main class="label">
             <section class="header">
-              <div class="brand">
-                <div class="brand-name">
+              <div class="brand-wrap">
+                <img
+                  class="brand-logo"
+                  src="${logoUrl}"
+                  alt="Glory Solutions"
+                  onerror="
+                    this.style.display='none';
+                    this.nextElementSibling.style.display='block';
+                  "
+                />
+
+                <div class="brand-fallback">
                   GLORY
                   <span>SOLUTIONS</span>
                 </div>
 
-                <div class="brand-subtitle">
-                  Transport & logistique
+                <div class="brand-copy">
+                  <div class="brand-name">
+                    GLORY <span>SOLUTIONS</span>
+                  </div>
+
+                  <div class="brand-subtitle">
+                    Transport & logistique
+                  </div>
                 </div>
               </div>
 
@@ -877,7 +848,7 @@ export default function DeliveryNotesPage() {
               </div>
 
               <div class="reference-number">
-                ${escapeHtml(reference)}
+                ${escapePrintHtml(reference)}
               </div>
             </section>
 
@@ -892,11 +863,11 @@ export default function DeliveryNotesPage() {
                 </div>
 
                 <div class="route-address">
-                  ${escapeHtml(pickupAddress)}
+                  ${escapePrintHtml(pickupAddress)}
                 </div>
 
                 <div class="route-date">
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     formatDate(note.pickup_date),
                   )}
                 </div>
@@ -908,17 +879,17 @@ export default function DeliveryNotesPage() {
                 </div>
 
                 <div class="route-name">
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     getClientName(note),
                   )}
                 </div>
 
                 <div class="route-address">
-                  ${escapeHtml(deliveryAddress)}
+                  ${escapePrintHtml(deliveryAddress)}
                 </div>
 
                 <div class="route-date">
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     formatDate(
                       note.delivery_date ||
                         note.created_at,
@@ -935,7 +906,7 @@ export default function DeliveryNotesPage() {
                 </span>
 
                 <span class="mini-value">
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     getDriverName(note),
                   )}
                 </span>
@@ -947,20 +918,20 @@ export default function DeliveryNotesPage() {
                 </span>
 
                 <span class="mini-value">
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     note.vehicle_name,
                   )}
                 </span>
 
                 <span
                   class="mini-label"
-                  style="margin-top:4px;"
+                  style="display:block;margin-top:4px;"
                 >
                   Plaque
                 </span>
 
                 <span class="mini-value">
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     note.vehicle_plate,
                   )}
                 </span>
@@ -977,7 +948,7 @@ export default function DeliveryNotesPage() {
 
                 <span
                   class="mini-label"
-                  style="margin-top:4px;"
+                  style="display:block;margin-top:4px;"
                 >
                   Poids
                 </span>
@@ -1020,7 +991,7 @@ export default function DeliveryNotesPage() {
               </div>
 
               <div class="barcode-text">
-                ${escapeHtml(cleanReference)}
+                ${escapePrintHtml(cleanReference)}
               </div>
             </section>
 
@@ -1031,7 +1002,7 @@ export default function DeliveryNotesPage() {
                 </span>
 
                 <strong>
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     note.description,
                   )}
                 </strong>
@@ -1043,7 +1014,7 @@ export default function DeliveryNotesPage() {
                 </span>
 
                 <strong>
-                  ${escapeHtml(
+                  ${escapePrintHtml(
                     getStatusLabel(note.status),
                   )}
                 </strong>
@@ -1083,7 +1054,7 @@ export default function DeliveryNotesPage() {
 
               <div
                 class="field-label"
-                style="margin-top:8px;"
+                style="margin-top:7px;"
               >
                 Observations
               </div>
@@ -1097,7 +1068,7 @@ export default function DeliveryNotesPage() {
               </span>
 
               <strong>
-                ${escapeHtml(reference)}
+                ${escapePrintHtml(reference)}
               </strong>
 
               <span>
@@ -1110,14 +1081,829 @@ export default function DeliveryNotesPage() {
             window.onload = function () {
               setTimeout(function () {
                 window.print();
-              }, 300);
+              }, 350);
             };
           </script>
         </body>
       </html>
-    `);
+    `;
 
-    printWindow.document.close();
+    openPrintWindow(
+      `Bon de livraison ${reference}`,
+      html,
+      "width=650,height=900",
+    );
+  };
+
+  /* ==========================================================
+     IMPRESSION A4 — BILL OF LADING / CONNAISSEMENT
+     Original Glory Solutions
+  ========================================================== */
+
+  const printBillOfLading = (
+    note: DeliveryNote,
+  ) => {
+    const pickupAddress = buildAddress(
+      note.pickup_address,
+      note.pickup_city,
+      note.pickup_province,
+      note.pickup_postal_code,
+    );
+
+    const deliveryAddress = buildAddress(
+      note.delivery_address,
+      note.delivery_city,
+      note.delivery_province,
+      note.delivery_postal_code,
+    );
+
+    const reference = getOrderNumber(note);
+    const bolNumber = `BOL-${String(note.id).padStart(6, "0")}`;
+
+    const logoUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/images/logo1.png`
+        : "/images/logo1.png";
+
+    const quantity =
+      note.quantity !== null &&
+      note.quantity !== undefined
+        ? escapePrintHtml(note.quantity)
+        : "—";
+
+    const weight =
+      note.weight !== null &&
+      note.weight !== undefined
+        ? `${escapePrintHtml(note.weight)} kg`
+        : "—";
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1"
+          />
+          <title>__DOCUMENT_TITLE__</title>
+
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm;
+            }
+
+            * {
+              box-sizing: border-box;
+            }
+
+            html,
+            body {
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              color: #111;
+              font-family: Arial, Helvetica, sans-serif;
+            }
+
+            body {
+              padding: 0;
+            }
+
+            .sheet {
+              width: 100%;
+              max-width: 190mm;
+              margin: 0 auto;
+              border: 1.5px solid #111;
+              background: #fff;
+            }
+
+            .top {
+              display: grid;
+              grid-template-columns: 1.1fr .9fr;
+              border-bottom: 1.5px solid #111;
+            }
+
+            .brand {
+              display: flex;
+              align-items: center;
+              gap: 14px;
+              min-height: 86px;
+              padding: 14px 16px;
+              border-right: 1.5px solid #111;
+            }
+
+            .logo {
+              width: 64px;
+              height: 64px;
+              object-fit: contain;
+            }
+
+            .logo-fallback {
+              display: none;
+              font-size: 18px;
+              font-weight: 950;
+              line-height: .95;
+            }
+
+            .logo-fallback span {
+              display: block;
+              color: #dc143c;
+            }
+
+            .brand h1 {
+              margin: 0;
+              font-size: 27px;
+              line-height: 1;
+              letter-spacing: -.03em;
+              text-transform: uppercase;
+            }
+
+            .brand h1 span {
+              color: #dc143c;
+            }
+
+            .brand p {
+              margin: 6px 0 0;
+              color: #666;
+              font-size: 10px;
+              font-weight: 700;
+              letter-spacing: .08em;
+              text-transform: uppercase;
+            }
+
+            .titleBox {
+              display: grid;
+              grid-template-rows: 1fr auto;
+            }
+
+            .title {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              padding: 13px 16px;
+            }
+
+            .title h2 {
+              margin: 0;
+              font-size: 25px;
+              letter-spacing: -.03em;
+              text-transform: uppercase;
+            }
+
+            .badge {
+              padding: 7px 10px;
+              border: 1.5px solid #111;
+              font-size: 9px;
+              font-weight: 900;
+              text-transform: uppercase;
+            }
+
+            .docMeta {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              border-top: 1px solid #111;
+            }
+
+            .metaCell {
+              min-height: 52px;
+              padding: 8px 10px;
+              border-right: 1px solid #111;
+            }
+
+            .metaCell:last-child {
+              border-right: 0;
+            }
+
+            .label {
+              display: block;
+              margin-bottom: 4px;
+              color: #555;
+              font-size: 7px;
+              font-weight: 900;
+              letter-spacing: .07em;
+              text-transform: uppercase;
+            }
+
+            .value {
+              display: block;
+              font-size: 11px;
+              font-weight: 800;
+              line-height: 1.35;
+            }
+
+            .referenceStrip {
+              display: grid;
+              grid-template-columns: 1.2fr 1fr 1fr;
+              border-bottom: 1.5px solid #111;
+            }
+
+            .refCell {
+              min-height: 64px;
+              padding: 10px 12px;
+              border-right: 1px solid #111;
+            }
+
+            .refCell:last-child {
+              border-right: 0;
+            }
+
+            .refBig {
+              font-size: 17px;
+              font-weight: 950;
+              letter-spacing: -.02em;
+            }
+
+            .parties {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              border-bottom: 1.5px solid #111;
+            }
+
+            .party {
+              min-height: 150px;
+              padding: 12px;
+              border-right: 1px solid #111;
+            }
+
+            .party:last-child {
+              border-right: 0;
+            }
+
+            .partyTitle {
+              margin-bottom: 8px;
+              font-size: 8px;
+              font-weight: 950;
+              letter-spacing: .08em;
+              text-transform: uppercase;
+            }
+
+            .partyName {
+              margin-bottom: 6px;
+              font-size: 12px;
+              font-weight: 950;
+            }
+
+            .partyText {
+              font-size: 10px;
+              font-weight: 650;
+              line-height: 1.45;
+              white-space: pre-line;
+            }
+
+            .table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+
+            .tableWrap {
+              border-bottom: 1.5px solid #111;
+            }
+
+            .table th,
+            .table td {
+              padding: 8px 7px;
+              border-right: 1px solid #111;
+              border-bottom: 1px solid #111;
+              text-align: left;
+              vertical-align: top;
+            }
+
+            .table th:last-child,
+            .table td:last-child {
+              border-right: 0;
+            }
+
+            .table tr:last-child td {
+              border-bottom: 0;
+            }
+
+            .table th {
+              background: #f3f3f3;
+              font-size: 7px;
+              font-weight: 900;
+              letter-spacing: .05em;
+              text-transform: uppercase;
+            }
+
+            .table td {
+              min-height: 44px;
+              font-size: 9px;
+              line-height: 1.35;
+            }
+
+            .summaryRow {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              border-bottom: 1.5px solid #111;
+            }
+
+            .summaryCell {
+              min-height: 52px;
+              padding: 9px 11px;
+              border-right: 1px solid #111;
+            }
+
+            .summaryCell:last-child {
+              border-right: 0;
+            }
+
+            .instructions {
+              min-height: 78px;
+              padding: 10px 12px;
+              border-bottom: 1.5px solid #111;
+            }
+
+            .instructionsText {
+              font-size: 9px;
+              line-height: 1.45;
+              white-space: pre-line;
+            }
+
+            .signatures {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              border-bottom: 1.5px solid #111;
+            }
+
+            .signature {
+              min-height: 96px;
+              padding: 10px 12px;
+              border-right: 1px solid #111;
+            }
+
+            .signature:last-child {
+              border-right: 0;
+            }
+
+            .signatureLine {
+              height: 42px;
+              margin-top: 12px;
+              border-bottom: 1px solid #111;
+            }
+
+            .signatureMeta {
+              display: flex;
+              justify-content: space-between;
+              gap: 10px;
+              margin-top: 5px;
+              color: #555;
+              font-size: 7px;
+              font-weight: 800;
+              text-transform: uppercase;
+            }
+
+            .terms {
+              padding: 12px 14px 14px;
+            }
+
+            .terms h3 {
+              margin: 0 0 7px;
+              font-size: 9px;
+              text-transform: uppercase;
+            }
+
+            .terms p {
+              margin: 0;
+              color: #555;
+              font-size: 7.5px;
+              line-height: 1.45;
+            }
+
+            .footer {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              gap: 12px;
+              padding: 8px 12px;
+              border-top: 1.5px solid #111;
+              font-size: 7px;
+              font-weight: 800;
+              letter-spacing: .05em;
+              text-transform: uppercase;
+            }
+
+            .footer strong {
+              color: #dc143c;
+            }
+
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+          </style>
+        </head>
+
+        <body>
+          <main class="sheet">
+            <section class="top">
+              <div class="brand">
+                <img
+                  class="logo"
+                  src="${logoUrl}"
+                  alt="Glory Solutions"
+                  onerror="
+                    this.style.display='none';
+                    this.nextElementSibling.style.display='block';
+                  "
+                />
+
+                <div class="logo-fallback">
+                  GLORY
+                  <span>SOLUTIONS</span>
+                </div>
+
+                <div>
+                  <h1>
+                    Glory <span>Solutions</span>
+                  </h1>
+
+                  <p>
+                    Transport & logistique
+                  </p>
+                </div>
+              </div>
+
+              <div class="titleBox">
+                <div class="title">
+                  <h2>Bill of Lading</h2>
+
+                  <div class="badge">
+                    Original
+                  </div>
+                </div>
+
+                <div class="docMeta">
+                  <div class="metaCell">
+                    <span class="label">
+                      BOL Number
+                    </span>
+
+                    <span class="value">
+                      ${escapePrintHtml(bolNumber)}
+                    </span>
+                  </div>
+
+                  <div class="metaCell">
+                    <span class="label">
+                      Order Number
+                    </span>
+
+                    <span class="value">
+                      ${escapePrintHtml(reference)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="referenceStrip">
+              <div class="refCell">
+                <span class="label">
+                  Pickup Date
+                </span>
+
+                <span class="refBig">
+                  ${escapePrintHtml(
+                    formatDate(note.pickup_date),
+                  )}
+                </span>
+              </div>
+
+              <div class="refCell">
+                <span class="label">
+                  Driver
+                </span>
+
+                <span class="value">
+                  ${escapePrintHtml(
+                    getDriverName(note),
+                  )}
+                </span>
+
+                <span
+                  class="label"
+                  style="margin-top:8px;"
+                >
+                  Phone
+                </span>
+
+                <span class="value">
+                  ${escapePrintHtml(
+                    note.driver_phone,
+                  )}
+                </span>
+              </div>
+
+              <div class="refCell">
+                <span class="label">
+                  Vehicle
+                </span>
+
+                <span class="value">
+                  ${escapePrintHtml(
+                    note.vehicle_name,
+                  )}
+                </span>
+
+                <span
+                  class="label"
+                  style="margin-top:8px;"
+                >
+                  Plate
+                </span>
+
+                <span class="value">
+                  ${escapePrintHtml(
+                    note.vehicle_plate,
+                  )}
+                </span>
+              </div>
+            </section>
+
+            <section class="parties">
+              <div class="party">
+                <div class="partyTitle">
+                  Shipper / Expéditeur
+                </div>
+
+                <div class="partyName">
+                  Glory Solutions
+                </div>
+
+                <div class="partyText">
+                  ${escapePrintHtml(pickupAddress)}
+                </div>
+
+                <span
+                  class="label"
+                  style="margin-top:10px;"
+                >
+                  Pickup
+                </span>
+
+                <div class="partyText">
+                  ${escapePrintHtml(
+                    formatDate(note.pickup_date),
+                  )}
+                </div>
+              </div>
+
+              <div class="party">
+                <div class="partyTitle">
+                  Consignee / Destinataire
+                </div>
+
+                <div class="partyName">
+                  ${escapePrintHtml(
+                    getClientName(note),
+                  )}
+                </div>
+
+                <div class="partyText">
+                  ${escapePrintHtml(deliveryAddress)}
+                </div>
+
+                <span
+                  class="label"
+                  style="margin-top:10px;"
+                >
+                  Contact
+                </span>
+
+                <div class="partyText">
+                  ${escapePrintHtml(
+                    note.client_phone,
+                  )}
+                  ${escapePrintHtml(
+                    note.client_email,
+                  )}
+                </div>
+              </div>
+
+              <div class="party">
+                <div class="partyTitle">
+                  Bill Freight To / Facturation
+                </div>
+
+                <div class="partyName">
+                  ${escapePrintHtml(
+                    getClientName(note),
+                  )}
+                </div>
+
+                <div class="partyText">
+                  ${escapePrintHtml(deliveryAddress)}
+                </div>
+
+                <span
+                  class="label"
+                  style="margin-top:10px;"
+                >
+                  Status
+                </span>
+
+                <div class="partyText">
+                  ${escapePrintHtml(
+                    getStatusLabel(note.status),
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section class="tableWrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width:10%;">
+                      Type
+                    </th>
+
+                    <th style="width:10%;">
+                      Pieces
+                    </th>
+
+                    <th style="width:47%;">
+                      Description / Special Marks
+                    </th>
+
+                    <th style="width:15%;">
+                      Class
+                    </th>
+
+                    <th style="width:18%;">
+                      Weight
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr>
+                    <td>
+                      Freight
+                    </td>
+
+                    <td>
+                      ${quantity}
+                    </td>
+
+                    <td>
+                      ${escapePrintHtml(
+                        note.description,
+                      )}
+                    </td>
+
+                    <td>
+                      General
+                    </td>
+
+                    <td>
+                      ${weight}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="summaryRow">
+              <div class="summaryCell">
+                <span class="label">
+                  Total Pieces
+                </span>
+
+                <span class="value">
+                  ${quantity}
+                </span>
+              </div>
+
+              <div class="summaryCell">
+                <span class="label">
+                  Total Weight
+                </span>
+
+                <span class="value">
+                  ${weight}
+                </span>
+              </div>
+
+              <div class="summaryCell">
+                <span class="label">
+                  Delivery Date
+                </span>
+
+                <span class="value">
+                  ${escapePrintHtml(
+                    formatDate(note.delivery_date),
+                  )}
+                </span>
+              </div>
+            </section>
+
+            <section class="instructions">
+              <span class="label">
+                Special Instructions / Instructions spéciales
+              </span>
+
+              <div class="instructionsText">
+                ${escapePrintHtml(note.notes)}
+              </div>
+            </section>
+
+            <section class="signatures">
+              <div class="signature">
+                <span class="label">
+                  Shipper / Expéditeur
+                </span>
+
+                <div class="signatureLine"></div>
+
+                <div class="signatureMeta">
+                  <span>Signature</span>
+                  <span>Date</span>
+                </div>
+              </div>
+
+              <div class="signature">
+                <span class="label">
+                  Carrier / Transporteur
+                </span>
+
+                <div class="signatureLine"></div>
+
+                <div class="signatureMeta">
+                  <span>Signature</span>
+                  <span>Date</span>
+                </div>
+              </div>
+
+              <div class="signature">
+                <span class="label">
+                  Consignee / Destinataire
+                </span>
+
+                <div class="signatureLine"></div>
+
+                <div class="signatureMeta">
+                  <span>Signature</span>
+                  <span>Date</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="terms">
+              <h3>
+                Conditions de transport
+              </h3>
+
+              <p>
+                Ce document confirme les renseignements de transport
+                associés à la commande indiquée ci-dessus. Les marchandises,
+                quantités, poids, adresses et instructions doivent être
+                vérifiés par les parties avant l’acceptation. Les conditions
+                commerciales, responsabilités, assurances, limitations et
+                modalités applicables demeurent celles prévues par l’entente
+                de transport en vigueur entre les parties. Toute anomalie
+                apparente doit être signalée au moment de la prise en charge
+                ou de la livraison.
+              </p>
+            </section>
+
+            <footer class="footer">
+              <span>
+                glorysolutions.ca
+              </span>
+
+              <strong>
+                ${escapePrintHtml(bolNumber)}
+              </strong>
+
+              <span>
+                Glory Solutions • Transport & Logistique
+              </span>
+            </footer>
+          </main>
+
+          <script>
+            window.onload = function () {
+              setTimeout(function () {
+                window.print();
+              }, 450);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    openPrintWindow(
+      `Bill of Lading ${bolNumber}`,
+      html,
+      "width=1100,height=950",
+    );
   };
 
   return (
@@ -1384,6 +2170,18 @@ export default function DeliveryNotesPage() {
           color: #ff003c;
         }
 
+        .bolIconButton {
+          background: #17131d;
+          border-color: #17131d;
+          color: white;
+        }
+
+        .bolIconButton:hover {
+          background: #2b2430;
+          border-color: #2b2430;
+          color: white;
+        }
+
         .empty,
         .loading {
           min-height: 380px;
@@ -1516,6 +2314,24 @@ export default function DeliveryNotesPage() {
           color: white;
           font-weight: 700;
           cursor: pointer;
+        }
+
+        .secondaryPrintButton {
+          min-height: 42px;
+          padding: 0 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid #17131d;
+          border-radius: 10px;
+          background: #17131d;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .secondaryPrintButton:hover {
+          background: #2c2531;
         }
 
         @media (max-width: 850px) {
@@ -1821,6 +2637,21 @@ export default function DeliveryNotesPage() {
                                 size={17}
                               />
                             </button>
+
+                            <button
+                              type="button"
+                              className="iconButton bolIconButton"
+                              title="Imprimer le Bill of Lading"
+                              onClick={() =>
+                                printBillOfLading(
+                                  note,
+                                )
+                              }
+                            >
+                              <FileCheck2
+                                size={17}
+                              />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -2050,6 +2881,19 @@ export default function DeliveryNotesPage() {
               <div className="modalFooter">
                 <button
                   type="button"
+                  className="secondaryPrintButton"
+                  onClick={() =>
+                    printBillOfLading(
+                      selectedNote,
+                    )
+                  }
+                >
+                  <FileCheck2 size={17} />
+                  Imprimer le BOL
+                </button>
+
+                <button
+                  type="button"
                   className="printButton"
                   onClick={() =>
                     printDeliveryNote(
@@ -2058,7 +2902,7 @@ export default function DeliveryNotesPage() {
                   }
                 >
                   <Printer size={17} />
-                  Imprimer le bon
+                  Imprimer le bon 4×6
                 </button>
               </div>
             </div>
