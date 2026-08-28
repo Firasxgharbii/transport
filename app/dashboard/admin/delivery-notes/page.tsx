@@ -407,16 +407,23 @@ export default function DeliveryNotesPage() {
       note.delivery_postal_code,
     );
 
+    const reference = getOrderNumber(note);
+
+    const cleanReference = reference
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toUpperCase();
+
     const printWindow = window.open(
       "",
       "_blank",
-      "width=1000,height=800",
+      "width=650,height=900",
     );
 
     if (!printWindow) {
       setError(
         "Le navigateur a bloqué la fenêtre d’impression. Autorisez les fenêtres contextuelles.",
       );
+
       return;
     }
 
@@ -428,394 +435,682 @@ export default function DeliveryNotesPage() {
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
 
+    const quantity =
+      note.quantity !== null &&
+      note.quantity !== undefined
+        ? escapeHtml(note.quantity)
+        : "—";
+
+    const weight =
+      note.weight !== null &&
+      note.weight !== undefined
+        ? `${escapeHtml(note.weight)} kg`
+        : "—";
+
     printWindow.document.write(`
       <!DOCTYPE html>
+
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
 
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1"
+          />
+
           <title>
-            Bon de livraison ${escapeHtml(
-              getOrderNumber(note),
-            )}
+            Bon de livraison ${escapeHtml(reference)}
           </title>
 
           <style>
+            @page {
+              size: 4in 6in;
+              margin: 0;
+            }
+
             * {
               box-sizing: border-box;
             }
 
+            html,
             body {
+              width: 4in;
+              min-height: 6in;
+
               margin: 0;
-              padding: 40px;
-              font-family: Arial, Helvetica, sans-serif;
-              color: #15131b;
+              padding: 0;
+
+              font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
               background: #ffffff;
+              color: #090909;
             }
 
-            .document {
-              max-width: 900px;
-              margin: 0 auto;
-            }
-
-            .header {
+            body {
               display: flex;
-              justify-content: space-between;
-              gap: 30px;
-              padding-bottom: 25px;
-              border-bottom: 3px solid #ff003c;
-            }
-
-            .brand h1 {
-              margin: 0;
-              font-size: 28px;
-            }
-
-            .brand p {
-              margin: 5px 0 0;
-              color: #6d6878;
-            }
-
-            .title {
-              text-align: right;
-            }
-
-            .title h2 {
-              margin: 0;
-              color: #ff003c;
-              font-size: 25px;
-            }
-
-            .title p {
-              margin: 7px 0 0;
-            }
-
-            .grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 18px;
-              margin-top: 28px;
-            }
-
-            .card {
-              border: 1px solid #e8e5ec;
-              border-radius: 12px;
-              padding: 18px;
-            }
-
-            .card.full {
-              grid-column: 1 / -1;
-            }
-
-            .card h3 {
-              margin: 0 0 14px;
-              font-size: 14px;
-              color: #ff003c;
-              text-transform: uppercase;
-            }
-
-            .row {
-              margin: 9px 0;
-              line-height: 1.5;
+              justify-content: center;
             }
 
             .label {
-              display: block;
-              color: #77717f;
-              font-size: 12px;
-              margin-bottom: 3px;
+              width: 4in;
+              min-height: 6in;
+
+              display: flex;
+              flex-direction: column;
+
+              overflow: hidden;
+
+              border: 2px solid #000;
+              background: #fff;
             }
 
-            .value {
-              font-weight: 600;
+            .header {
+              display: grid;
+              grid-template-columns: 1fr auto;
+
+              align-items: center;
+
+              gap: 8px;
+
+              padding: 10px 11px;
+
+              border-bottom: 2px solid #000;
+            }
+
+            .brand {
+              display: flex;
+              flex-direction: column;
+            }
+
+            .brand-name {
+              font-size: 20px;
+              font-weight: 950;
+              line-height: 0.95;
+              letter-spacing: -0.03em;
+            }
+
+            .brand-name span {
+              display: block;
+              color: #dc143c;
+            }
+
+            .brand-subtitle {
+              margin-top: 5px;
+
+              font-size: 7px;
+              font-weight: 800;
+              letter-spacing: 0.12em;
+              text-transform: uppercase;
+            }
+
+            .service {
+              padding: 6px 8px;
+
+              border: 2px solid #000;
+
+              font-size: 9px;
+              font-weight: 900;
+
+              text-transform: uppercase;
+            }
+
+            .reference-block {
+              padding: 9px 11px;
+
+              border-bottom: 2px solid #000;
+            }
+
+            .reference-label {
+              margin-bottom: 4px;
+
+              font-size: 7px;
+              font-weight: 900;
+              letter-spacing: 0.11em;
+              text-transform: uppercase;
+            }
+
+            .reference-number {
+              font-size: 24px;
+              font-weight: 950;
+              line-height: 1;
+              letter-spacing: -0.04em;
+              word-break: break-word;
+            }
+
+            .route {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+
+              border-bottom: 2px solid #000;
+            }
+
+            .route-card {
+              min-height: 112px;
+
+              padding: 9px 10px;
+            }
+
+            .route-card:first-child {
+              border-right: 2px solid #000;
+            }
+
+            .route-title {
+              margin-bottom: 7px;
+
+              font-size: 8px;
+              font-weight: 950;
+
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+            }
+
+            .route-name {
+              margin-bottom: 5px;
+
+              font-size: 12px;
+              font-weight: 950;
+              line-height: 1.15;
+            }
+
+            .route-address {
+              font-size: 9px;
+              font-weight: 700;
+              line-height: 1.35;
+            }
+
+            .route-date {
+              margin-top: 8px;
+
+              font-size: 8px;
+              font-weight: 800;
+            }
+
+            .transport {
+              display: grid;
+              grid-template-columns: 1.1fr 1fr 0.75fr;
+
+              border-bottom: 2px solid #000;
+            }
+
+            .transport-item {
+              min-height: 59px;
+
+              padding: 7px 8px;
+
+              border-right: 1px solid #000;
+            }
+
+            .transport-item:last-child {
+              border-right: 0;
+            }
+
+            .mini-label {
+              display: block;
+
+              margin-bottom: 4px;
+
+              font-size: 6.5px;
+              font-weight: 900;
+
+              letter-spacing: 0.07em;
+              text-transform: uppercase;
+            }
+
+            .mini-value {
+              display: block;
+
+              font-size: 10px;
+              font-weight: 900;
+              line-height: 1.2;
+            }
+
+            .barcode-zone {
+              padding: 8px 10px 9px;
+
+              border-bottom: 2px solid #000;
+
+              text-align: center;
+            }
+
+            .barcode {
+              width: 100%;
+              height: 46px;
+
+              display: flex;
+              align-items: stretch;
+              justify-content: center;
+
+              gap: 2px;
+
+              overflow: hidden;
+            }
+
+            .barcode span {
+              display: block;
+
+              height: 100%;
+
+              background: #000;
+            }
+
+            .b1 {
+              width: 2px;
+            }
+
+            .b2 {
+              width: 4px;
+            }
+
+            .b3 {
+              width: 6px;
+            }
+
+            .barcode-text {
+              margin-top: 5px;
+
+              font-size: 8px;
+              font-weight: 900;
+
+              letter-spacing: 0.19em;
+              word-break: break-all;
+            }
+
+            .details {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+
+              border-bottom: 2px solid #000;
+            }
+
+            .detail {
+              padding: 7px 9px;
+
+              border-right: 1px solid #000;
+            }
+
+            .detail:last-child {
+              border-right: 0;
+            }
+
+            .detail strong {
+              display: block;
+
+              margin-top: 3px;
+
+              font-size: 9px;
+              line-height: 1.25;
+            }
+
+            .proof {
+              padding: 9px 10px 10px;
+
+              flex: 1;
+            }
+
+            .proof-title {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+
+              margin-bottom: 9px;
+            }
+
+            .proof-title strong {
+              font-size: 10px;
+              font-weight: 950;
+
+              text-transform: uppercase;
+            }
+
+            .proof-title span {
+              font-size: 6px;
+              font-weight: 800;
+
+              letter-spacing: 0.08em;
+              text-transform: uppercase;
+            }
+
+            .proof-row {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+
+              gap: 9px;
+
+              margin-bottom: 9px;
+            }
+
+            .field {
+              min-height: 29px;
+
+              padding-top: 4px;
+
+              border-bottom: 1px solid #000;
+            }
+
+            .field-label {
+              font-size: 6px;
+              font-weight: 900;
+
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
+            }
+
+            .signature-box {
+              height: 51px;
+
+              margin-top: 4px;
+
+              border: 1px solid #000;
+            }
+
+            .notes-box {
+              height: 37px;
+
+              margin-top: 4px;
+
+              border: 1px solid #000;
             }
 
             .footer {
-              margin-top: 45px;
-              padding-top: 18px;
-              border-top: 1px solid #e8e5ec;
-              color: #77717f;
-              font-size: 12px;
-              text-align: center;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+
+              gap: 8px;
+
+              padding: 6px 9px;
+
+              border-top: 2px solid #000;
+
+              font-size: 6px;
+              font-weight: 800;
+
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
             }
 
-            .signatures {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 70px;
-              margin-top: 60px;
-            }
-
-            .signature {
-              padding-top: 10px;
-              border-top: 1px solid #333;
-              text-align: center;
-              font-size: 12px;
+            .footer strong {
+              color: #dc143c;
             }
 
             @media print {
+              html,
               body {
-                padding: 0;
+                width: 4in;
+                height: 6in;
               }
 
-              .document {
-                max-width: none;
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
               }
             }
           </style>
         </head>
 
         <body>
-          <div class="document">
-
-            <div class="header">
+          <main class="label">
+            <section class="header">
               <div class="brand">
-                <h1>Glory Solutions</h1>
-                <p>Transport & logistique</p>
+                <div class="brand-name">
+                  GLORY
+                  <span>SOLUTIONS</span>
+                </div>
+
+                <div class="brand-subtitle">
+                  Transport & logistique
+                </div>
               </div>
 
-              <div class="title">
-                <h2>BON DE LIVRAISON</h2>
-                <p>
+              <div class="service">
+                Livraison
+              </div>
+            </section>
+
+            <section class="reference-block">
+              <div class="reference-label">
+                Numéro de bon
+              </div>
+
+              <div class="reference-number">
+                ${escapeHtml(reference)}
+              </div>
+            </section>
+
+            <section class="route">
+              <div class="route-card">
+                <div class="route-title">
+                  Ramassage
+                </div>
+
+                <div class="route-name">
+                  Glory Solutions
+                </div>
+
+                <div class="route-address">
+                  ${escapeHtml(pickupAddress)}
+                </div>
+
+                <div class="route-date">
                   ${escapeHtml(
-                    getOrderNumber(note),
+                    formatDate(note.pickup_date),
                   )}
-                </p>
-              </div>
-            </div>
-
-            <div class="grid">
-
-              <div class="card">
-                <h3>Client</h3>
-
-                <div class="row">
-                  <span class="label">
-                    Nom / entreprise
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      getClientName(note),
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Courriel
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      note.client_email,
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Téléphone
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      note.client_phone,
-                    )}
-                  </span>
                 </div>
               </div>
 
-              <div class="card">
-                <h3>Transport</h3>
-
-                <div class="row">
-                  <span class="label">
-                    Chauffeur
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      getDriverName(note),
-                    )}
-                  </span>
+              <div class="route-card">
+                <div class="route-title">
+                  Livraison
                 </div>
 
-                <div class="row">
-                  <span class="label">
-                    Véhicule
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      note.vehicle_name,
-                    )}
-                  </span>
+                <div class="route-name">
+                  ${escapeHtml(
+                    getClientName(note),
+                  )}
                 </div>
 
-                <div class="row">
-                  <span class="label">
-                    Plaque
-                  </span>
+                <div class="route-address">
+                  ${escapeHtml(deliveryAddress)}
+                </div>
 
-                  <span class="value">
-                    ${escapeHtml(
-                      note.vehicle_plate,
-                    )}
-                  </span>
+                <div class="route-date">
+                  ${escapeHtml(
+                    formatDate(
+                      note.delivery_date ||
+                        note.created_at,
+                    ),
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section class="transport">
+              <div class="transport-item">
+                <span class="mini-label">
+                  Chauffeur
+                </span>
+
+                <span class="mini-value">
+                  ${escapeHtml(
+                    getDriverName(note),
+                  )}
+                </span>
+              </div>
+
+              <div class="transport-item">
+                <span class="mini-label">
+                  Véhicule
+                </span>
+
+                <span class="mini-value">
+                  ${escapeHtml(
+                    note.vehicle_name,
+                  )}
+                </span>
+
+                <span
+                  class="mini-label"
+                  style="margin-top:4px;"
+                >
+                  Plaque
+                </span>
+
+                <span class="mini-value">
+                  ${escapeHtml(
+                    note.vehicle_plate,
+                  )}
+                </span>
+              </div>
+
+              <div class="transport-item">
+                <span class="mini-label">
+                  Colis
+                </span>
+
+                <span class="mini-value">
+                  ${quantity}
+                </span>
+
+                <span
+                  class="mini-label"
+                  style="margin-top:4px;"
+                >
+                  Poids
+                </span>
+
+                <span class="mini-value">
+                  ${weight}
+                </span>
+              </div>
+            </section>
+
+            <section class="barcode-zone">
+              <div class="barcode">
+                <span class="b2"></span>
+                <span class="b1"></span>
+                <span class="b3"></span>
+                <span class="b1"></span>
+                <span class="b2"></span>
+                <span class="b3"></span>
+                <span class="b1"></span>
+                <span class="b1"></span>
+                <span class="b3"></span>
+                <span class="b2"></span>
+                <span class="b1"></span>
+                <span class="b3"></span>
+                <span class="b2"></span>
+                <span class="b1"></span>
+                <span class="b1"></span>
+                <span class="b3"></span>
+                <span class="b2"></span>
+                <span class="b3"></span>
+                <span class="b1"></span>
+                <span class="b2"></span>
+                <span class="b1"></span>
+                <span class="b3"></span>
+                <span class="b2"></span>
+                <span class="b1"></span>
+                <span class="b3"></span>
+                <span class="b1"></span>
+                <span class="b2"></span>
+              </div>
+
+              <div class="barcode-text">
+                ${escapeHtml(cleanReference)}
+              </div>
+            </section>
+
+            <section class="details">
+              <div class="detail">
+                <span class="mini-label">
+                  Description
+                </span>
+
+                <strong>
+                  ${escapeHtml(
+                    note.description,
+                  )}
+                </strong>
+              </div>
+
+              <div class="detail">
+                <span class="mini-label">
+                  Statut
+                </span>
+
+                <strong>
+                  ${escapeHtml(
+                    getStatusLabel(note.status),
+                  )}
+                </strong>
+              </div>
+            </section>
+
+            <section class="proof">
+              <div class="proof-title">
+                <strong>
+                  Preuve de livraison
+                </strong>
+
+                <span>
+                  À compléter à la réception
+                </span>
+              </div>
+
+              <div class="proof-row">
+                <div class="field">
+                  <div class="field-label">
+                    Reçu par
+                  </div>
+                </div>
+
+                <div class="field">
+                  <div class="field-label">
+                    Date / heure
+                  </div>
                 </div>
               </div>
 
-              <div class="card">
-                <h3>Ramassage</h3>
-
-                <div class="row">
-                  <span class="label">
-                    Adresse
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      pickupAddress,
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Date
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      formatDate(
-                        note.pickup_date,
-                      ),
-                    )}
-                  </span>
-                </div>
+              <div class="field-label">
+                Signature du destinataire
               </div>
 
-              <div class="card">
-                <h3>Livraison</h3>
+              <div class="signature-box"></div>
 
-                <div class="row">
-                  <span class="label">
-                    Adresse
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      deliveryAddress,
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Date
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      formatDate(
-                        note.delivery_date,
-                      ),
-                    )}
-                  </span>
-                </div>
+              <div
+                class="field-label"
+                style="margin-top:8px;"
+              >
+                Observations
               </div>
 
-              <div class="card full">
-                <h3>Détails de la livraison</h3>
+              <div class="notes-box"></div>
+            </section>
 
-                <div class="row">
-                  <span class="label">
-                    Description
-                  </span>
+            <footer class="footer">
+              <span>
+                glorysolutions.ca
+              </span>
 
-                  <span class="value">
-                    ${escapeHtml(
-                      note.description,
-                    )}
-                  </span>
-                </div>
+              <strong>
+                ${escapeHtml(reference)}
+              </strong>
 
-                <div class="row">
-                  <span class="label">
-                    Quantité
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      note.quantity,
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Poids
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      note.weight,
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Notes
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      note.notes,
-                    )}
-                  </span>
-                </div>
-
-                <div class="row">
-                  <span class="label">
-                    Statut
-                  </span>
-
-                  <span class="value">
-                    ${escapeHtml(
-                      getStatusLabel(
-                        note.status,
-                      ),
-                    )}
-                  </span>
-                </div>
-              </div>
-
-            </div>
-
-            <div class="signatures">
-              <div class="signature">
-                Signature du chauffeur
-              </div>
-
-              <div class="signature">
-                Signature du client
-              </div>
-            </div>
-
-            <div class="footer">
-              Glory Solutions — Bon de livraison
-              ${escapeHtml(
-                getOrderNumber(note),
-              )}
-            </div>
-
-          </div>
+              <span>
+                Document logistique
+              </span>
+            </footer>
+          </main>
 
           <script>
             window.onload = function () {
-              window.print();
+              setTimeout(function () {
+                window.print();
+              }, 300);
             };
           </script>
         </body>
