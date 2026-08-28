@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const http = require("http");
 const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
 
 /* ============================================================
    VARIABLES D'ENVIRONNEMENT
@@ -58,6 +59,14 @@ const contactRoutes = require(
 
 const quoteRoutes = require(
   "./routes/quoteRoutes"
+);
+
+const notificationRoutes = require(
+  "./routes/notificationRoutes"
+);
+
+const NotificationModel = require(
+  "./models/notificationModel"
 );
 
 /* ============================================================
@@ -336,6 +345,15 @@ app.use(
   quoteRoutes
 );
 
+/* ------------------------------------------------------------
+   NOTIFICATIONS
+------------------------------------------------------------ */
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
+
 /* ============================================================
    ROUTE PRINCIPALE
 ============================================================ */
@@ -390,6 +408,7 @@ app.get(
           database: true,
           socketIO: true,
           tracking: true,
+          notifications: true,
         },
 
         timestamp:
@@ -548,6 +567,85 @@ app.get(
 );
 
 /* ============================================================
+   SOCKET.IO — AUTHENTIFICATION DES NOTIFICATIONS
+
+   Le frontend doit envoyer :
+   io(API_URL, {
+     auth: { token }
+   })
+
+   Les anciennes fonctions tracking restent compatibles.
+============================================================ */
+
+io.use((socket, next) => {
+  try {
+    const rawToken =
+      socket.handshake?.auth?.token ||
+      socket.handshake?.headers?.authorization ||
+      "";
+
+    const token = String(rawToken).replace(
+      /^Bearer\s+/i,
+      "",
+    );
+
+    if (!token) {
+      /*
+       * On autorise encore la connexion pour ne pas casser
+       * le tracking existant. Les rooms privées de notifications
+       * ne seront simplement pas rejointes.
+       */
+      socket.user = null;
+      return next();
+    }
+
+    if (!process.env.JWT_SECRET) {
+      console.warn(
+        "⚠️ JWT_SECRET absent : authentification Socket.IO ignorée.",
+      );
+      socket.user = null;
+      return next();
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET,
+    );
+
+    socket.user = {
+      id:
+        decoded.id ||
+        decoded.user_id ||
+        decoded.sub ||
+        null,
+
+      role:
+        decoded.role ||
+        decoded.role_name ||
+        null,
+
+      email:
+        decoded.email ||
+        null,
+    };
+
+    return next();
+  } catch (error) {
+    console.warn(
+      "⚠️ Token Socket.IO invalide :",
+      error.message,
+    );
+
+    /*
+     * On n'interrompt pas la connexion afin de préserver
+     * le tracking GPS existant.
+     */
+    socket.user = null;
+    return next();
+  }
+});
+
+/* ============================================================
    SOCKET.IO — TRACKING TEMPS RÉEL
 ============================================================ */
 
@@ -556,6 +654,47 @@ io.on(
   (socket) => {
     console.log(
       `🟢 Socket.IO connecté : ${socket.id}`
+    );
+
+
+    /* ========================================================
+       NOTIFICATIONS PRIVÉES
+    ======================================================== */
+
+    if (socket.user?.id) {
+      socket.join(
+        `user:${Number(socket.user.id)}`,
+      );
+    }
+
+    if (socket.user?.role) {
+      socket.join(
+        `role:${String(socket.user.role)}`,
+      );
+    }
+
+    if (
+      socket.user?.role === "super_admin" ||
+      socket.user?.role === "dispatcher"
+    ) {
+      socket.join(
+        "notifications:admin",
+      );
+    }
+
+    socket.emit(
+      "notifications:ready",
+      {
+        success: true,
+        authenticated:
+          Boolean(socket.user?.id),
+
+        userId:
+          socket.user?.id || null,
+
+        role:
+          socket.user?.role || null,
+      },
     );
 
     /* ========================================================
@@ -1334,6 +1473,21 @@ const startServer =
       process.exit(1);
     }
 
+    try {
+      await NotificationModel.ensureTable();
+
+      console.log(
+        "✅ Table notifications prête.",
+      );
+    } catch (error) {
+      console.error(
+        "❌ Initialisation notifications :",
+        error.message,
+      );
+
+      process.exit(1);
+    }
+
     /*
      * Une erreur SMTP ne doit pas empêcher
      * le backend de démarrer.
@@ -1413,6 +1567,10 @@ const startServer =
 
         console.log(
           `📡 Socket.IO : activé`
+        );
+
+        console.log(
+          `🔔 Notifications : http://localhost:${PORT}/api/notifications`
         );
 
         console.log(
