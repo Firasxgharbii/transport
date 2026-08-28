@@ -1,5 +1,10 @@
 const DriverModel = require("../models/driverModel");
 
+const {
+  notifyAdmin,
+  notifyUser,
+} = require("../services/notificationService");
+
 /* =====================================================
    UTILITAIRES
 ===================================================== */
@@ -30,6 +35,72 @@ function parseVehicleId(value) {
   return vehicleId;
 }
 
+function cleanText(value) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "";
+  }
+
+  return String(value).trim();
+}
+
+function getDriverDisplayName(driver) {
+  if (!driver) {
+    return "Chauffeur";
+  }
+
+  const fullName = [
+    driver.first_name,
+    driver.last_name,
+  ]
+    .map(cleanText)
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    fullName ||
+    cleanText(driver.name) ||
+    cleanText(driver.full_name) ||
+    cleanText(driver.email) ||
+    `Chauffeur #${driver.id || ""}`.trim()
+  );
+}
+
+function getVehicleDisplayName(vehicle) {
+  if (!vehicle) {
+    return "Véhicule";
+  }
+
+  return (
+    cleanText(vehicle.name) ||
+    cleanText(vehicle.vehicle_name) ||
+    cleanText(vehicle.make_model) ||
+    [
+      cleanText(vehicle.make),
+      cleanText(vehicle.model),
+    ]
+      .filter(Boolean)
+      .join(" ") ||
+    `Véhicule #${vehicle.id || ""}`.trim()
+  );
+}
+
+async function safelyNotify(
+  callback,
+  context,
+) {
+  try {
+    await callback();
+  } catch (error) {
+    console.error(
+      `Erreur notification ${context} :`,
+      error,
+    );
+  }
+}
+
 /* =====================================================
    GET ALL DRIVERS
 ===================================================== */
@@ -50,7 +121,7 @@ exports.getDrivers = async (req, res) => {
   } catch (error) {
     console.error(
       "Erreur getDrivers :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -69,12 +140,12 @@ exports.getDrivers = async (req, res) => {
 
 exports.getCurrentDriver = async (
   req,
-  res
+  res,
 ) => {
   try {
     const userId = Number(
       req.user?.id ||
-      req.user?.user_id
+        req.user?.user_id,
     );
 
     if (
@@ -90,7 +161,7 @@ exports.getCurrentDriver = async (
 
     const driver =
       await DriverModel.getDriverByUserId(
-        userId
+        userId,
       );
 
     if (!driver) {
@@ -111,7 +182,7 @@ exports.getCurrentDriver = async (
   } catch (error) {
     console.error(
       "Erreur getCurrentDriver :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -142,7 +213,7 @@ exports.getDriver = async (req, res) => {
 
     const driver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!driver) {
@@ -163,7 +234,7 @@ exports.getDriver = async (req, res) => {
   } catch (error) {
     console.error(
       "Erreur getDriver :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -181,7 +252,7 @@ exports.getDriver = async (req, res) => {
 
 exports.createDriver = async (
   req,
-  res
+  res,
 ) => {
   try {
     const {
@@ -219,7 +290,7 @@ exports.createDriver = async (
 
     const user =
       await DriverModel.checkUserIsDriver(
-        userId
+        userId,
       );
 
     if (!user) {
@@ -240,7 +311,7 @@ exports.createDriver = async (
 
     const existingDriver =
       await DriverModel.checkDriverExistsForUser(
-        userId
+        userId,
       );
 
     if (existingDriver) {
@@ -260,7 +331,7 @@ exports.createDriver = async (
 
     const normalizedAvailabilityStatus =
       allowedAvailabilityStatuses.includes(
-        availability_status
+        availability_status,
       )
         ? availability_status
         : "offline";
@@ -307,8 +378,83 @@ exports.createDriver = async (
 
     const driver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
+
+    const io =
+      req.app.get("io");
+
+    const driverName =
+      getDriverDisplayName(
+        driver,
+      );
+
+    await safelyNotify(
+      () =>
+        notifyAdmin({
+          io,
+
+          type:
+            "driver_created",
+
+          level:
+            "success",
+
+          title:
+            "Nouveau chauffeur créé",
+
+          message:
+            `${driverName} a été ajouté aux chauffeurs Glory Solutions.`,
+
+          entityType:
+            "driver",
+
+          entityId:
+            driverId,
+
+          actionUrl:
+            `/dashboard/admin/drivers/${driverId}`,
+
+          email:
+            true,
+        }),
+      "création chauffeur → admin",
+    );
+
+    await safelyNotify(
+      () =>
+        notifyUser(
+          userId,
+          {
+            io,
+
+            type:
+              "driver_account_created",
+
+            level:
+              "success",
+
+            title:
+              "Votre profil chauffeur est prêt",
+
+            message:
+              "Votre profil chauffeur Glory Solutions a été créé avec succès.",
+
+            entityType:
+              "driver",
+
+            entityId:
+              driverId,
+
+            actionUrl:
+              "/dashboard/driver",
+
+            email:
+              true,
+          },
+        ),
+      "création chauffeur → chauffeur",
+    );
 
     return res.status(201).json({
       success: true,
@@ -320,7 +466,7 @@ exports.createDriver = async (
   } catch (error) {
     console.error(
       "Erreur createDriver :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -338,7 +484,7 @@ exports.createDriver = async (
 
 exports.updateDriver = async (
   req,
-  res
+  res,
 ) => {
   try {
     const driverId =
@@ -354,7 +500,7 @@ exports.updateDriver = async (
 
     const existingDriver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!existingDriver) {
@@ -379,7 +525,7 @@ exports.updateDriver = async (
     if (
       updateData.availability_status &&
       !allowedAvailabilityStatuses.includes(
-        updateData.availability_status
+        updateData.availability_status,
       )
     ) {
       return res.status(400).json({
@@ -401,7 +547,7 @@ exports.updateDriver = async (
     const result =
       await DriverModel.updateDriver(
         driverId,
-        updateData
+        updateData,
       );
 
     if (result.affectedRows === 0) {
@@ -414,20 +560,132 @@ exports.updateDriver = async (
 
     const updatedDriver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
+
+    const io =
+      req.app.get("io");
+
+    const driverName =
+      getDriverDisplayName(
+        updatedDriver,
+      );
+
+    const oldStatus =
+      cleanText(
+        existingDriver.availability_status,
+      );
+
+    const newStatus =
+      cleanText(
+        updatedDriver?.availability_status,
+      );
+
+    const statusChanged =
+      oldStatus &&
+      newStatus &&
+      oldStatus !== newStatus;
+
+    await safelyNotify(
+      () =>
+        notifyAdmin({
+          io,
+
+          type:
+            statusChanged
+              ? "driver_status_changed"
+              : "driver_updated",
+
+          level:
+            statusChanged
+              ? "info"
+              : "success",
+
+          title:
+            statusChanged
+              ? "Statut chauffeur modifié"
+              : "Chauffeur modifié",
+
+          message:
+            statusChanged
+              ? `${driverName} est passé de "${oldStatus}" à "${newStatus}".`
+              : `Le profil de ${driverName} a été mis à jour.`,
+
+          entityType:
+            "driver",
+
+          entityId:
+            driverId,
+
+          actionUrl:
+            `/dashboard/admin/drivers/${driverId}`,
+
+          email:
+            true,
+        }),
+      "mise à jour chauffeur → admin",
+    );
+
+    if (
+      updatedDriver?.user_id
+    ) {
+      await safelyNotify(
+        () =>
+          notifyUser(
+            Number(
+              updatedDriver.user_id,
+            ),
+            {
+              io,
+
+              type:
+                statusChanged
+                  ? "driver_status_changed"
+                  : "driver_profile_updated",
+
+              level:
+                "info",
+
+              title:
+                statusChanged
+                  ? "Votre disponibilité a changé"
+                  : "Votre profil a été mis à jour",
+
+              message:
+                statusChanged
+                  ? `Votre statut est maintenant "${newStatus}".`
+                  : "Votre profil chauffeur Glory Solutions a été mis à jour.",
+
+              entityType:
+                "driver",
+
+              entityId:
+                driverId,
+
+              actionUrl:
+                "/dashboard/driver",
+
+              email:
+                true,
+            },
+          ),
+        "mise à jour chauffeur → chauffeur",
+      );
+    }
 
     return res.status(200).json({
       success: true,
       message:
         "Chauffeur modifié avec succès.",
-      driver: updatedDriver,
-      data: updatedDriver,
+      driver:
+        updatedDriver,
+      data:
+        updatedDriver,
     });
   } catch (error) {
     console.error(
       "Erreur updateDriver :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -445,7 +703,7 @@ exports.updateDriver = async (
 
 exports.deleteDriver = async (
   req,
-  res
+  res,
 ) => {
   try {
     const driverId =
@@ -461,7 +719,7 @@ exports.deleteDriver = async (
 
     const existingDriver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!existingDriver) {
@@ -474,16 +732,58 @@ exports.deleteDriver = async (
 
     const result =
       await DriverModel.deleteDriver(
-        driverId
+        driverId,
       );
 
-    if (result.affectedRows === 0) {
+    if (
+      result.affectedRows === 0
+    ) {
       return res.status(404).json({
         success: false,
         message:
           "Chauffeur introuvable.",
       });
     }
+
+    const io =
+      req.app.get("io");
+
+    const driverName =
+      getDriverDisplayName(
+        existingDriver,
+      );
+
+    await safelyNotify(
+      () =>
+        notifyAdmin({
+          io,
+
+          type:
+            "driver_deleted",
+
+          level:
+            "warning",
+
+          title:
+            "Chauffeur supprimé",
+
+          message:
+            `${driverName} a été supprimé de la liste des chauffeurs.`,
+
+          entityType:
+            "driver",
+
+          entityId:
+            driverId,
+
+          actionUrl:
+            "/dashboard/admin/drivers",
+
+          email:
+            true,
+        }),
+      "suppression chauffeur → admin",
+    );
 
     return res.status(200).json({
       success: true,
@@ -493,7 +793,7 @@ exports.deleteDriver = async (
   } catch (error) {
     console.error(
       "Erreur deleteDriver :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -511,7 +811,7 @@ exports.deleteDriver = async (
 
 exports.getDriverVehicle = async (
   req,
-  res
+  res,
 ) => {
   try {
     const driverId =
@@ -527,7 +827,7 @@ exports.getDriverVehicle = async (
 
     const driver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!driver) {
@@ -540,7 +840,7 @@ exports.getDriverVehicle = async (
 
     const vehicle =
       await DriverModel.getDriverVehicle(
-        driverId
+        driverId,
       );
 
     return res.status(200).json({
@@ -551,7 +851,7 @@ exports.getDriverVehicle = async (
   } catch (error) {
     console.error(
       "Erreur getDriverVehicle :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -569,7 +869,7 @@ exports.getDriverVehicle = async (
 
 exports.assignVehicle = async (
   req,
-  res
+  res,
 ) => {
   try {
     const driverId =
@@ -577,7 +877,7 @@ exports.assignVehicle = async (
 
     const vehicleId =
       parseVehicleId(
-        req.body.vehicle_id
+        req.body.vehicle_id,
       );
 
     if (!driverId) {
@@ -598,7 +898,7 @@ exports.assignVehicle = async (
 
     const driver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!driver) {
@@ -612,10 +912,12 @@ exports.assignVehicle = async (
     const result =
       await DriverModel.assignVehicle(
         driverId,
-        vehicleId
+        vehicleId,
       );
 
-    if (result.affectedRows === 0) {
+    if (
+      result.affectedRows === 0
+    ) {
       return res.status(404).json({
         success: false,
         message:
@@ -625,20 +927,107 @@ exports.assignVehicle = async (
 
     const vehicle =
       await DriverModel.getDriverVehicle(
-        driverId
+        driverId,
       );
+
+    const io =
+      req.app.get("io");
+
+    const driverName =
+      getDriverDisplayName(
+        driver,
+      );
+
+    const vehicleName =
+      getVehicleDisplayName(
+        vehicle,
+      );
+
+    await safelyNotify(
+      () =>
+        notifyAdmin({
+          io,
+
+          type:
+            "driver_vehicle_assigned",
+
+          level:
+            "success",
+
+          title:
+            "Véhicule assigné",
+
+          message:
+            `${vehicleName} a été assigné à ${driverName}.`,
+
+          entityType:
+            "driver",
+
+          entityId:
+            driverId,
+
+          actionUrl:
+            `/dashboard/admin/drivers/${driverId}`,
+
+          email:
+            true,
+        }),
+      "assignation véhicule → admin",
+    );
+
+    if (
+      driver?.user_id
+    ) {
+      await safelyNotify(
+        () =>
+          notifyUser(
+            Number(
+              driver.user_id,
+            ),
+            {
+              io,
+
+              type:
+                "vehicle_assigned",
+
+              level:
+                "success",
+
+              title:
+                "Un véhicule vous a été assigné",
+
+              message:
+                `${vehicleName} vous a été assigné.`,
+
+              entityType:
+                "driver",
+
+              entityId:
+                driverId,
+
+              actionUrl:
+                "/dashboard/driver",
+
+              email:
+                true,
+            },
+          ),
+        "assignation véhicule → chauffeur",
+      );
+    }
 
     return res.status(200).json({
       success: true,
       message:
         "Véhicule assigné au chauffeur avec succès.",
       vehicle,
-      data: vehicle,
+      data:
+        vehicle,
     });
   } catch (error) {
     console.error(
       "Erreur assignVehicle :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -656,7 +1045,7 @@ exports.assignVehicle = async (
 
 exports.unassignVehicle = async (
   req,
-  res
+  res,
 ) => {
   try {
     const driverId =
@@ -672,7 +1061,7 @@ exports.unassignVehicle = async (
 
     const driver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!driver) {
@@ -683,9 +1072,100 @@ exports.unassignVehicle = async (
       });
     }
 
+    const previousVehicle =
+      await DriverModel.getDriverVehicle(
+        driverId,
+      );
+
     await DriverModel.unassignVehicle(
-      driverId
+      driverId,
     );
+
+    const io =
+      req.app.get("io");
+
+    const driverName =
+      getDriverDisplayName(
+        driver,
+      );
+
+    const vehicleName =
+      getVehicleDisplayName(
+        previousVehicle,
+      );
+
+    await safelyNotify(
+      () =>
+        notifyAdmin({
+          io,
+
+          type:
+            "driver_vehicle_unassigned",
+
+          level:
+            "warning",
+
+          title:
+            "Véhicule désassigné",
+
+          message:
+            `${vehicleName} a été retiré de ${driverName}.`,
+
+          entityType:
+            "driver",
+
+          entityId:
+            driverId,
+
+          actionUrl:
+            `/dashboard/admin/drivers/${driverId}`,
+
+          email:
+            true,
+        }),
+      "désassignation véhicule → admin",
+    );
+
+    if (
+      driver?.user_id
+    ) {
+      await safelyNotify(
+        () =>
+          notifyUser(
+            Number(
+              driver.user_id,
+            ),
+            {
+              io,
+
+              type:
+                "vehicle_unassigned",
+
+              level:
+                "warning",
+
+              title:
+                "Votre véhicule a été désassigné",
+
+              message:
+                `${vehicleName} n’est plus assigné à votre profil chauffeur.`,
+
+              entityType:
+                "driver",
+
+              entityId:
+                driverId,
+
+              actionUrl:
+                "/dashboard/driver",
+
+              email:
+                true,
+            },
+          ),
+        "désassignation véhicule → chauffeur",
+      );
+    }
 
     return res.status(200).json({
       success: true,
@@ -695,7 +1175,7 @@ exports.unassignVehicle = async (
   } catch (error) {
     console.error(
       "Erreur unassignVehicle :",
-      error
+      error,
     );
 
     return res.status(500).json({
@@ -713,7 +1193,7 @@ exports.unassignVehicle = async (
 
 exports.getDriverOrders = async (
   req,
-  res
+  res,
 ) => {
   try {
     const driverId =
@@ -729,7 +1209,7 @@ exports.getDriverOrders = async (
 
     const driver =
       await DriverModel.getDriverById(
-        driverId
+        driverId,
       );
 
     if (!driver) {
@@ -742,19 +1222,21 @@ exports.getDriverOrders = async (
 
     const orders =
       await DriverModel.getDriverOrders(
-        driverId
+        driverId,
       );
 
     return res.status(200).json({
       success: true,
-      count: orders.length,
+      count:
+        orders.length,
       orders,
-      data: orders,
+      data:
+        orders,
     });
   } catch (error) {
     console.error(
       "Erreur getDriverOrders :",
-      error
+      error,
     );
 
     return res.status(500).json({
