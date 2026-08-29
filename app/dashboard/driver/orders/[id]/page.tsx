@@ -4,27 +4,39 @@ import {
   AlertTriangle,
   ArrowLeft,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronRight,
   Clock3,
+  FileCheck2,
   Loader2,
   MapPin,
   Navigation,
   PackageCheck,
   Phone,
   RefreshCw,
+  ShieldAlert,
   Truck,
   User,
+  Wifi,
+  WifiOff,
+  X,
 } from "lucide-react";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
 
 import styles from "./order-details.module.css";
-
-/* ============================================================
-   CONFIGURATION
-============================================================ */
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -62,15 +74,50 @@ type Order = {
   vehicle_model?: string;
   vehicle_name?: string;
   vehicle_plate?: string;
+
+  incident_reason?: string | null;
+  cancellation_reason?: string | null;
 };
+
+type Position = {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+};
+
+type GpsState =
+  | "loading"
+  | "active"
+  | "permission"
+  | "denied"
+  | "error"
+  | "unsupported";
+
+type NextAction = {
+  status: string;
+  label: string;
+  description: string;
+} | null;
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function statusLabel(
-  status?: string,
-) {
+function getToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return (
+    localStorage.getItem("glory_token") ||
+    localStorage.getItem("token") ||
+    ""
+  );
+}
+
+function statusLabel(status?: string) {
   switch (status) {
     case "pending":
       return "En attente";
@@ -100,24 +147,37 @@ function statusLabel(
       return "Incident";
 
     default:
-      return (
-        status ||
-        "En attente"
-      );
+      return status || "En attente";
   }
 }
 
-function formatDate(
-  value?: string | null,
-) {
+function statusClass(status?: string) {
+  switch (status) {
+    case "completed":
+      return styles.statusCompleted;
+
+    case "incident":
+    case "cancelled":
+      return styles.statusIncident;
+
+    case "pickup_in_progress":
+    case "picked_up":
+    case "delivery_in_progress":
+    case "arrived":
+      return styles.statusProgress;
+
+    default:
+      return styles.statusAssigned;
+  }
+}
+
+function formatDate(value?: string | null) {
   if (!value) {
     return "Non définie";
   }
 
   const date =
-    new Date(
-      `${value}T12:00:00`,
-    );
+    new Date(`${value}T12:00:00`);
 
   if (
     Number.isNaN(
@@ -137,25 +197,16 @@ function formatDate(
   ).format(date);
 }
 
-function formatTime(
-  value?: string | null,
-) {
+function formatTime(value?: string | null) {
   if (!value) {
     return "—";
   }
 
-  return value.slice(
-    0,
-    5,
-  );
+  return value.slice(0, 5);
 }
 
-function clientName(
-  order: Order,
-) {
-  if (
-    order.company_name
-  ) {
+function clientName(order: Order) {
+  if (order.company_name) {
     return order.company_name;
   }
 
@@ -166,19 +217,12 @@ function clientName(
     .filter(Boolean)
     .join(" ");
 
-  return (
-    name ||
-    "Client"
-  );
+  return name || "Client";
 }
-
-/* ============================================================
-   PROCHAIN STATUT
-============================================================ */
 
 function getNextAction(
   status?: string,
-) {
+): NextAction {
   switch (status) {
     case "pending":
     case "assigned":
@@ -190,7 +234,7 @@ function getNextAction(
           "Commencer le ramassage",
 
         description:
-          "Je pars vers le point de ramassage",
+          "Confirmer que vous partez vers le point de ramassage.",
       };
 
     case "pickup_in_progress":
@@ -199,10 +243,10 @@ function getNextAction(
           "picked_up",
 
         label:
-          "Colis ramassé",
+          "Confirmer le ramassage",
 
         description:
-          "Confirmer que la marchandise est chargée",
+          "Confirmer que la marchandise est chargée dans le véhicule.",
       };
 
     case "picked_up":
@@ -214,7 +258,7 @@ function getNextAction(
           "Commencer la livraison",
 
         description:
-          "Je pars vers l'adresse de livraison",
+          "Confirmer votre départ vers l'adresse de livraison.",
       };
 
     case "delivery_in_progress":
@@ -226,7 +270,7 @@ function getNextAction(
           "Je suis arrivé",
 
         description:
-          "Confirmer l'arrivée chez le client",
+          "Confirmer votre arrivée à destination.",
       };
 
     case "arrived":
@@ -238,7 +282,7 @@ function getNextAction(
           "Terminer la livraison",
 
         description:
-          "Confirmer que la livraison est terminée",
+          "Confirmer que la livraison a été effectuée.",
       };
 
     default:
@@ -258,9 +302,10 @@ export default function DriverOrderDetailsPage() {
     useParams();
 
   const orderId =
-    String(
-      params.id || "",
-    );
+    String(params.id || "");
+
+  const watchIdRef =
+    useRef<number | null>(null);
 
   const [
     order,
@@ -285,9 +330,23 @@ export default function DriverOrderDetailsPage() {
   ] = useState(false);
 
   const [
-    sharingLocation,
-    setSharingLocation,
-  ] = useState(false);
+    gpsState,
+    setGpsState,
+  ] = useState<GpsState>(
+    "loading",
+  );
+
+  const [
+    gpsError,
+    setGpsError,
+  ] = useState("");
+
+  const [
+    position,
+    setPosition,
+  ] = useState<Position | null>(
+    null,
+  );
 
   const [
     error,
@@ -299,195 +358,211 @@ export default function DriverOrderDetailsPage() {
     setSuccess,
   ] = useState("");
 
+  const [
+    incidentOpen,
+    setIncidentOpen,
+  ] = useState(false);
+
+  const [
+    incidentReason,
+    setIncidentReason,
+  ] = useState("");
+
+  const [
+    incidentSaving,
+    setIncidentSaving,
+  ] = useState(false);
+
   /* ==========================================================
-     CHARGER LA COMMANDE
+     API
   ========================================================== */
 
-  const loadOrder =
+  const apiFetch =
     useCallback(
-      async () => {
+      async <T,>(
+        endpoint: string,
+        options: RequestInit = {},
+      ): Promise<T> => {
         const token =
-          localStorage.getItem(
-            "glory_token",
-          );
+          getToken();
 
         if (!token) {
           router.replace(
             "/login",
           );
 
-          return;
+          throw new Error(
+            "Session expirée.",
+          );
         }
+
+        const response =
+          await fetch(
+            `${API_URL}${endpoint}`,
+            {
+              ...options,
+
+              headers: {
+                Accept:
+                  "application/json",
+
+                Authorization:
+                  `Bearer ${token}`,
+
+                ...(options.body
+                  ? {
+                      "Content-Type":
+                        "application/json",
+                    }
+                  : {}),
+
+                ...options.headers,
+              },
+
+              cache:
+                "no-store",
+            },
+          );
+
+        let result: any = {};
 
         try {
-          setError("");
-
-          const response =
-            await fetch(
-              `${API_URL}/api/orders/${orderId}`,
-              {
-                headers: {
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-
-                cache:
-                  "no-store",
-              },
-            );
-
-          const result =
+          result =
             await response.json();
+        } catch {
+          result = {};
+        }
 
-          if (
-            !response.ok
-          ) {
-            if (
-              response.status ===
-              401
-            ) {
-              localStorage.removeItem(
-                "glory_token",
-              );
-
-              localStorage.removeItem(
-                "glory_user",
-              );
-
-              router.replace(
-                "/login",
-              );
-
-              return;
-            }
-
-            throw new Error(
-              result.message ||
-                "Impossible de récupérer cette livraison.",
-            );
-          }
-
-          const receivedOrder =
-            result.order ||
-            result.data ||
-            result;
-
-          setOrder(
-            receivedOrder,
-          );
-        } catch (err) {
-          console.error(
-            "Erreur loadOrder :",
-            err,
+        if (
+          response.status ===
+          401
+        ) {
+          localStorage.removeItem(
+            "glory_token",
           );
 
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Impossible de charger la livraison.",
-          );
-        } finally {
-          setLoading(
-            false,
+          localStorage.removeItem(
+            "glory_user",
           );
 
-          setRefreshing(
-            false,
+          router.replace(
+            "/login",
+          );
+
+          throw new Error(
+            "Session expirée.",
           );
         }
+
+        if (!response.ok) {
+          throw new Error(
+            result.message ||
+              `Erreur API (${response.status}).`,
+          );
+        }
+
+        return result;
       },
-      [
-        orderId,
-        router,
-      ],
+      [router],
     );
 
+  /* ==========================================================
+     LOAD ORDER
+  ========================================================== */
+
+  const loadOrder =
+    useCallback(async () => {
+      try {
+        setError("");
+
+        const result =
+          await apiFetch<any>(
+            `/api/orders/${orderId}`,
+          );
+
+        const receivedOrder =
+          result.order ||
+          result.data ||
+          result;
+
+        if (!receivedOrder) {
+          throw new Error(
+            "Livraison introuvable.",
+          );
+        }
+
+        setOrder(
+          receivedOrder,
+        );
+      } catch (reason) {
+        console.error(
+          "Erreur loadOrder:",
+          reason,
+        );
+
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Impossible de charger cette livraison.",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }, [
+      apiFetch,
+      orderId,
+    ]);
+
   useEffect(() => {
-    if (orderId) {
-      void loadOrder();
-    }
+    if (!orderId) return;
+
+    void loadOrder();
   }, [
-    loadOrder,
     orderId,
+    loadOrder,
   ]);
 
   /* ==========================================================
-     CHANGER LE STATUT
+     UPDATE STATUS
   ========================================================== */
 
   const updateStatus =
     async (
       newStatus: string,
+      reason?: string,
     ) => {
-      if (!order) {
-        return;
-      }
-
-      const token =
-        localStorage.getItem(
-          "glory_token",
-        );
-
-      if (!token) {
-        router.replace(
-          "/login",
-        );
-
-        return;
-      }
+      if (!order) return;
 
       try {
-        setUpdating(
-          true,
-        );
-
+        setUpdating(true);
         setError("");
         setSuccess("");
 
-        const response =
-          await fetch(
-            `${API_URL}/api/orders/${order.id}/status`,
-            {
-              /*
-               * Ton orderRoutes.js utilise PATCH.
-               */
-              method:
-                "PATCH",
+        await apiFetch(
+          `/api/orders/${order.id}/status`,
+          {
+            method: "PATCH",
 
-              headers: {
-                "Content-Type":
-                  "application/json",
+            body:
+              JSON.stringify({
+                status:
+                  newStatus,
 
-                Authorization:
-                  `Bearer ${token}`,
-              },
+                reason:
+                  reason || null,
 
-              body:
-                JSON.stringify({
-                  status:
-                    newStatus,
-                }),
-            },
-          );
-
-        const result =
-          await response.json();
-
-        if (
-          !response.ok
-        ) {
-          throw new Error(
-            result.message ||
-              "Impossible de modifier le statut.",
-          );
-        }
+                status_reason:
+                  reason || null,
+              }),
+          },
+        );
 
         setOrder(
           (current) =>
             current
               ? {
                   ...current,
-
                   status:
                     newStatus,
                 }
@@ -495,7 +570,9 @@ export default function DriverOrderDetailsPage() {
         );
 
         setSuccess(
-          "Statut de la livraison mis à jour.",
+          `Statut mis à jour : ${statusLabel(
+            newStatus,
+          )}.`,
         );
 
         window.setTimeout(
@@ -504,201 +581,317 @@ export default function DriverOrderDetailsPage() {
           },
           3000,
         );
-      } catch (err) {
-        console.error(
-          "Erreur updateStatus :",
-          err,
-        );
-
+      } catch (reason) {
         setError(
-          err instanceof Error
-            ? err.message
+          reason instanceof Error
+            ? reason.message
             : "Impossible de modifier le statut.",
         );
       } finally {
-        setUpdating(
+        setUpdating(false);
+      }
+    };
+
+  /* ==========================================================
+     INCIDENT
+  ========================================================== */
+
+  const reportIncident =
+    async () => {
+      const reason =
+        incidentReason.trim();
+
+      if (!reason) {
+        setError(
+          "La raison de l'incident est obligatoire.",
+        );
+
+        return;
+      }
+
+      try {
+        setIncidentSaving(
+          true,
+        );
+
+        await updateStatus(
+          "incident",
+          reason,
+        );
+
+        setIncidentOpen(
+          false,
+        );
+
+        setIncidentReason("");
+      } finally {
+        setIncidentSaving(
           false,
         );
       }
     };
 
   /* ==========================================================
-     GPS
+     GPS SEND
   ========================================================== */
 
-  const sendLocation =
-    () => {
+  const sendPosition =
+    useCallback(
+      async (
+        coords:
+          GeolocationCoordinates,
+      ) => {
+        if (!order) return;
+
+        const gpsPosition: Position =
+          {
+            latitude:
+              coords.latitude,
+
+            longitude:
+              coords.longitude,
+
+            accuracy:
+              coords.accuracy ??
+              null,
+
+            speed:
+              coords.speed ??
+              null,
+
+            heading:
+              coords.heading ??
+              null,
+          };
+
+        setPosition(
+          gpsPosition,
+        );
+
+        try {
+          await apiFetch(
+            "/api/tracking/location",
+            {
+              method:
+                "POST",
+
+              body:
+                JSON.stringify({
+                  order_id:
+                    order.id,
+
+                  ...gpsPosition,
+
+                  recorded_at:
+                    new Date().toISOString(),
+                }),
+            },
+          );
+        } catch (reason) {
+          console.error(
+            "Erreur tracking:",
+            reason,
+          );
+        }
+      },
+      [
+        order,
+        apiFetch,
+      ],
+    );
+
+  /* ==========================================================
+     START GPS
+  ========================================================== */
+
+  const startGps =
+    useCallback(() => {
       if (
+        typeof navigator ===
+          "undefined" ||
         !navigator.geolocation
       ) {
-        setError(
-          "La géolocalisation n'est pas disponible sur cet appareil.",
+        setGpsState(
+          "unsupported",
+        );
+
+        setGpsError(
+          "La géolocalisation n'est pas disponible.",
         );
 
         return;
       }
 
-      const token =
-        localStorage.getItem(
-          "glory_token",
+      if (
+        watchIdRef.current !==
+        null
+      ) {
+        navigator.geolocation.clearWatch(
+          watchIdRef.current,
         );
-
-      if (!token) {
-        router.replace(
-          "/login",
-        );
-
-        return;
       }
 
-      setSharingLocation(
-        true,
+      setGpsState(
+        "loading",
       );
 
-      setError("");
+      const watchId =
+        navigator.geolocation.watchPosition(
+          (gps) => {
+            setGpsState(
+              "active",
+            );
 
-      navigator.geolocation.getCurrentPosition(
-        async (
-          position,
-        ) => {
-          try {
-            const response =
-              await fetch(
-                `${API_URL}/api/tracking/location`,
-                {
-                  method:
-                    "POST",
+            setGpsError("");
 
-                  headers: {
-                    "Content-Type":
-                      "application/json",
+            void sendPosition(
+              gps.coords,
+            );
+          },
 
-                    Authorization:
-                      `Bearer ${token}`,
-                  },
-
-                  body:
-                    JSON.stringify({
-                      order_id:
-                        order?.id ||
-                        null,
-
-                      latitude:
-                        position.coords
-                          .latitude,
-
-                      longitude:
-                        position.coords
-                          .longitude,
-
-                      accuracy:
-                        position.coords
-                          .accuracy,
-
-                      speed:
-                        position.coords
-                          .speed !==
-                        null
-                          ? position
-                              .coords
-                              .speed
-                          : null,
-
-                      heading:
-                        position.coords
-                          .heading !==
-                        null
-                          ? position
-                              .coords
-                              .heading
-                          : null,
-
-                      recorded_at:
-                        new Date().toISOString(),
-                    }),
-                },
-              );
-
-            const result =
-              await response.json();
-
+          (locationError) => {
             if (
-              !response.ok
+              locationError.code ===
+              locationError.PERMISSION_DENIED
             ) {
-              throw new Error(
-                result.message ||
-                  "Impossible d'envoyer votre position.",
+              setGpsState(
+                "denied",
               );
+
+              setGpsError(
+                "Autorisation GPS refusée.",
+              );
+
+              return;
             }
 
-            setSuccess(
-              "Position GPS envoyée avec succès.",
+            setGpsState(
+              "error",
             );
 
-            window.setTimeout(
-              () => {
-                setSuccess("");
-              },
-              3000,
+            setGpsError(
+              "Impossible d'obtenir la position GPS.",
             );
-          } catch (err) {
-            console.error(
-              "Erreur GPS :",
-              err,
-            );
+          },
 
-            setError(
-              err instanceof Error
-                ? err.message
-                : "Impossible d'envoyer votre position.",
-            );
-          } finally {
-            setSharingLocation(
-              false,
-            );
-          }
-        },
+          {
+            enableHighAccuracy:
+              true,
 
-        (
-          locationError,
-        ) => {
-          console.error(
-            "Erreur geolocation :",
-            locationError,
-          );
+            timeout:
+              15000,
 
-          setSharingLocation(
-            false,
-          );
+            maximumAge:
+              5000,
+          },
+        );
 
+      watchIdRef.current =
+        watchId;
+    }, [sendPosition]);
+
+  /* ==========================================================
+     AUTO GPS AFTER PERMISSION
+  ========================================================== */
+
+  useEffect(() => {
+    if (!order) return;
+
+    if (
+      typeof navigator ===
+        "undefined" ||
+      !navigator.geolocation
+    ) {
+      setGpsState(
+        "unsupported",
+      );
+
+      return;
+    }
+
+    const init =
+      async () => {
+        try {
           if (
-            locationError.code ===
-            1
+            !navigator.permissions
           ) {
-            setError(
-              "Vous devez autoriser Glory Solutions à utiliser votre position.",
+            setGpsState(
+              "permission",
             );
 
             return;
           }
 
-          setError(
-            "Impossible d'obtenir votre position GPS.",
+          const permission =
+            await navigator.permissions.query(
+              {
+                name:
+                  "geolocation",
+              },
+            );
+
+          if (
+            permission.state ===
+            "granted"
+          ) {
+            startGps();
+          } else if (
+            permission.state ===
+            "prompt"
+          ) {
+            setGpsState(
+              "permission",
+            );
+          } else {
+            setGpsState(
+              "denied",
+            );
+          }
+
+          permission.onchange =
+            () => {
+              if (
+                permission.state ===
+                "granted"
+              ) {
+                startGps();
+              }
+
+              if (
+                permission.state ===
+                "denied"
+              ) {
+                setGpsState(
+                  "denied",
+                );
+              }
+            };
+        } catch {
+          setGpsState(
+            "permission",
           );
-        },
+        }
+      };
 
-        {
-          enableHighAccuracy:
-            true,
+    void init();
 
-          timeout:
-            15000,
+    return () => {
+      if (
+        watchIdRef.current !==
+        null
+      ) {
+        navigator.geolocation.clearWatch(
+          watchIdRef.current,
+        );
 
-          maximumAge:
-            5000,
-        },
-      );
+        watchIdRef.current =
+          null;
+      }
     };
+  }, [
+    order,
+    startGps,
+  ]);
 
   /* ==========================================================
      NAVIGATION
@@ -708,9 +901,7 @@ export default function DriverOrderDetailsPage() {
     (
       address?: string,
     ) => {
-      if (!address) {
-        return;
-      }
+      if (!address) return;
 
       const destination =
         encodeURIComponent(
@@ -724,6 +915,15 @@ export default function DriverOrderDetailsPage() {
       );
     };
 
+  const nextAction =
+    useMemo(
+      () =>
+        getNextAction(
+          order?.status,
+        ),
+      [order?.status],
+    );
+
   /* ==========================================================
      LOADING
   ========================================================== */
@@ -735,23 +935,29 @@ export default function DriverOrderDetailsPage() {
           styles.loadingPage
         }
       >
-        <Loader2
+        <div
           className={
-            styles.spinner
+            styles.loadingIcon
           }
-          size={38}
-        />
+        >
+          <Loader2
+            size={30}
+            className={
+              styles.spinner
+            }
+          />
+        </div>
+
+        <h1>
+          Chargement de la livraison
+        </h1>
 
         <p>
-          Chargement de la livraison...
+          Préparation de votre opération...
         </p>
       </main>
     );
   }
-
-  /* ==========================================================
-     NOT FOUND
-  ========================================================== */
 
   if (!order) {
     return (
@@ -761,7 +967,7 @@ export default function DriverOrderDetailsPage() {
         }
       >
         <AlertTriangle
-          size={40}
+          size={38}
         />
 
         <h1>
@@ -775,22 +981,24 @@ export default function DriverOrderDetailsPage() {
 
         <button
           type="button"
+          className={
+            styles.backPrimary
+          }
           onClick={() =>
             router.push(
-              "/dashboard/driver/orders",
+              "/dashboard/driver",
             )
           }
         >
-          Retour
+          <ArrowLeft
+            size={17}
+          />
+
+          Retour au dashboard
         </button>
       </main>
     );
   }
-
-  const nextAction =
-    getNextAction(
-      order.status,
-    );
 
   /* ==========================================================
      UI
@@ -802,7 +1010,7 @@ export default function DriverOrderDetailsPage() {
         styles.page
       }
     >
-      {/* HEADER */}
+      {/* TOPBAR */}
 
       <header
         className={
@@ -816,13 +1024,12 @@ export default function DriverOrderDetailsPage() {
           }
           onClick={() =>
             router.push(
-              "/dashboard/driver/orders",
+              "/dashboard/driver",
             )
           }
-          aria-label="Retour"
         >
           <ArrowLeft
-            size={20}
+            size={19}
           />
         </button>
 
@@ -841,7 +1048,7 @@ export default function DriverOrderDetailsPage() {
           </h1>
 
           <p>
-            Détails de votre livraison
+            Gestion de la livraison
           </p>
         </div>
 
@@ -850,6 +1057,9 @@ export default function DriverOrderDetailsPage() {
           className={
             styles.iconButton
           }
+          disabled={
+            refreshing
+          }
           onClick={() => {
             setRefreshing(
               true,
@@ -857,13 +1067,9 @@ export default function DriverOrderDetailsPage() {
 
             void loadOrder();
           }}
-          disabled={
-            refreshing
-          }
-          aria-label="Actualiser"
         >
           <RefreshCw
-            size={19}
+            size={18}
             className={
               refreshing
                 ? styles.spinner
@@ -873,37 +1079,147 @@ export default function DriverOrderDetailsPage() {
         </button>
       </header>
 
-      {/* STATUS */}
+      {/* STATUS HERO */}
 
       <section
         className={
-          styles.statusCard
+          styles.statusHero
         }
       >
         <div
           className={
-            styles.statusIcon
+            styles.statusHeroMain
           }
         >
-          <Truck
-            size={23}
-          />
+          <div
+            className={
+              styles.statusHeroIcon
+            }
+          >
+            <Truck
+              size={25}
+            />
+          </div>
+
+          <div>
+            <span
+              className={
+                styles.heroLabel
+              }
+            >
+              LIVRAISON EN COURS
+            </span>
+
+            <h2>
+              {statusLabel(
+                order.status,
+              )}
+            </h2>
+
+            <p>
+              {clientName(
+                order,
+              )}
+            </p>
+          </div>
         </div>
 
-        <div>
-          <span>
-            STATUT ACTUEL
-          </span>
-
-          <strong>
-            {statusLabel(
-              order.status,
-            )}
-          </strong>
-        </div>
+        <span
+          className={`${styles.statusBadge} ${statusClass(
+            order.status,
+          )}`}
+        >
+          {statusLabel(
+            order.status,
+          )}
+        </span>
       </section>
 
-      {/* SUCCESS / ERROR */}
+      {/* GPS */}
+
+      <section
+        className={`${styles.gpsCard} ${
+          gpsState ===
+          "active"
+            ? styles.gpsOnline
+            : styles.gpsOffline
+        }`}
+      >
+        <div
+          className={
+            styles.gpsIcon
+          }
+        >
+          {gpsState ===
+          "active" ? (
+            <Navigation
+              size={20}
+            />
+          ) : (
+            <WifiOff
+              size={20}
+            />
+          )}
+        </div>
+
+        <div
+          className={
+            styles.gpsText
+          }
+        >
+          <strong>
+            {gpsState ===
+            "active"
+              ? "Suivi GPS actif"
+              : gpsState ===
+                  "permission"
+                ? "GPS à activer"
+                : "GPS inactif"}
+          </strong>
+
+          <span>
+            {gpsState ===
+            "active"
+              ? position?.accuracy
+                ? `Position en direct · précision ±${Math.round(
+                    position.accuracy,
+                  )} m`
+                : "Position synchronisée avec Glory Solutions."
+              : gpsError ||
+                "Activez le GPS pour transmettre votre position."}
+          </span>
+        </div>
+
+        {gpsState ===
+          "active" ? (
+          <div
+            className={
+              styles.gpsLive
+            }
+          >
+            <Wifi
+              size={14}
+            />
+
+            EN DIRECT
+          </div>
+        ) : gpsState ===
+          "permission" ? (
+          <button
+            type="button"
+            className={
+              styles.gpsActivate
+            }
+            onClick={
+              startGps
+            }
+          >
+            Activer
+          </button>
+        ) : null}
+      </section>
+
+      {/* MESSAGES */}
 
       {success && (
         <div
@@ -912,12 +1228,10 @@ export default function DriverOrderDetailsPage() {
           }
         >
           <CheckCircle2
-            size={18}
+            size={17}
           />
 
-          <span>
-            {success}
-          </span>
+          {success}
         </div>
       )}
 
@@ -928,415 +1242,599 @@ export default function DriverOrderDetailsPage() {
           }
         >
           <AlertTriangle
-            size={18}
+            size={17}
           />
 
-          <span>
-            {error}
-          </span>
+          {error}
         </div>
       )}
 
-      {/* CLIENT */}
+      {/* PROGRESS */}
 
       <section
         className={
-          styles.card
+          styles.progressCard
         }
       >
         <div
           className={
-            styles.sectionTitle
-          }
-        >
-          <User
-            size={18}
-          />
-
-          <h2>
-            Client
-          </h2>
-        </div>
-
-        <div
-          className={
-            styles.clientRow
+            styles.sectionHead
           }
         >
           <div>
             <span>
-              Nom
+              PROGRESSION
             </span>
 
-            <strong>
-              {clientName(
-                order,
-              )}
-            </strong>
+            <h2>
+              Étapes de livraison
+            </h2>
           </div>
+        </div>
 
-          {order.client_phone && (
-            <a
-              href={`tel:${order.client_phone}`}
+        <div
+          className={
+            styles.progressSteps
+          }
+        >
+          {[
+            [
+              "assigned",
+              "Assignée",
+            ],
+
+            [
+              "pickup_in_progress",
+              "Ramassage",
+            ],
+
+            [
+              "picked_up",
+              "Ramassée",
+            ],
+
+            [
+              "delivery_in_progress",
+              "En livraison",
+            ],
+
+            [
+              "arrived",
+              "Arrivé",
+            ],
+
+            [
+              "completed",
+              "Terminée",
+            ],
+          ].map(
+            (
+              [
+                value,
+                label,
+              ],
+              index,
+            ) => {
+              const orderFlow = [
+                "assigned",
+                "pickup_in_progress",
+                "picked_up",
+                "delivery_in_progress",
+                "arrived",
+                "completed",
+              ];
+
+              const currentIndex =
+                orderFlow.indexOf(
+                  order.status ||
+                    "assigned",
+                );
+
+              const active =
+                index <=
+                currentIndex;
+
+              return (
+                <div
+                  key={
+                    value
+                  }
+                  className={`${styles.progressStep} ${
+                    active
+                      ? styles.progressStepActive
+                      : ""
+                  }`}
+                >
+                  <span>
+                    {active ? (
+                      <CheckCircle2
+                        size={15}
+                      />
+                    ) : (
+                      index + 1
+                    )}
+                  </span>
+
+                  <small>
+                    {label}
+                  </small>
+                </div>
+              );
+            },
+          )}
+        </div>
+      </section>
+
+      {/* GRID */}
+
+      <section
+        className={
+          styles.contentGrid
+        }
+      >
+        <div
+          className={
+            styles.mainColumn
+          }
+        >
+          {/* PICKUP */}
+
+          <section
+            className={
+              styles.card
+            }
+          >
+            <div
               className={
-                styles.phoneButton
+                styles.locationHeader
               }
             >
-              <Phone
+              <div
+                className={
+                  styles.locationIcon
+                }
+              >
+                <PackageCheck
+                  size={19}
+                />
+              </div>
+
+              <div>
+                <span>
+                  RAMASSAGE
+                </span>
+
+                <h2>
+                  Point de départ
+                </h2>
+              </div>
+            </div>
+
+            <div
+              className={
+                styles.address
+              }
+            >
+              <MapPin
                 size={17}
               />
 
-              Appeler
-            </a>
-          )}
-        </div>
-      </section>
+              <strong>
+                {order.pickup_address ||
+                  "Adresse non disponible"}
+              </strong>
+            </div>
 
-      {/* PICKUP */}
+            <div
+              className={
+                styles.dateGrid
+              }
+            >
+              <div>
+                <CalendarDays
+                  size={15}
+                />
 
-      <section
-        className={
-          styles.card
-        }
-      >
-        <div
-          className={
-            styles.locationHeader
-          }
-        >
-          <div
-            className={
-              styles.locationIcon
-            }
-          >
-            <PackageCheck
-              size={20}
-            />
-          </div>
+                <span>
+                  {formatDate(
+                    order.pickup_date,
+                  )}
+                </span>
+              </div>
 
-          <div>
-            <span>
-              RAMASSAGE
-            </span>
+              <div>
+                <Clock3
+                  size={15}
+                />
 
-            <h2>
-              Point de départ
-            </h2>
-          </div>
-        </div>
+                <span>
+                  {formatTime(
+                    order.pickup_time,
+                  )}
+                </span>
+              </div>
+            </div>
 
-        <div
-          className={
-            styles.address
-          }
-        >
-          <MapPin
-            size={18}
-          />
-
-          <strong>
-            {order.pickup_address ||
-              "Adresse de ramassage non disponible"}
-          </strong>
-        </div>
-
-        <div
-          className={
-            styles.dateGrid
-          }
-        >
-          <div>
-            <CalendarDays
-              size={16}
-            />
-
-            <span>
-              {formatDate(
-                order.pickup_date,
-              )}
-            </span>
-          </div>
-
-          <div>
-            <Clock3
-              size={16}
-            />
-
-            <span>
-              {formatTime(
-                order.pickup_time,
-              )}
-            </span>
-          </div>
-        </div>
-
-        {order.pickup_address && (
-          <button
-            type="button"
-            className={
-              styles.navigationButton
-            }
-            onClick={() =>
-              openNavigation(
-                order.pickup_address,
-              )
-            }
-          >
-            <Navigation
-              size={18}
-            />
-
-            Navigation vers le ramassage
-
-            <ChevronRight
-              size={17}
-            />
-          </button>
-        )}
-      </section>
-
-      {/* DELIVERY */}
-
-      <section
-        className={
-          styles.card
-        }
-      >
-        <div
-          className={
-            styles.locationHeader
-          }
-        >
-          <div
-            className={
-              styles.locationIcon
-            }
-          >
-            <MapPin
-              size={20}
-            />
-          </div>
-
-          <div>
-            <span>
-              LIVRAISON
-            </span>
-
-            <h2>
-              Destination
-            </h2>
-          </div>
-        </div>
-
-        <div
-          className={
-            styles.address
-          }
-        >
-          <MapPin
-            size={18}
-          />
-
-          <strong>
-            {order.delivery_address ||
-              "Adresse de livraison non disponible"}
-          </strong>
-        </div>
-
-        <div
-          className={
-            styles.dateGrid
-          }
-        >
-          <div>
-            <CalendarDays
-              size={16}
-            />
-
-            <span>
-              {formatDate(
-                order.delivery_date,
-              )}
-            </span>
-          </div>
-
-          <div>
-            <Clock3
-              size={16}
-            />
-
-            <span>
-              {formatTime(
-                order.delivery_time,
-              )}
-            </span>
-          </div>
-        </div>
-
-        {order.delivery_address && (
-          <button
-            type="button"
-            className={
-              styles.navigationButton
-            }
-            onClick={() =>
-              openNavigation(
-                order.delivery_address,
-              )
-            }
-          >
-            <Navigation
-              size={18}
-            />
-
-            Navigation vers le client
-
-            <ChevronRight
-              size={17}
-            />
-          </button>
-        )}
-      </section>
-
-      {/* VEHICLE */}
-
-      <section
-        className={
-          styles.card
-        }
-      >
-        <div
-          className={
-            styles.sectionTitle
-          }
-        >
-          <Truck
-            size={18}
-          />
-
-          <h2>
-            Véhicule
-          </h2>
-        </div>
-
-        <div
-          className={
-            styles.vehicle
-          }
-        >
-          <strong>
-            {[
-              order.vehicle_name,
-              order.vehicle_make,
-              order.vehicle_model,
-            ]
-              .filter(Boolean)
-              .join(" ") ||
-              "Véhicule non assigné"}
-          </strong>
-
-          {order.vehicle_plate && (
-            <span>
-              {order.vehicle_plate}
-            </span>
-          )}
-        </div>
-      </section>
-
-      {/* NOTES */}
-
-      {order.notes && (
-        <section
-          className={
-            styles.card
-          }
-        >
-          <div
-            className={
-              styles.sectionTitle
-            }
-          >
-            <AlertTriangle
-              size={18}
-            />
-
-            <h2>
-              Instructions
-            </h2>
-          </div>
-
-          <p
-            className={
-              styles.notes
-            }
-          >
-            {order.notes}
-          </p>
-        </section>
-      )}
-
-      {/* GPS */}
-
-      <section
-        className={
-          styles.card
-        }
-      >
-        <div
-          className={
-            styles.sectionTitle
-          }
-        >
-          <Navigation
-            size={18}
-          />
-
-          <h2>
-            Position GPS
-          </h2>
-        </div>
-
-        <p
-          className={
-            styles.helperText
-          }
-        >
-          Envoyez votre position afin que Glory Solutions puisse suivre la livraison.
-        </p>
-
-        <button
-          type="button"
-          className={
-            styles.gpsButton
-          }
-          onClick={
-            sendLocation
-          }
-          disabled={
-            sharingLocation
-          }
-        >
-          {sharingLocation ? (
-            <>
-              <Loader2
+            {order.pickup_address && (
+              <button
+                type="button"
                 className={
-                  styles.spinner
+                  styles.navigationButton
                 }
-                size={18}
+                onClick={() =>
+                  openNavigation(
+                    order.pickup_address,
+                  )
+                }
+              >
+                <Navigation
+                  size={17}
+                />
+
+                Navigation vers le ramassage
+
+                <ChevronRight
+                  size={16}
+                />
+              </button>
+            )}
+          </section>
+
+          {/* DELIVERY */}
+
+          <section
+            className={
+              styles.card
+            }
+          >
+            <div
+              className={
+                styles.locationHeader
+              }
+            >
+              <div
+                className={
+                  styles.locationIcon
+                }
+              >
+                <MapPin
+                  size={19}
+                />
+              </div>
+
+              <div>
+                <span>
+                  LIVRAISON
+                </span>
+
+                <h2>
+                  Destination
+                </h2>
+              </div>
+            </div>
+
+            <div
+              className={
+                styles.address
+              }
+            >
+              <MapPin
+                size={17}
               />
 
-              Localisation...
-            </>
-          ) : (
-            <>
-              <Navigation
-                size={18}
-              />
+              <strong>
+                {order.delivery_address ||
+                  "Adresse non disponible"}
+              </strong>
+            </div>
 
-              Envoyer ma position
-            </>
+            <div
+              className={
+                styles.dateGrid
+              }
+            >
+              <div>
+                <CalendarDays
+                  size={15}
+                />
+
+                <span>
+                  {formatDate(
+                    order.delivery_date,
+                  )}
+                </span>
+              </div>
+
+              <div>
+                <Clock3
+                  size={15}
+                />
+
+                <span>
+                  {formatTime(
+                    order.delivery_time,
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {order.delivery_address && (
+              <button
+                type="button"
+                className={
+                  styles.navigationButton
+                }
+                onClick={() =>
+                  openNavigation(
+                    order.delivery_address,
+                  )
+                }
+              >
+                <Navigation
+                  size={17}
+                />
+
+                Navigation vers le client
+
+                <ChevronRight
+                  size={16}
+                />
+              </button>
+            )}
+          </section>
+
+          {/* NOTES */}
+
+          {order.notes && (
+            <section
+              className={
+                styles.card
+              }
+            >
+              <div
+                className={
+                  styles.sectionTitle
+                }
+              >
+                <AlertTriangle
+                  size={18}
+                />
+
+                <h2>
+                  Instructions
+                </h2>
+              </div>
+
+              <p
+                className={
+                  styles.notes
+                }
+              >
+                {order.notes}
+              </p>
+            </section>
           )}
-        </button>
+        </div>
+
+        {/* SIDEBAR */}
+
+        <aside
+          className={
+            styles.sideColumn
+          }
+        >
+          {/* CLIENT */}
+
+          <section
+            className={
+              styles.card
+            }
+          >
+            <div
+              className={
+                styles.sectionTitle
+              }
+            >
+              <User
+                size={18}
+              />
+
+              <h2>
+                Client
+              </h2>
+            </div>
+
+            <div
+              className={
+                styles.clientBlock
+              }
+            >
+              <span>
+                CLIENT / ENTREPRISE
+              </span>
+
+              <strong>
+                {clientName(
+                  order,
+                )}
+              </strong>
+
+              {order.client_email && (
+                <small>
+                  {
+                    order.client_email
+                  }
+                </small>
+              )}
+            </div>
+
+            {order.client_phone && (
+              <a
+                href={`tel:${order.client_phone}`}
+                className={
+                  styles.phoneButton
+                }
+              >
+                <Phone
+                  size={16}
+                />
+
+                Appeler le client
+              </a>
+            )}
+          </section>
+
+          {/* VEHICLE */}
+
+          <section
+            className={
+              styles.card
+            }
+          >
+            <div
+              className={
+                styles.sectionTitle
+              }
+            >
+              <Truck
+                size={18}
+              />
+
+              <h2>
+                Véhicule
+              </h2>
+            </div>
+
+            <div
+              className={
+                styles.vehicle
+              }
+            >
+              <div
+                className={
+                  styles.vehicleIcon
+                }
+              >
+                <Truck
+                  size={22}
+                />
+              </div>
+
+              <div>
+                <span>
+                  VÉHICULE ASSIGNÉ
+                </span>
+
+                <strong>
+                  {[
+                    order.vehicle_name,
+                    order.vehicle_make,
+                    order.vehicle_model,
+                  ]
+                    .filter(
+                      Boolean,
+                    )
+                    .join(
+                      " ",
+                    ) ||
+                    "Aucun véhicule"}
+                </strong>
+
+                <small>
+                  {order.vehicle_plate ||
+                    "Plaque non disponible"}
+                </small>
+              </div>
+            </div>
+          </section>
+
+          {/* PROOF */}
+
+          <section
+            className={
+              styles.card
+            }
+          >
+            <div
+              className={
+                styles.sectionTitle
+              }
+            >
+              <FileCheck2
+                size={18}
+              />
+
+              <h2>
+                Preuve de livraison
+              </h2>
+            </div>
+
+            <p
+              className={
+                styles.helperText
+              }
+            >
+              À la livraison, ajoutez une photo ou une preuve avant de terminer l'opération.
+            </p>
+
+            <button
+              type="button"
+              className={
+                styles.secondaryButton
+              }
+            >
+              <Camera
+                size={17}
+              />
+
+              Ajouter une preuve
+            </button>
+          </section>
+
+          {/* INCIDENT */}
+
+          {order.status !==
+            "completed" &&
+            order.status !==
+              "cancelled" && (
+              <section
+                className={
+                  styles.incidentCard
+                }
+              >
+                <div
+                  className={
+                    styles.incidentTitle
+                  }
+                >
+                  <ShieldAlert
+                    size={18}
+                  />
+
+                  <div>
+                    <strong>
+                      Problème pendant la livraison ?
+                    </strong>
+
+                    <span>
+                      Signalez immédiatement l'incident.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIncidentOpen(
+                      true,
+                    )
+                  }
+                >
+                  Signaler un incident
+                </button>
+              </section>
+            )}
+        </aside>
       </section>
 
       {/* NEXT ACTION */}
@@ -1378,10 +1876,10 @@ export default function DriverOrderDetailsPage() {
             {updating ? (
               <>
                 <Loader2
+                  size={18}
                   className={
                     styles.spinner
                   }
-                  size={19}
                 />
 
                 Mise à jour...
@@ -1389,7 +1887,7 @@ export default function DriverOrderDetailsPage() {
             ) : (
               <>
                 <CheckCircle2
-                  size={19}
+                  size={18}
                 />
 
                 {nextAction.label}
@@ -1399,8 +1897,6 @@ export default function DriverOrderDetailsPage() {
         </section>
       )}
 
-      {/* COMPLETED */}
-
       {order.status ===
         "completed" && (
         <section
@@ -1409,7 +1905,7 @@ export default function DriverOrderDetailsPage() {
           }
         >
           <CheckCircle2
-            size={30}
+            size={28}
           />
 
           <div>
@@ -1422,6 +1918,110 @@ export default function DriverOrderDetailsPage() {
             </p>
           </div>
         </section>
+      )}
+
+      {/* INCIDENT MODAL */}
+
+      {incidentOpen && (
+        <div
+          className={
+            styles.modalOverlay
+          }
+          onClick={() =>
+            setIncidentOpen(
+              false,
+            )
+          }
+        >
+          <div
+            className={
+              styles.modal
+            }
+            onClick={(
+              event,
+            ) =>
+              event.stopPropagation()
+            }
+          >
+            <button
+              type="button"
+              className={
+                styles.modalClose
+              }
+              onClick={() =>
+                setIncidentOpen(
+                  false,
+                )
+              }
+            >
+              <X
+                size={18}
+              />
+            </button>
+
+            <div
+              className={
+                styles.modalIcon
+              }
+            >
+              <ShieldAlert
+                size={25}
+              />
+            </div>
+
+            <h2>
+              Signaler un incident
+            </h2>
+
+            <p>
+              Expliquez précisément ce qui s'est passé.
+            </p>
+
+            <textarea
+              value={
+                incidentReason
+              }
+              onChange={(
+                event,
+              ) =>
+                setIncidentReason(
+                  event.target
+                    .value,
+                )
+              }
+              rows={5}
+              placeholder="Ex. client absent, accès impossible, colis endommagé..."
+            />
+
+            <button
+              type="button"
+              className={
+                styles.incidentSubmit
+              }
+              disabled={
+                incidentSaving
+              }
+              onClick={() =>
+                void reportIncident()
+              }
+            >
+              {incidentSaving ? (
+                <Loader2
+                  size={17}
+                  className={
+                    styles.spinner
+                  }
+                />
+              ) : (
+                <ShieldAlert
+                  size={17}
+                />
+              )}
+
+              Envoyer l'incident
+            </button>
+          </div>
+        </div>
       )}
 
       <div
