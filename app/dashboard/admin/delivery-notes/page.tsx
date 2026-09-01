@@ -27,13 +27,22 @@ type DeliveryNote = {
 
   client_id?: number | string | null;
   client_name?: string | null;
+  client_first_name?: string | null;
+  client_last_name?: string | null;
   company_name?: string | null;
+  client_address?: string | null;
+  client_city?: string | null;
+  client_province?: string | null;
+  client_postal_code?: string | null;
   client_email?: string | null;
   client_phone?: string | null;
 
   driver_id?: number | string | null;
   driver_name?: string | null;
+  driver_first_name?: string | null;
+  driver_last_name?: string | null;
   driver_phone?: string | null;
+  vehicle_id?: number | string | null;
 
   vehicle_name?: string | null;
   vehicle_plate?: string | null;
@@ -123,15 +132,57 @@ function getOrderNumber(note: DeliveryNote) {
 }
 
 function getClientName(note: DeliveryNote) {
+  const personName = [
+    note.client_first_name,
+    note.client_last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const companyName =
+    String(note.company_name || "").trim();
+
+  const storedClientName =
+    String(note.client_name || "").trim();
+
+  // Ignore les placeholders génériques.
+  const validStoredClientName =
+    storedClientName &&
+    !["client", "customer", "destinataire"].includes(
+      storedClientName.toLowerCase(),
+    )
+      ? storedClientName
+      : "";
+
   return (
-    note.company_name ||
-    note.client_name ||
-    "Client"
+    companyName ||
+    personName ||
+    validStoredClientName ||
+    "Client non défini"
   );
 }
 
+function getClientContactLine(note: DeliveryNote) {
+  return [
+    note.client_phone,
+    note.client_email,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+
 function getDriverName(note: DeliveryNote) {
-  return note.driver_name || "Non assigné";
+  const fullName = [
+    note.driver_first_name,
+    note.driver_last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return note.driver_name || fullName || "Non assigné";
 }
 
 function getStatusLabel(status?: string | null) {
@@ -201,6 +252,80 @@ function formatDate(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatScheduledDate(
+  dateValue?: string | null,
+  timeValue?: string | null,
+) {
+  if (!dateValue) {
+    return "—";
+  }
+
+  const rawDate = String(dateValue).slice(0, 10);
+  const dateParts = rawDate.split("-").map(Number);
+
+  if (
+    dateParts.length !== 3 ||
+    dateParts.some((part) => !Number.isFinite(part))
+  ) {
+    return formatDate(dateValue);
+  }
+
+  const [year, month, day] = dateParts;
+
+  const safeTime =
+    typeof timeValue === "string" && timeValue.trim()
+      ? timeValue.trim().slice(0, 5)
+      : "";
+
+  const timeParts = safeTime
+    ? safeTime.split(":").map(Number)
+    : [];
+
+  const hours =
+    timeParts.length >= 1 && Number.isFinite(timeParts[0])
+      ? timeParts[0]
+      : 0;
+
+  const minutes =
+    timeParts.length >= 2 && Number.isFinite(timeParts[1])
+      ? timeParts[1]
+      : 0;
+
+  const localDate = new Date(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes,
+    0,
+    0,
+  );
+
+  const options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  };
+
+  if (safeTime) {
+    options.hour = "2-digit";
+    options.minute = "2-digit";
+  }
+
+  return new Intl.DateTimeFormat("fr-CA", options).format(localDate);
+}
+
+
+function formatScheduledDateTime(
+  dateValue?: string | null,
+  timeValue?: string | null,
+) {
+  return formatScheduledDate(
+    dateValue,
+    timeValue,
+  );
 }
 
 function buildAddress(
@@ -347,6 +472,149 @@ function getActualDeliveryDate(
   return note.delivery_date || note.updated_at || null;
 }
 
+
+function unwrapObject(result: unknown): Record<string, unknown> | null {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    return null;
+  }
+
+  const object = result as Record<string, unknown>;
+
+  for (const key of [
+    "data",
+    "order",
+    "client",
+    "driver",
+    "vehicle",
+    "deliveryNote",
+    "delivery_note",
+  ]) {
+    const value = object[key];
+
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+  }
+
+  return object;
+}
+
+function mergeClientIntoNote(
+  note: DeliveryNote,
+  client: Record<string, unknown> | null,
+): DeliveryNote {
+  if (!client) return note;
+
+  const firstName = String(client.first_name || client.client_first_name || "").trim();
+  const lastName = String(client.last_name || client.client_last_name || "").trim();
+  const company = String(client.company_name || "").trim();
+
+  return {
+    ...note,
+    client_first_name:
+      firstName || note.client_first_name || null,
+    client_last_name:
+      lastName || note.client_last_name || null,
+    company_name:
+      company || note.company_name || null,
+    client_name:
+      String(client.client_name || "").trim() ||
+      [firstName, lastName].filter(Boolean).join(" ").trim() ||
+      note.client_name ||
+      null,
+    client_email:
+      String(client.email || client.client_email || "").trim() ||
+      note.client_email ||
+      null,
+    client_phone:
+      String(client.phone || client.client_phone || "").trim() ||
+      note.client_phone ||
+      null,
+    client_address:
+      String(client.address || client.client_address || "").trim() ||
+      note.client_address ||
+      null,
+    client_city:
+      String(client.city || client.client_city || "").trim() ||
+      note.client_city ||
+      null,
+    client_province:
+      String(client.province || client.client_province || "").trim() ||
+      note.client_province ||
+      null,
+    client_postal_code:
+      String(client.postal_code || client.client_postal_code || "").trim() ||
+      note.client_postal_code ||
+      null,
+  };
+}
+
+function mergeDriverIntoNote(
+  note: DeliveryNote,
+  driver: Record<string, unknown> | null,
+): DeliveryNote {
+  if (!driver) return note;
+
+  const firstName = String(driver.first_name || driver.driver_first_name || "").trim();
+  const lastName = String(driver.last_name || driver.driver_last_name || "").trim();
+
+  return {
+    ...note,
+    driver_first_name:
+      firstName || note.driver_first_name || null,
+    driver_last_name:
+      lastName || note.driver_last_name || null,
+    driver_name:
+      [firstName, lastName].filter(Boolean).join(" ").trim() ||
+      String(driver.driver_name || "").trim() ||
+      note.driver_name ||
+      null,
+    driver_phone:
+      String(driver.phone || driver.driver_phone || "").trim() ||
+      note.driver_phone ||
+      null,
+    vehicle_name:
+      String(driver.vehicle_name || "").trim() ||
+      note.vehicle_name ||
+      null,
+    vehicle_plate:
+      String(driver.vehicle_plate || "").trim() ||
+      note.vehicle_plate ||
+      null,
+  };
+}
+
+function mergeVehicleIntoNote(
+  note: DeliveryNote,
+  vehicle: Record<string, unknown> | null,
+): DeliveryNote {
+  if (!vehicle) return note;
+
+  const vehicleName =
+    String(vehicle.name || "").trim() ||
+    [vehicle.brand, vehicle.make, vehicle.model]
+      .filter(Boolean)
+      .map(String)
+      .join(" ")
+      .trim() ||
+    String(vehicle.vehicle_number || "").trim();
+
+  return {
+    ...note,
+    vehicle_name:
+      vehicleName || note.vehicle_name || null,
+    vehicle_plate:
+      String(
+        vehicle.plate_number ||
+          vehicle.plate ||
+          vehicle.license_plate ||
+          "",
+      ).trim() ||
+      note.vehicle_plate ||
+      null,
+  };
+}
+
 export default function DeliveryNotesPage() {
   const [notes, setNotes] = useState<DeliveryNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -465,56 +733,145 @@ export default function DeliveryNotesPage() {
         );
       }
 
-      const response = await fetch(
-        `${API_URL}/api/orders/delivery-notes/${id}`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        },
+      const headers = {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      };
+
+      const getJson = async (
+        path: string,
+        required = false,
+      ): Promise<unknown> => {
+        try {
+          const response = await fetch(
+            `${API_URL}${path}`,
+            {
+              method: "GET",
+              headers,
+              cache: "no-store",
+            },
+          );
+
+          let result: unknown = null;
+
+          try {
+            result = await response.json();
+          } catch {
+            result = null;
+          }
+
+          if (response.status === 401) {
+            throw new Error(
+              "Votre session a expiré. Veuillez vous reconnecter.",
+            );
+          }
+
+          if (response.status === 403 && required) {
+            throw new Error(
+              "Vous n’avez pas la permission d’accéder à cette commande.",
+            );
+          }
+
+          if (!response.ok) {
+            if (required) {
+              const object =
+                result && typeof result === "object"
+                  ? (result as Record<string, unknown>)
+                  : null;
+
+              throw new Error(
+                object && typeof object.message === "string"
+                  ? object.message
+                  : `Erreur API (${response.status}).`,
+              );
+            }
+
+            return null;
+          }
+
+          return result;
+        } catch (error) {
+          if (required) throw error;
+          return null;
+        }
+      };
+
+      // Source principale du bon
+      const deliveryResult = await getJson(
+        `/api/orders/delivery-notes/${id}`,
+        true,
       );
 
-      let result: unknown = null;
-
-      try {
-        result = await response.json();
-      } catch {
-        result = null;
-      }
-
-      if (response.status === 401) {
-        throw new Error(
-          "Votre session a expiré. Veuillez vous reconnecter.",
-        );
-      }
-
-      if (response.status === 403) {
-        throw new Error(
-          "Vous n’avez pas la permission d’accéder à ce bon de livraison.",
-        );
-      }
-
-      if (!response.ok) {
-        const apiResult =
-          result && typeof result === "object"
-            ? (result as Record<string, unknown>)
-            : null;
-
-        throw new Error(
-          apiResult && typeof apiResult.message === "string"
-            ? apiResult.message
-            : `Erreur API (${response.status}).`,
-        );
-      }
-
-      const freshNote = extractSingleDeliveryNote(result);
+      let freshNote =
+        extractSingleDeliveryNote(deliveryResult);
 
       if (!freshNote) {
         throw new Error(
           "Le serveur n’a retourné aucune commande valide.",
+        );
+      }
+
+      // Source de secours : détail brut de la commande.
+      // Cela garantit que le bon reste synchronisé même si
+      // l’endpoint delivery-notes ne renvoie pas tous les champs.
+      const orderResult = await getJson(
+        `/api/orders/${id}`,
+        false,
+      );
+
+      const rawOrder = unwrapObject(orderResult);
+
+      if (rawOrder) {
+        freshNote = {
+          ...freshNote,
+          ...(rawOrder as DeliveryNote),
+          proofs:
+            Array.isArray(rawOrder.proofs)
+              ? (rawOrder.proofs as DeliveryProof[])
+              : freshNote.proofs,
+          timeline:
+            Array.isArray(rawOrder.timeline)
+              ? (rawOrder.timeline as OrderTimelineItem[])
+              : freshNote.timeline,
+        };
+      }
+
+      // Hydratation du client directement depuis la table clients.
+      if (freshNote.client_id) {
+        const clientResult = await getJson(
+          `/api/clients/${freshNote.client_id}`,
+          false,
+        );
+
+        freshNote = mergeClientIntoNote(
+          freshNote,
+          unwrapObject(clientResult),
+        );
+      }
+
+      // Hydratation du chauffeur directement depuis la table drivers.
+      if (freshNote.driver_id) {
+        const driverResult = await getJson(
+          `/api/drivers/${freshNote.driver_id}`,
+          false,
+        );
+
+        freshNote = mergeDriverIntoNote(
+          freshNote,
+          unwrapObject(driverResult),
+        );
+      }
+
+      // Hydratation du véhicule réellement assigné à la commande.
+      if (freshNote.vehicle_id) {
+        const vehicleResult = await getJson(
+          `/api/vehicles/${freshNote.vehicle_id}`,
+          false,
+        );
+
+        freshNote = mergeVehicleIntoNote(
+          freshNote,
+          unwrapObject(vehicleResult),
         );
       }
 
@@ -674,6 +1031,9 @@ export default function DeliveryNotesPage() {
         ? `${escapePrintHtml(note.weight)} kg`
         : "—";
 
+    const clientName = getClientName(note);
+    const clientContact = getClientContactLine(note);
+
     const logoUrl =
       typeof window !== "undefined"
         ? `${window.location.origin}/images/logo1.png`
@@ -684,648 +1044,516 @@ export default function DeliveryNotesPage() {
       <html lang="fr">
         <head>
           <meta charset="UTF-8" />
-          <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1"
-          />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>__DOCUMENT_TITLE__</title>
 
           <style>
-            @page {
-              size: 4in 6in;
-              margin: 0;
-            }
+            @page { size: 4in 6in; margin: 0; }
 
-            * {
-              box-sizing: border-box;
-            }
+            * { box-sizing: border-box; }
 
-            html,
-            body {
+            html, body {
               width: 4in;
               min-height: 6in;
               margin: 0;
               padding: 0;
+              background: #fff;
+              color: #111;
               font-family: Arial, Helvetica, sans-serif;
-              color: #070707;
-              background: #ffffff;
             }
 
             body {
-              display: flex;
-              justify-content: center;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
 
-            .label {
+            .ticket {
               width: 4in;
               min-height: 6in;
+              background: #fff;
+              border: 1.7px solid #111;
               display: flex;
               flex-direction: column;
               overflow: hidden;
-              border: 2px solid #000;
-              background: #fff;
             }
 
-            .header {
-              display: grid;
-              grid-template-columns: 1fr auto;
+            .top {
+              display: flex;
+              justify-content: space-between;
               align-items: center;
-              gap: 8px;
-              padding: 9px 10px;
-              border-bottom: 2px solid #000;
+              padding: 10px 11px;
+              border-bottom: 1.7px solid #111;
             }
 
-            .brand-wrap {
+            .brand {
               display: flex;
               align-items: center;
-              gap: 8px;
-              min-width: 0;
+              gap: 7px;
             }
 
-            .brand-logo {
-              width: 44px;
-              height: 44px;
+            .brand img {
+              width: 42px;
+              height: 42px;
               object-fit: contain;
-              object-position: left center;
             }
 
-            .brand-fallback {
-              display: none;
-              font-size: 14px;
-              font-weight: 950;
-              line-height: .9;
-            }
-
-            .brand-fallback span {
-              display: block;
-              color: #dc143c;
-            }
-
-            .brand-copy {
-              min-width: 0;
-            }
-
-            .brand-name {
-              font-size: 14px;
+            .brandName {
+              font-size: 15px;
               font-weight: 950;
               line-height: .95;
-              text-transform: uppercase;
+              letter-spacing: -.02em;
             }
 
-            .brand-name span {
-              color: #dc143c;
-            }
+            .brandName span { color: #dc143c; }
 
-            .brand-subtitle {
+            .brandSub {
               margin-top: 4px;
-              font-size: 6px;
+              font-size: 5.5px;
               font-weight: 800;
               letter-spacing: .12em;
               text-transform: uppercase;
             }
 
-            .service {
+            .deliveryTag {
               padding: 6px 8px;
-              border: 2px solid #000;
-              font-size: 7px;
+              border: 1.5px solid #111;
+              border-radius: 3px;
+              font-size: 6px;
               font-weight: 900;
               text-transform: uppercase;
+              letter-spacing: .05em;
             }
 
-            .reference-block {
-              padding: 8px 10px;
-              border-bottom: 2px solid #000;
+            .ref {
+              padding: 8px 11px;
+              border-bottom: 1.7px solid #111;
             }
 
-            .reference-label,
-            .mini-label,
-            .route-title,
-            .field-label {
-              font-size: 6px;
+            .label {
+              color: #666;
+              font-size: 5.5px;
               font-weight: 900;
               letter-spacing: .08em;
               text-transform: uppercase;
             }
 
-            .reference-number {
-              margin-top: 4px;
-              font-size: 22px;
+            .reference {
+              margin-top: 3px;
+              font-size: 20px;
               font-weight: 950;
               line-height: 1;
               letter-spacing: -.035em;
-              word-break: break-word;
+            }
+
+            .clientBox {
+              padding: 8px 11px;
+              border-bottom: 1.7px solid #111;
+              background: #fafafa;
+            }
+
+            .clientName {
+              margin-top: 3px;
+              font-size: 13px;
+              font-weight: 950;
+              line-height: 1.1;
+            }
+
+            .clientContact {
+              margin-top: 4px;
+              font-size: 6.5px;
+              font-weight: 700;
+              line-height: 1.3;
+              color: #444;
             }
 
             .route {
               display: grid;
               grid-template-columns: 1fr 1fr;
-              border-bottom: 2px solid #000;
+              border-bottom: 1.7px solid #111;
             }
 
-            .route-card {
-              min-height: 100px;
+            .routeCard {
+              min-height: 92px;
               padding: 8px 9px;
             }
 
-            .route-card:first-child {
-              border-right: 2px solid #000;
+            .routeCard:first-child {
+              border-right: 1.7px solid #111;
             }
 
-            .route-title {
-              margin-bottom: 6px;
+            .routeTitle {
+              font-size: 6px;
+              font-weight: 950;
+              text-transform: uppercase;
+              letter-spacing: .06em;
             }
 
-            .route-name {
-              margin-bottom: 5px;
-              font-size: 10px;
+            .routeName {
+              margin-top: 5px;
+              font-size: 9px;
               font-weight: 950;
               line-height: 1.15;
             }
 
-            .route-address {
-              font-size: 8px;
+            .routeAddress {
+              margin-top: 4px;
+              font-size: 7px;
               font-weight: 700;
-              line-height: 1.35;
+              line-height: 1.3;
             }
 
-            .route-date {
-              margin-top: 7px;
-              font-size: 7px;
-              font-weight: 800;
+            .routeDate {
+              margin-top: 6px;
+              padding-top: 5px;
+              border-top: 1px solid #ddd;
+              font-size: 6.5px;
+              font-weight: 900;
             }
 
             .transport {
               display: grid;
-              grid-template-columns: 1.1fr 1fr .75fr;
-              border-bottom: 2px solid #000;
+              grid-template-columns: 1.2fr 1fr .7fr;
+              border-bottom: 1.7px solid #111;
             }
 
-            .transport-item {
-              min-height: 55px;
+            .cell {
+              min-height: 51px;
               padding: 6px 7px;
-              border-right: 1px solid #000;
+              border-right: 1px solid #111;
             }
 
-            .transport-item:last-child {
-              border-right: 0;
-            }
+            .cell:last-child { border-right: 0; }
 
-            .mini-value {
+            .value {
               display: block;
               margin-top: 3px;
-              font-size: 9px;
+              font-size: 8px;
               font-weight: 900;
               line-height: 1.2;
             }
 
-            .barcode-zone {
-              padding: 7px 9px 8px;
-              border-bottom: 2px solid #000;
+            .barcodeZone {
+              padding: 6px 9px;
+              border-bottom: 1.7px solid #111;
               text-align: center;
             }
 
             .barcode {
-              width: 100%;
-              height: 42px;
+              height: 30px;
               display: flex;
-              align-items: stretch;
               justify-content: center;
-              gap: 2px;
+              align-items: stretch;
+              gap: 1.7px;
               overflow: hidden;
             }
 
-            .barcode span {
-              display: block;
-              height: 100%;
-              background: #000;
-            }
-
+            .barcode span { display: block; background: #111; }
             .b1 { width: 2px; }
             .b2 { width: 4px; }
             .b3 { width: 6px; }
 
-            .barcode-text {
-              margin-top: 4px;
-              font-size: 7px;
-              font-weight: 900;
-              letter-spacing: .16em;
-              word-break: break-all;
-            }
-
-            .details {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              border-bottom: 2px solid #000;
-            }
-
-            .detail {
-              padding: 6px 8px;
-              border-right: 1px solid #000;
-            }
-
-            .detail:last-child {
-              border-right: 0;
-            }
-
-            .detail strong {
-              display: block;
+            .barcodeText {
               margin-top: 3px;
-              font-size: 8px;
+              font-size: 6px;
+              font-weight: 900;
+              letter-spacing: .14em;
+            }
+
+            .desc {
+              display: grid;
+              grid-template-columns: 1.2fr .8fr;
+              border-bottom: 1.7px solid #111;
+            }
+
+            .descCell {
+              min-height: 42px;
+              padding: 6px 8px;
+              border-right: 1px solid #111;
+            }
+
+            .descCell:last-child { border-right: 0; }
+
+            .descValue {
+              margin-top: 3px;
+              font-size: 7.5px;
+              font-weight: 800;
               line-height: 1.25;
             }
 
             .proof {
               flex: 1;
-              padding: 8px 9px 9px;
+              padding: 7px 9px;
             }
 
-            .proof-title {
+            .proofHead {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              gap: 8px;
-              margin-bottom: 7px;
+              gap: 6px;
+              margin-bottom: 6px;
             }
 
-            .proof-title strong {
-              font-size: 9px;
+            .proofHead strong {
+              font-size: 8px;
               font-weight: 950;
               text-transform: uppercase;
             }
 
-            .proof-title span {
+            .proofBadge {
               font-size: 5px;
-              font-weight: 800;
-              letter-spacing: .06em;
+              font-weight: 900;
               text-transform: uppercase;
+              color: ${hasProof ? "#078554" : "#a26800"};
             }
 
-            .proof-row {
+            .proofMeta {
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 8px;
-              margin-bottom: 7px;
+              gap: 7px;
+              margin-bottom: 5px;
             }
 
-            .field {
-              min-height: 25px;
-              padding-top: 3px;
-              border-bottom: 1px solid #000;
+            .proofField {
+              min-height: 26px;
+              padding: 4px 5px;
+              border: 1px solid #bbb;
+              border-radius: 3px;
             }
 
-            .signature-box {
+            .proofValue {
+              margin-top: 2px;
+              font-size: 6.5px;
+              font-weight: 900;
+              line-height: 1.2;
+            }
+
+            .proofBottom {
+              display: grid;
+              grid-template-columns: 1fr 1.15fr;
+              gap: 7px;
+            }
+
+            .signature {
               height: 43px;
               margin-top: 3px;
-              border: 1px solid #000;
+              border: 1px solid #bbb;
+              border-radius: 3px;
               display: flex;
               align-items: center;
               justify-content: center;
               overflow: hidden;
             }
 
-            .signature-box img {
-              display: block;
+            .signature img {
               max-width: 100%;
               max-height: 100%;
               object-fit: contain;
             }
 
-            .field-value {
+            .notes {
+              height: 43px;
               margin-top: 3px;
-              font-size: 7px;
-              font-weight: 850;
+              padding: 4px;
+              border: 1px solid #bbb;
+              border-radius: 3px;
+              font-size: 5.8px;
               line-height: 1.25;
-            }
-
-            .notes-value {
-              height: 29px;
-              margin-top: 3px;
-              padding: 3px 4px;
-              border: 1px solid #000;
               overflow: hidden;
-              font-size: 6px;
-              line-height: 1.25;
-            }
-
-            .notes-box {
-              height: 29px;
-              margin-top: 3px;
-              border: 1px solid #000;
             }
 
             .footer {
               display: flex;
-              align-items: center;
               justify-content: space-between;
-              gap: 6px;
+              align-items: center;
               padding: 5px 8px;
-              border-top: 2px solid #000;
-              font-size: 5px;
+              border-top: 1.7px solid #111;
+              font-size: 4.8px;
               font-weight: 800;
-              letter-spacing: .04em;
               text-transform: uppercase;
+              letter-spacing: .04em;
             }
 
-            .footer strong {
-              color: #dc143c;
-            }
+            .footer strong { color: #dc143c; }
 
             @media print {
-              html,
-              body {
-                width: 4in;
-                height: 6in;
-              }
-
-              body {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
+              html, body { width: 4in; height: 6in; }
             }
           </style>
         </head>
 
         <body>
-          <main class="label">
-            <section class="header">
-              <div class="brand-wrap">
-                <img
-                  class="brand-logo"
-                  src="${logoUrl}"
-                  alt="Glory Solutions"
-                  onerror="
-                    this.style.display='none';
-                    this.nextElementSibling.style.display='block';
-                  "
-                />
-
-                <div class="brand-fallback">
-                  GLORY
-                  <span>SOLUTIONS</span>
-                </div>
-
-                <div class="brand-copy">
-                  <div class="brand-name">
+          <main class="ticket">
+            <section class="top">
+              <div class="brand">
+                <img src="${logoUrl}" alt="Glory Solutions" />
+                <div>
+                  <div class="brandName">
                     GLORY <span>SOLUTIONS</span>
                   </div>
-
-                  <div class="brand-subtitle">
+                  <div class="brandSub">
                     Transport & logistique
                   </div>
                 </div>
               </div>
 
-              <div class="service">
-                Livraison
+              <div class="deliveryTag">
+                Bon de livraison
               </div>
             </section>
 
-            <section class="reference-block">
-              <div class="reference-label">
-                Numéro de bon
-              </div>
-
-              <div class="reference-number">
+            <section class="ref">
+              <div class="label">Numéro de bon</div>
+              <div class="reference">
                 ${escapePrintHtml(reference)}
               </div>
             </section>
 
+            <section class="clientBox">
+              <div class="label">Client / destinataire</div>
+              <div class="clientName">
+                ${escapePrintHtml(clientName)}
+              </div>
+              ${
+                clientContact
+                  ? `<div class="clientContact">${escapePrintHtml(clientContact)}</div>`
+                  : ""
+              }
+            </section>
+
             <section class="route">
-              <div class="route-card">
-                <div class="route-title">
-                  Ramassage
-                </div>
-
-                <div class="route-name">
-                  Glory Solutions
-                </div>
-
-                <div class="route-address">
+              <div class="routeCard">
+                <div class="routeTitle">Ramassage</div>
+                <div class="routeName">Glory Solutions</div>
+                <div class="routeAddress">
                   ${escapePrintHtml(pickupAddress)}
                 </div>
-
-                <div class="route-date">
-                  ${escapePrintHtml(
-                    formatDate(note.pickup_date),
-                  )}
+                <div class="routeDate">
+                  ${escapePrintHtml(formatScheduledDateTime(note.pickup_date, note.pickup_time))}
                 </div>
               </div>
 
-              <div class="route-card">
-                <div class="route-title">
-                  Livraison
+              <div class="routeCard">
+                <div class="routeTitle">Livraison</div>
+                <div class="routeName">
+                  ${escapePrintHtml(clientName)}
                 </div>
-
-                <div class="route-name">
-                  ${escapePrintHtml(
-                    getClientName(note),
-                  )}
-                </div>
-
-                <div class="route-address">
+                <div class="routeAddress">
                   ${escapePrintHtml(deliveryAddress)}
                 </div>
-
-                <div class="route-date">
-                  ${escapePrintHtml(
-                    formatDate(
-                      note.delivery_date ||
-                        note.created_at,
-                    ),
-                  )}
+                <div class="routeDate">
+                  ${escapePrintHtml(formatScheduledDateTime(note.delivery_date, note.delivery_time))}
                 </div>
               </div>
             </section>
 
             <section class="transport">
-              <div class="transport-item">
-                <span class="mini-label">
-                  Chauffeur
-                </span>
-
-                <span class="mini-value">
-                  ${escapePrintHtml(
-                    getDriverName(note),
-                  )}
+              <div class="cell">
+                <span class="label">Chauffeur</span>
+                <span class="value">
+                  ${escapePrintHtml(getDriverName(note))}
                 </span>
               </div>
 
-              <div class="transport-item">
-                <span class="mini-label">
-                  Véhicule
+              <div class="cell">
+                <span class="label">Véhicule</span>
+                <span class="value">
+                  ${escapePrintHtml(note.vehicle_name)}
                 </span>
-
-                <span class="mini-value">
-                  ${escapePrintHtml(
-                    note.vehicle_name,
-                  )}
-                </span>
-
-                <span
-                  class="mini-label"
-                  style="display:block;margin-top:4px;"
-                >
-                  Plaque
-                </span>
-
-                <span class="mini-value">
-                  ${escapePrintHtml(
-                    note.vehicle_plate,
-                  )}
+                <span class="label" style="display:block;margin-top:4px;">Plaque</span>
+                <span class="value">
+                  ${escapePrintHtml(note.vehicle_plate)}
                 </span>
               </div>
 
-              <div class="transport-item">
-                <span class="mini-label">
-                  Colis
-                </span>
-
-                <span class="mini-value">
-                  ${quantity}
-                </span>
-
-                <span
-                  class="mini-label"
-                  style="display:block;margin-top:4px;"
-                >
-                  Poids
-                </span>
-
-                <span class="mini-value">
-                  ${weight}
-                </span>
+              <div class="cell">
+                <span class="label">Colis</span>
+                <span class="value">${quantity}</span>
+                <span class="label" style="display:block;margin-top:4px;">Poids</span>
+                <span class="value">${weight}</span>
               </div>
             </section>
 
-            <section class="barcode-zone">
+            <section class="barcodeZone">
               <div class="barcode">
-                <span class="b2"></span>
-                <span class="b1"></span>
-                <span class="b3"></span>
-                <span class="b1"></span>
-                <span class="b2"></span>
-                <span class="b3"></span>
-                <span class="b1"></span>
-                <span class="b1"></span>
-                <span class="b3"></span>
-                <span class="b2"></span>
-                <span class="b1"></span>
-                <span class="b3"></span>
-                <span class="b2"></span>
-                <span class="b1"></span>
-                <span class="b1"></span>
-                <span class="b3"></span>
-                <span class="b2"></span>
-                <span class="b3"></span>
-                <span class="b1"></span>
-                <span class="b2"></span>
-                <span class="b1"></span>
-                <span class="b3"></span>
-                <span class="b2"></span>
-                <span class="b1"></span>
-                <span class="b3"></span>
-                <span class="b1"></span>
-                <span class="b2"></span>
+                <span class="b2"></span><span class="b1"></span><span class="b3"></span>
+                <span class="b1"></span><span class="b2"></span><span class="b3"></span>
+                <span class="b1"></span><span class="b1"></span><span class="b3"></span>
+                <span class="b2"></span><span class="b1"></span><span class="b3"></span>
+                <span class="b2"></span><span class="b1"></span><span class="b1"></span>
+                <span class="b3"></span><span class="b2"></span><span class="b3"></span>
+                <span class="b1"></span><span class="b2"></span><span class="b1"></span>
+                <span class="b3"></span><span class="b2"></span><span class="b1"></span>
               </div>
-
-              <div class="barcode-text">
+              <div class="barcodeText">
                 ${escapePrintHtml(cleanReference)}
               </div>
             </section>
 
-            <section class="details">
-              <div class="detail">
-                <span class="mini-label">
-                  Description
-                </span>
-
-                <strong>
-                  ${escapePrintHtml(
-                    note.description,
-                  )}
-                </strong>
+            <section class="desc">
+              <div class="descCell">
+                <div class="label">Description</div>
+                <div class="descValue">
+                  ${escapePrintHtml(note.description)}
+                </div>
               </div>
 
-              <div class="detail">
-                <span class="mini-label">
-                  Statut
-                </span>
-
-                <strong>
-                  ${escapePrintHtml(
-                    getStatusLabel(note.status),
-                  )}
-                </strong>
+              <div class="descCell">
+                <div class="label">Statut</div>
+                <div class="descValue">
+                  ${escapePrintHtml(getStatusLabel(note.status))}
+                </div>
               </div>
             </section>
 
             <section class="proof">
-              <div class="proof-title">
-                <strong>
-                  Preuve de livraison
-                </strong>
-
-                <span>
-                  ${hasProof ? "Preuve enregistrée" : "En attente de preuve"}
+              <div class="proofHead">
+                <strong>Preuve de livraison</strong>
+                <span class="proofBadge">
+                  ${hasProof ? "Preuve enregistrée" : "En attente"}
                 </span>
               </div>
 
-              <div class="proof-row">
-                <div class="field">
-                  <div class="field-label">
-                    Reçu par
-                  </div>
-                  <div class="field-value">
+              <div class="proofMeta">
+                <div class="proofField">
+                  <div class="label">Reçu par</div>
+                  <div class="proofValue">
                     ${escapePrintHtml(receiverName)}
                   </div>
                 </div>
 
-                <div class="field">
-                  <div class="field-label">
-                    Date / heure réelle
-                  </div>
-                  <div class="field-value">
+                <div class="proofField">
+                  <div class="label">Date / heure réelle</div>
+                  <div class="proofValue">
                     ${escapePrintHtml(formatDate(actualDeliveryDate))}
                   </div>
                 </div>
               </div>
 
-              <div class="field-label">
-                Signature du destinataire
-              </div>
+              <div class="proofBottom">
+                <div>
+                  <div class="label">Signature</div>
+                  <div class="signature">
+                    ${
+                      signatureUrl
+                        ? `<img src="${escapePrintHtml(signatureUrl)}" alt="Signature" />`
+                        : ""
+                    }
+                  </div>
+                </div>
 
-              <div class="signature-box">
-                ${
-                  signatureUrl
-                    ? `<img src="${escapePrintHtml(signatureUrl)}" alt="Signature du destinataire" />`
-                    : ""
-                }
-              </div>
-
-              <div
-                class="field-label"
-                style="margin-top:7px;"
-              >
-                Observations
-              </div>
-
-              <div class="notes-value">
-                ${escapePrintHtml(proofNotes)}
+                <div>
+                  <div class="label">Observations</div>
+                  <div class="notes">
+                    ${escapePrintHtml(proofNotes)}
+                  </div>
+                </div>
               </div>
             </section>
 
             <footer class="footer">
-              <span>
-                glorysolutions.ca
-              </span>
-
-              <strong>
-                ${escapePrintHtml(reference)}
-              </strong>
-
-              <span>
-                Document logistique
-              </span>
+              <span>glorysolutions.ca</span>
+              <strong>${escapePrintHtml(reference)}</strong>
+              <span>Document logistique</span>
             </footer>
           </main>
 
@@ -1850,7 +2078,7 @@ export default function DeliveryNotesPage() {
 
                 <span class="refBig">
                   ${escapePrintHtml(
-                    formatDate(note.pickup_date),
+                    formatScheduledDate(note.pickup_date, note.pickup_time),
                   )}
                 </span>
               </div>
@@ -1929,7 +2157,7 @@ export default function DeliveryNotesPage() {
 
                 <div class="partyText">
                   ${escapePrintHtml(
-                    formatDate(note.pickup_date),
+                    formatScheduledDate(note.pickup_date, note.pickup_time),
                   )}
                 </div>
               </div>

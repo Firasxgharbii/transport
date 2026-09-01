@@ -15,15 +15,28 @@ const OrderModel = {
         c.company_name,
         c.phone AS client_phone,
         c.email AS client_email,
+        c.address AS client_address,
+        c.city AS client_city,
+        c.province AS client_province,
+        c.postal_code AS client_postal_code,
+        COALESCE(
+          NULLIF(TRIM(c.company_name), ''),
+          NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), '')
+        ) AS client_name,
 
         d.id AS driver_record_id,
 
         u.first_name AS driver_first_name,
         u.last_name AS driver_last_name,
+        NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS driver_name,
         COALESCE(d.phone, u.phone) AS driver_phone,
 
-        d.vehicle_name,
-        d.vehicle_plate,
+        COALESCE(
+          NULLIF(TRIM(CONCAT_WS(' ', v.brand, v.model)), ''),
+          v.vehicle_number,
+          d.vehicle_name
+        ) AS vehicle_name,
+        COALESCE(v.plate_number, d.vehicle_plate) AS vehicle_plate,
         d.availability_status,
 
         (
@@ -50,6 +63,9 @@ const OrderModel = {
       LEFT JOIN users u
         ON u.id = d.user_id
 
+      LEFT JOIN vehicles v
+        ON v.id = o.vehicle_id
+
       ORDER BY o.created_at DESC
     `);
 
@@ -75,16 +91,25 @@ const OrderModel = {
           c.city AS client_city,
           c.province AS client_province,
           c.postal_code AS client_postal_code,
+          COALESCE(
+            NULLIF(TRIM(c.company_name), ''),
+            NULLIF(TRIM(CONCAT_WS(' ', c.first_name, c.last_name)), '')
+          ) AS client_name,
 
           d.id AS driver_record_id,
 
           u.first_name AS driver_first_name,
           u.last_name AS driver_last_name,
           u.email AS driver_email,
+          NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), '') AS driver_name,
           COALESCE(d.phone, u.phone) AS driver_phone,
 
-          d.vehicle_name,
-          d.vehicle_plate,
+          COALESCE(
+            NULLIF(TRIM(CONCAT_WS(' ', v.brand, v.model)), ''),
+            v.vehicle_number,
+            d.vehicle_name
+          ) AS vehicle_name,
+          COALESCE(v.plate_number, d.vehicle_plate) AS vehicle_plate,
           d.availability_status,
 
           (
@@ -110,6 +135,9 @@ const OrderModel = {
 
         LEFT JOIN users u
           ON u.id = d.user_id
+
+        LEFT JOIN vehicles v
+          ON v.id = o.vehicle_id
 
         WHERE o.id = ?
 
