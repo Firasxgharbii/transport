@@ -13,6 +13,10 @@ import {
   MapPin,
   Navigation,
   PackageCheck,
+  PenLine,
+  RotateCcw,
+  Upload,
+  ExternalLink,
   Phone,
   RefreshCw,
   ShieldAlert,
@@ -70,6 +74,8 @@ type Order = {
 
   notes?: string;
 
+  driver_id?: number | null;
+
   vehicle_make?: string;
   vehicle_model?: string;
   vehicle_name?: string;
@@ -112,7 +118,9 @@ function getToken() {
 
   return (
     localStorage.getItem("glory_token") ||
+    sessionStorage.getItem("glory_token") ||
     localStorage.getItem("token") ||
+    sessionStorage.getItem("token") ||
     ""
   );
 }
@@ -306,6 +314,65 @@ export default function DriverOrderDetailsPage() {
 
   const watchIdRef =
     useRef<number | null>(null);
+
+  const signatureCanvasRef =
+    useRef<HTMLCanvasElement | null>(null);
+
+  const signatureDrawingRef =
+    useRef(false);
+
+  const photoInputRef =
+    useRef<HTMLInputElement | null>(null);
+
+  const [
+    proofOpen,
+    setProofOpen,
+  ] = useState(false);
+
+  const [
+    proofSaving,
+    setProofSaving,
+  ] = useState(false);
+
+  const [
+    receiverFirstName,
+    setReceiverFirstName,
+  ] = useState("");
+
+  const [
+    receiverLastName,
+    setReceiverLastName,
+  ] = useState("");
+
+  const [
+    proofNotes,
+    setProofNotes,
+  ] = useState("");
+
+  const [
+    proofPhoto,
+    setProofPhoto,
+  ] = useState<File | null>(null);
+
+  const [
+    proofPhotoPreview,
+    setProofPhotoPreview,
+  ] = useState("");
+
+  const [
+    signatureReady,
+    setSignatureReady,
+  ] = useState(false);
+
+  const [
+    navigationOpen,
+    setNavigationOpen,
+  ] = useState(false);
+
+  const [
+    navigationAddress,
+    setNavigationAddress,
+  ] = useState("");
 
   const [
     order,
@@ -894,6 +961,686 @@ export default function DriverOrderDetailsPage() {
   ]);
 
   /* ==========================================================
+     PREUVE DE LIVRAISON
+  ========================================================== */
+
+  const resetProofForm =
+    useCallback(() => {
+      setReceiverFirstName("");
+      setReceiverLastName("");
+      setProofNotes("");
+      setProofPhoto(null);
+      setSignatureReady(false);
+
+      setProofPhotoPreview(
+        (current) => {
+          if (current) {
+            URL.revokeObjectURL(
+              current,
+            );
+          }
+
+          return "";
+        },
+      );
+
+      const canvas =
+        signatureCanvasRef.current;
+
+      if (canvas) {
+        const context =
+          canvas.getContext("2d");
+
+        if (context) {
+          context.clearRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          );
+        }
+      }
+
+      if (photoInputRef.current) {
+        photoInputRef.current.value =
+          "";
+      }
+    }, []);
+
+  const openProofModal =
+    useCallback(() => {
+      setError("");
+      setSuccess("");
+      setProofOpen(true);
+    }, []);
+
+  const closeProofModal =
+    useCallback(() => {
+      if (proofSaving) {
+        return;
+      }
+
+      setProofOpen(false);
+    }, [proofSaving]);
+
+  useEffect(() => {
+    if (!proofOpen) {
+      return;
+    }
+
+    const canvas =
+      signatureCanvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const setupCanvas = () => {
+      const rect =
+        canvas.getBoundingClientRect();
+
+      const ratio =
+        Math.max(
+          window.devicePixelRatio ||
+            1,
+          1,
+        );
+
+      canvas.width =
+        Math.max(
+          Math.round(
+            rect.width * ratio,
+          ),
+          1,
+        );
+
+      canvas.height =
+        Math.max(
+          Math.round(
+            rect.height * ratio,
+          ),
+          1,
+        );
+
+      const context =
+        canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      context.setTransform(
+        ratio,
+        0,
+        0,
+        ratio,
+        0,
+        0,
+      );
+
+      context.lineCap =
+        "round";
+
+      context.lineJoin =
+        "round";
+
+      context.lineWidth =
+        2.4;
+
+      context.strokeStyle =
+        "#20212a";
+    };
+
+    const frame =
+      window.requestAnimationFrame(
+        setupCanvas,
+      );
+
+    window.addEventListener(
+      "resize",
+      setupCanvas,
+    );
+
+    return () => {
+      window.cancelAnimationFrame(
+        frame,
+      );
+
+      window.removeEventListener(
+        "resize",
+        setupCanvas,
+      );
+    };
+  }, [proofOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (proofPhotoPreview) {
+        URL.revokeObjectURL(
+          proofPhotoPreview,
+        );
+      }
+    };
+  }, [proofPhotoPreview]);
+
+  const getCanvasPoint =
+    (
+      event:
+        React.PointerEvent<HTMLCanvasElement>,
+    ) => {
+      const canvas =
+        signatureCanvasRef.current;
+
+      if (!canvas) {
+        return null;
+      }
+
+      const rect =
+        canvas.getBoundingClientRect();
+
+      return {
+        x:
+          event.clientX -
+          rect.left,
+
+        y:
+          event.clientY -
+          rect.top,
+      };
+    };
+
+  const startSignature =
+    (
+      event:
+        React.PointerEvent<HTMLCanvasElement>,
+    ) => {
+      const canvas =
+        signatureCanvasRef.current;
+
+      const point =
+        getCanvasPoint(event);
+
+      if (
+        !canvas ||
+        !point
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      canvas.setPointerCapture(
+        event.pointerId,
+      );
+
+      const context =
+        canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      signatureDrawingRef.current =
+        true;
+
+      context.beginPath();
+
+      context.moveTo(
+        point.x,
+        point.y,
+      );
+    };
+
+  const drawSignature =
+    (
+      event:
+        React.PointerEvent<HTMLCanvasElement>,
+    ) => {
+      if (
+        !signatureDrawingRef.current
+      ) {
+        return;
+      }
+
+      const canvas =
+        signatureCanvasRef.current;
+
+      const point =
+        getCanvasPoint(event);
+
+      if (
+        !canvas ||
+        !point
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const context =
+        canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      context.lineTo(
+        point.x,
+        point.y,
+      );
+
+      context.stroke();
+
+      setSignatureReady(true);
+    };
+
+  const endSignature =
+    (
+      event:
+        React.PointerEvent<HTMLCanvasElement>,
+    ) => {
+      const canvas =
+        signatureCanvasRef.current;
+
+      if (
+        canvas?.hasPointerCapture(
+          event.pointerId,
+        )
+      ) {
+        canvas.releasePointerCapture(
+          event.pointerId,
+        );
+      }
+
+      signatureDrawingRef.current =
+        false;
+    };
+
+  const clearSignature =
+    () => {
+      const canvas =
+        signatureCanvasRef.current;
+
+      if (!canvas) {
+        return;
+      }
+
+      const context =
+        canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      context.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+
+      setSignatureReady(false);
+    };
+
+  const canvasToBlob =
+    (
+      canvas:
+        HTMLCanvasElement,
+    ) =>
+      new Promise<Blob | null>(
+        (resolve) => {
+          canvas.toBlob(
+            resolve,
+            "image/png",
+            0.95,
+          );
+        },
+      );
+
+  const handlePhotoChange =
+    (
+      event:
+        React.ChangeEvent<HTMLInputElement>,
+    ) => {
+      const file =
+        event.target.files?.[0] ||
+        null;
+
+      if (!file) {
+        setProofPhoto(null);
+
+        setProofPhotoPreview(
+          (current) => {
+            if (current) {
+              URL.revokeObjectURL(
+                current,
+              );
+            }
+
+            return "";
+          },
+        );
+
+        return;
+      }
+
+      if (
+        !file.type.startsWith(
+          "image/",
+        )
+      ) {
+        setError(
+          "Veuillez sélectionner une image.",
+        );
+
+        event.target.value = "";
+
+        return;
+      }
+
+      if (
+        file.size >
+        10 * 1024 * 1024
+      ) {
+        setError(
+          "La photo ne doit pas dépasser 10 Mo.",
+        );
+
+        event.target.value = "";
+
+        return;
+      }
+
+      setError("");
+      setProofPhoto(file);
+
+      setProofPhotoPreview(
+        (current) => {
+          if (current) {
+            URL.revokeObjectURL(
+              current,
+            );
+          }
+
+          return URL.createObjectURL(
+            file,
+          );
+        },
+      );
+    };
+
+  const submitDeliveryProof =
+    async () => {
+      if (!order) {
+        return;
+      }
+
+      const firstName =
+        receiverFirstName.trim();
+
+      const lastName =
+        receiverLastName.trim();
+
+      if (!firstName) {
+        setError(
+          "Le prénom du destinataire est obligatoire.",
+        );
+        return;
+      }
+
+      if (!lastName) {
+        setError(
+          "Le nom du destinataire est obligatoire.",
+        );
+        return;
+      }
+
+      if (!proofPhoto) {
+        setError(
+          "La photo de livraison est obligatoire.",
+        );
+        return;
+      }
+
+      if (!signatureReady) {
+        setError(
+          "La signature du destinataire est obligatoire.",
+        );
+        return;
+      }
+
+      if (
+        gpsState !== "active" ||
+        !position
+      ) {
+        setError(
+          "Le GPS doit être actif avant de confirmer la livraison.",
+        );
+        return;
+      }
+
+      const driverId =
+        Number(order.driver_id);
+
+      if (
+        !Number.isInteger(
+          driverId,
+        ) ||
+        driverId <= 0
+      ) {
+        setError(
+          "Aucun chauffeur valide n'est associé à cette commande.",
+        );
+        return;
+      }
+
+      const canvas =
+        signatureCanvasRef.current;
+
+      if (!canvas) {
+        setError(
+          "Impossible de récupérer la signature.",
+        );
+        return;
+      }
+
+      try {
+        setProofSaving(true);
+        setError("");
+        setSuccess("");
+
+        const signatureBlob =
+          await canvasToBlob(
+            canvas,
+          );
+
+        if (!signatureBlob) {
+          throw new Error(
+            "Impossible de préparer la signature.",
+          );
+        }
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "driver_id",
+          String(driverId),
+        );
+
+        formData.append(
+          "receiver_first_name",
+          firstName,
+        );
+
+        formData.append(
+          "receiver_last_name",
+          lastName,
+        );
+
+        formData.append(
+          "notes",
+          proofNotes.trim(),
+        );
+
+        formData.append(
+          "latitude",
+          String(
+            position.latitude,
+          ),
+        );
+
+        formData.append(
+          "longitude",
+          String(
+            position.longitude,
+          ),
+        );
+
+        if (
+          position.accuracy !==
+          null
+        ) {
+          formData.append(
+            "accuracy",
+            String(
+              position.accuracy,
+            ),
+          );
+        }
+
+        formData.append(
+          "photo",
+          proofPhoto,
+          proofPhoto.name ||
+            `delivery-${order.id}.jpg`,
+        );
+
+        formData.append(
+          "signature",
+          signatureBlob,
+          `signature-${order.id}.png`,
+        );
+
+        const token =
+          getToken();
+
+        if (!token) {
+          router.replace(
+            "/login",
+          );
+
+          throw new Error(
+            "Session expirée.",
+          );
+        }
+
+        const response =
+          await fetch(
+            `${API_URL}/api/orders/${order.id}/proofs`,
+            {
+              method: "POST",
+
+              headers: {
+                Accept:
+                  "application/json",
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body:
+                formData,
+
+              cache:
+                "no-store",
+            },
+          );
+
+        let result: any = {};
+
+        try {
+          result =
+            await response.json();
+        } catch {
+          result = {};
+        }
+
+        if (
+          response.status === 401
+        ) {
+          localStorage.removeItem(
+            "glory_token",
+          );
+
+          sessionStorage.removeItem(
+            "glory_token",
+          );
+
+          router.replace(
+            "/login",
+          );
+
+          throw new Error(
+            "Session expirée.",
+          );
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            result.message ||
+              `Erreur API (${response.status}).`,
+          );
+        }
+
+        setProofOpen(false);
+        resetProofForm();
+
+        setSuccess(
+          "Preuve enregistrée. La livraison est maintenant terminée.",
+        );
+
+        setOrder(
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  status:
+                    result.order
+                      ?.status ||
+                    result.data
+                      ?.order
+                      ?.status ||
+                    "completed",
+                }
+              : current,
+        );
+
+        await loadOrder();
+
+        window.setTimeout(
+          () => {
+            setSuccess("");
+          },
+          4500,
+        );
+      } catch (reason) {
+        console.error(
+          "Erreur preuve de livraison:",
+          reason,
+        );
+
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Impossible d'enregistrer la preuve de livraison.",
+        );
+      } finally {
+        setProofSaving(false);
+      }
+    };
+
+  /* ==========================================================
      NAVIGATION
   ========================================================== */
 
@@ -903,15 +1650,50 @@ export default function DriverOrderDetailsPage() {
     ) => {
       if (!address) return;
 
+      setNavigationAddress(
+        address,
+      );
+
+      setNavigationOpen(
+        true,
+      );
+    };
+
+  const launchNavigation =
+    (
+      provider:
+        | "google"
+        | "waze"
+        | "apple",
+    ) => {
+      if (!navigationAddress) {
+        return;
+      }
+
       const destination =
         encodeURIComponent(
-          address,
+          navigationAddress,
         );
 
+      const urls = {
+        google:
+          `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+
+        waze:
+          `https://waze.com/ul?q=${destination}&navigate=yes`,
+
+        apple:
+          `https://maps.apple.com/?daddr=${destination}&dirflg=d`,
+      };
+
       window.open(
-        `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+        urls[provider],
         "_blank",
         "noopener,noreferrer",
+      );
+
+      setNavigationOpen(
+        false,
       );
     };
 
@@ -1774,7 +2556,7 @@ export default function DriverOrderDetailsPage() {
                 styles.helperText
               }
             >
-              À la livraison, ajoutez une photo ou une preuve avant de terminer l'opération.
+              La livraison finale exige une photo, la signature du destinataire et son nom.
             </p>
 
             <button
@@ -1782,12 +2564,23 @@ export default function DriverOrderDetailsPage() {
               className={
                 styles.secondaryButton
               }
+              disabled={
+                order.status ===
+                  "completed" ||
+                proofSaving
+              }
+              onClick={
+                openProofModal
+              }
             >
               <Camera
                 size={17}
               />
 
-              Ajouter une preuve
+              {order.status ===
+              "completed"
+                ? "Preuve enregistrée"
+                : "Ajouter la preuve"}
             </button>
           </section>
 
@@ -1867,11 +2660,19 @@ export default function DriverOrderDetailsPage() {
             disabled={
               updating
             }
-            onClick={() =>
+            onClick={() => {
+              if (
+                nextAction.status ===
+                "completed"
+              ) {
+                openProofModal();
+                return;
+              }
+
               void updateStatus(
                 nextAction.status,
-              )
-            }
+              );
+            }}
           >
             {updating ? (
               <>
@@ -1918,6 +2719,542 @@ export default function DriverOrderDetailsPage() {
             </p>
           </div>
         </section>
+      )}
+
+      {/* NAVIGATION MODAL */}
+
+      {navigationOpen && (
+        <div
+          className={
+            styles.modalOverlay
+          }
+          onClick={() =>
+            setNavigationOpen(
+              false,
+            )
+          }
+        >
+          <div
+            className={
+              styles.navigationModal
+            }
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <button
+              type="button"
+              className={
+                styles.modalClose
+              }
+              onClick={() =>
+                setNavigationOpen(
+                  false,
+                )
+              }
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+
+            <div
+              className={
+                styles.modalIcon
+              }
+            >
+              <Navigation
+                size={25}
+              />
+            </div>
+
+            <h2>
+              Choisir la navigation
+            </h2>
+
+            <p>
+              Ouvrez l'adresse dans l'application de votre choix.
+            </p>
+
+            <div
+              className={
+                styles.navigationChoices
+              }
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  launchNavigation(
+                    "google",
+                  )
+                }
+              >
+                <MapPin size={18} />
+                Google Maps
+                <ExternalLink
+                  size={15}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  launchNavigation(
+                    "waze",
+                  )
+                }
+              >
+                <Navigation
+                  size={18}
+                />
+                Waze
+                <ExternalLink
+                  size={15}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  launchNavigation(
+                    "apple",
+                  )
+                }
+              >
+                <MapPin size={18} />
+                Apple Maps
+                <ExternalLink
+                  size={15}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PREUVE DE LIVRAISON MODAL */}
+
+      {proofOpen && (
+        <div
+          className={
+            styles.modalOverlay
+          }
+          onClick={
+            closeProofModal
+          }
+        >
+          <div
+            className={
+              styles.proofModal
+            }
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <button
+              type="button"
+              className={
+                styles.modalClose
+              }
+              disabled={
+                proofSaving
+              }
+              onClick={
+                closeProofModal
+              }
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+
+            <div
+              className={
+                styles.proofModalHeader
+              }
+            >
+              <div
+                className={
+                  styles.modalIcon
+                }
+              >
+                <FileCheck2
+                  size={25}
+                />
+              </div>
+
+              <div>
+                <span>
+                  PREUVE DE LIVRAISON
+                </span>
+
+                <h2>
+                  Confirmer la livraison
+                </h2>
+
+                <p>
+                  Photo, identité du destinataire et signature obligatoires.
+                </p>
+              </div>
+            </div>
+
+            <div
+              className={
+                styles.proofGpsStatus
+              }
+            >
+              <Navigation
+                size={17}
+              />
+
+              <div>
+                <strong>
+                  {gpsState ===
+                  "active"
+                    ? "Position GPS confirmée"
+                    : "GPS requis"}
+                </strong>
+
+                <span>
+                  {gpsState ===
+                    "active" &&
+                  position
+                    ? `${position.latitude.toFixed(
+                        5,
+                      )}, ${position.longitude.toFixed(
+                        5,
+                      )}${
+                        position.accuracy
+                          ? ` · ±${Math.round(
+                              position.accuracy,
+                            )} m`
+                          : ""
+                      }`
+                    : "Activez la géolocalisation avant de terminer."}
+                </span>
+              </div>
+            </div>
+
+            <div
+              className={
+                styles.proofFormGrid
+              }
+            >
+              <label>
+                <span>
+                  Prénom du destinataire *
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    receiverFirstName
+                  }
+                  onChange={(event) =>
+                    setReceiverFirstName(
+                      event.target
+                        .value,
+                    )
+                  }
+                  placeholder="Prénom"
+                  autoComplete="given-name"
+                  disabled={
+                    proofSaving
+                  }
+                />
+              </label>
+
+              <label>
+                <span>
+                  Nom du destinataire *
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    receiverLastName
+                  }
+                  onChange={(event) =>
+                    setReceiverLastName(
+                      event.target
+                        .value,
+                    )
+                  }
+                  placeholder="Nom"
+                  autoComplete="family-name"
+                  disabled={
+                    proofSaving
+                  }
+                />
+              </label>
+            </div>
+
+            <div
+              className={
+                styles.proofSection
+              }
+            >
+              <div
+                className={
+                  styles.proofSectionHeader
+                }
+              >
+                <div>
+                  <Camera
+                    size={18}
+                  />
+
+                  <strong>
+                    Photo de livraison *
+                  </strong>
+                </div>
+
+                {proofPhoto && (
+                  <span>
+                    Photo prête
+                  </span>
+                )}
+              </div>
+
+              <input
+                ref={
+                  photoInputRef
+                }
+                className={
+                  styles.hiddenFileInput
+                }
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={
+                  handlePhotoChange
+                }
+                disabled={
+                  proofSaving
+                }
+              />
+
+              {proofPhotoPreview ? (
+                <div
+                  className={
+                    styles.photoPreview
+                  }
+                >
+                  <img
+                    src={
+                      proofPhotoPreview
+                    }
+                    alt="Aperçu de la preuve de livraison"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      photoInputRef.current?.click()
+                    }
+                    disabled={
+                      proofSaving
+                    }
+                  >
+                    <Camera
+                      size={16}
+                    />
+                    Reprendre
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={
+                    styles.photoCaptureButton
+                  }
+                  onClick={() =>
+                    photoInputRef.current?.click()
+                  }
+                  disabled={
+                    proofSaving
+                  }
+                >
+                  <Camera
+                    size={24}
+                  />
+
+                  <strong>
+                    Prendre une photo
+                  </strong>
+
+                  <span>
+                    Utilisez la caméra arrière du téléphone.
+                  </span>
+                </button>
+              )}
+            </div>
+
+            <div
+              className={
+                styles.proofSection
+              }
+            >
+              <div
+                className={
+                  styles.proofSectionHeader
+                }
+              >
+                <div>
+                  <PenLine
+                    size={18}
+                  />
+
+                  <strong>
+                    Signature du destinataire *
+                  </strong>
+                </div>
+
+                {signatureReady && (
+                  <span>
+                    Signature prête
+                  </span>
+                )}
+              </div>
+
+              <div
+                className={
+                  styles.signatureBox
+                }
+              >
+                <canvas
+                  ref={
+                    signatureCanvasRef
+                  }
+                  onPointerDown={
+                    startSignature
+                  }
+                  onPointerMove={
+                    drawSignature
+                  }
+                  onPointerUp={
+                    endSignature
+                  }
+                  onPointerCancel={
+                    endSignature
+                  }
+                  onPointerLeave={
+                    endSignature
+                  }
+                />
+
+                {!signatureReady && (
+                  <div
+                    className={
+                      styles.signaturePlaceholder
+                    }
+                  >
+                    Signez ici avec le doigt
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className={
+                  styles.clearSignatureButton
+                }
+                onClick={
+                  clearSignature
+                }
+                disabled={
+                  proofSaving ||
+                  !signatureReady
+                }
+              >
+                <RotateCcw
+                  size={15}
+                />
+
+                Effacer la signature
+              </button>
+            </div>
+
+            <label
+              className={
+                styles.proofNotesLabel
+              }
+            >
+              <span>
+                Notes de livraison
+              </span>
+
+              <textarea
+                value={
+                  proofNotes
+                }
+                onChange={(event) =>
+                  setProofNotes(
+                    event.target
+                      .value,
+                  )
+                }
+                rows={3}
+                placeholder="Ex. livré à la réception, palette intacte..."
+                disabled={
+                  proofSaving
+                }
+              />
+            </label>
+
+            <div
+              className={
+                styles.proofSummary
+              }
+            >
+              <FileCheck2
+                size={17}
+              />
+
+              <div>
+                <strong>
+                  Confirmation finale
+                </strong>
+
+                <span>
+                  L'heure réelle de livraison sera enregistrée automatiquement par le serveur.
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={
+                styles.proofSubmit
+              }
+              disabled={
+                proofSaving
+              }
+              onClick={() =>
+                void submitDeliveryProof()
+              }
+            >
+              {proofSaving ? (
+                <>
+                  <Loader2
+                    size={18}
+                    className={
+                      styles.spinner
+                    }
+                  />
+
+                  Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Upload
+                    size={18}
+                  />
+
+                  Confirmer la livraison
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* INCIDENT MODAL */}

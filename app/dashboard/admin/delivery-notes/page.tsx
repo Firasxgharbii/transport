@@ -59,7 +59,33 @@ type DeliveryNote = {
   created_at?: string | null;
   updated_at?: string | null;
 
+  pickup_time?: string | null;
+  delivery_time?: string | null;
+
+  stops?: unknown[];
+  timeline?: OrderTimelineItem[];
+  proofs?: DeliveryProof[];
+
   [key: string]: unknown;
+};
+
+type DeliveryProof = {
+  id?: number | string | null;
+  receiver_first_name?: string | null;
+  receiver_last_name?: string | null;
+  recipient_name?: string | null;
+  signature_url?: string | null;
+  photo_url?: string | null;
+  notes?: string | null;
+  delivered_at?: string | null;
+  created_at?: string | null;
+};
+
+type OrderTimelineItem = {
+  id?: number | string | null;
+  status?: string | null;
+  comment?: string | null;
+  created_at?: string | null;
 };
 
 const API_URL =
@@ -71,7 +97,13 @@ function getToken() {
     return "";
   }
 
-  return localStorage.getItem("glory_token") || "";
+  return (
+    localStorage.getItem("glory_token") ||
+    sessionStorage.getItem("glory_token") ||
+    localStorage.getItem("token") ||
+    sessionStorage.getItem("token") ||
+    ""
+  );
 }
 
 function cleanText(value: unknown): string {
@@ -217,6 +249,104 @@ function extractDeliveryNotes(result: unknown): DeliveryNote[] {
   return [];
 }
 
+
+function extractSingleDeliveryNote(result: unknown): DeliveryNote | null {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+
+  const object = result as Record<string, unknown>;
+
+  const candidates = [
+    object.data,
+    object.order,
+    object.deliveryNote,
+    object.delivery_note,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      return candidate as DeliveryNote;
+    }
+  }
+
+  if ("id" in object) {
+    return object as DeliveryNote;
+  }
+
+  return null;
+}
+
+function getProofs(note: DeliveryNote): DeliveryProof[] {
+  return Array.isArray(note.proofs)
+    ? (note.proofs as DeliveryProof[])
+    : [];
+}
+
+function getLatestProof(note: DeliveryNote): DeliveryProof | null {
+  const proofs = getProofs(note);
+
+  if (!proofs.length) {
+    return null;
+  }
+
+  return [...proofs].sort((a, b) => {
+    const aTime = new Date(
+      a.delivered_at || a.created_at || 0,
+    ).getTime();
+
+    const bTime = new Date(
+      b.delivered_at || b.created_at || 0,
+    ).getTime();
+
+    return bTime - aTime;
+  })[0];
+}
+
+function getReceiverName(proof: DeliveryProof | null) {
+  if (!proof) {
+    return "—";
+  }
+
+  const fullName = [
+    proof.receiver_first_name,
+    proof.receiver_last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return fullName || proof.recipient_name || "—";
+}
+
+function getActualDeliveryDate(
+  note: DeliveryNote,
+  proof: DeliveryProof | null,
+) {
+  if (proof?.delivered_at) {
+    return proof.delivered_at;
+  }
+
+  if (Array.isArray(note.timeline)) {
+    const completed = [...note.timeline]
+      .reverse()
+      .find(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          ["completed", "delivered"].includes(
+            String((item as OrderTimelineItem).status || "").toLowerCase(),
+          ),
+      ) as OrderTimelineItem | undefined;
+
+    if (completed?.created_at) {
+      return completed.created_at;
+    }
+  }
+
+  return note.delivery_date || note.updated_at || null;
+}
+
 export default function DeliveryNotesPage() {
   const [notes, setNotes] = useState<DeliveryNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,6 +360,9 @@ export default function DeliveryNotesPage() {
 
   const [selectedNote, setSelectedNote] =
     useState<DeliveryNote | null>(null);
+
+  const [printingId, setPrintingId] =
+    useState<string | number | null>(null);
 
   const loadDeliveryNotes = useCallback(
     async (refresh = false) => {
@@ -321,6 +454,74 @@ export default function DeliveryNotesPage() {
   useEffect(() => {
     loadDeliveryNotes();
   }, [loadDeliveryNotes]);
+
+  const fetchFreshDeliveryNote = useCallback(
+    async (id: number | string) => {
+      const token = getToken();
+
+      if (!token) {
+        throw new Error(
+          "Session introuvable. Veuillez vous reconnecter.",
+        );
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/orders/delivery-notes/${id}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        },
+      );
+
+      let result: unknown = null;
+
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
+      }
+
+      if (response.status === 401) {
+        throw new Error(
+          "Votre session a expiré. Veuillez vous reconnecter.",
+        );
+      }
+
+      if (response.status === 403) {
+        throw new Error(
+          "Vous n’avez pas la permission d’accéder à ce bon de livraison.",
+        );
+      }
+
+      if (!response.ok) {
+        const apiResult =
+          result && typeof result === "object"
+            ? (result as Record<string, unknown>)
+            : null;
+
+        throw new Error(
+          apiResult && typeof apiResult.message === "string"
+            ? apiResult.message
+            : `Erreur API (${response.status}).`,
+        );
+      }
+
+      const freshNote = extractSingleDeliveryNote(result);
+
+      if (!freshNote) {
+        throw new Error(
+          "Le serveur n’a retourné aucune commande valide.",
+        );
+      }
+
+      return freshNote;
+    },
+    [],
+  );
 
   const filteredNotes = useMemo(() => {
     const query = search
@@ -433,6 +634,15 @@ export default function DeliveryNotesPage() {
   const printDeliveryNote = (
     note: DeliveryNote,
   ) => {
+    const latestProof = getLatestProof(note);
+    const receiverName = getReceiverName(latestProof);
+    const actualDeliveryDate = getActualDeliveryDate(note, latestProof);
+    const signatureUrl = latestProof?.signature_url || "";
+    const proofNotes = latestProof?.notes || note.notes || "";
+    const hasProof = Boolean(
+      latestProof?.photo_url || latestProof?.signature_url,
+    );
+
     const pickupAddress = buildAddress(
       note.pickup_address,
       note.pickup_city,
@@ -767,6 +977,34 @@ export default function DeliveryNotesPage() {
               height: 43px;
               margin-top: 3px;
               border: 1px solid #000;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+            }
+
+            .signature-box img {
+              display: block;
+              max-width: 100%;
+              max-height: 100%;
+              object-fit: contain;
+            }
+
+            .field-value {
+              margin-top: 3px;
+              font-size: 7px;
+              font-weight: 850;
+              line-height: 1.25;
+            }
+
+            .notes-value {
+              height: 29px;
+              margin-top: 3px;
+              padding: 3px 4px;
+              border: 1px solid #000;
+              overflow: hidden;
+              font-size: 6px;
+              line-height: 1.25;
             }
 
             .notes-box {
@@ -1028,7 +1266,7 @@ export default function DeliveryNotesPage() {
                 </strong>
 
                 <span>
-                  À compléter à la réception
+                  ${hasProof ? "Preuve enregistrée" : "En attente de preuve"}
                 </span>
               </div>
 
@@ -1037,11 +1275,17 @@ export default function DeliveryNotesPage() {
                   <div class="field-label">
                     Reçu par
                   </div>
+                  <div class="field-value">
+                    ${escapePrintHtml(receiverName)}
+                  </div>
                 </div>
 
                 <div class="field">
                   <div class="field-label">
-                    Date / heure
+                    Date / heure réelle
+                  </div>
+                  <div class="field-value">
+                    ${escapePrintHtml(formatDate(actualDeliveryDate))}
                   </div>
                 </div>
               </div>
@@ -1050,7 +1294,13 @@ export default function DeliveryNotesPage() {
                 Signature du destinataire
               </div>
 
-              <div class="signature-box"></div>
+              <div class="signature-box">
+                ${
+                  signatureUrl
+                    ? `<img src="${escapePrintHtml(signatureUrl)}" alt="Signature du destinataire" />`
+                    : ""
+                }
+              </div>
 
               <div
                 class="field-label"
@@ -1059,7 +1309,9 @@ export default function DeliveryNotesPage() {
                 Observations
               </div>
 
-              <div class="notes-box"></div>
+              <div class="notes-value">
+                ${escapePrintHtml(proofNotes)}
+              </div>
             </section>
 
             <footer class="footer">
@@ -1103,6 +1355,15 @@ export default function DeliveryNotesPage() {
   const printBillOfLading = (
     note: DeliveryNote,
   ) => {
+    const latestProof = getLatestProof(note);
+    const receiverName = getReceiverName(latestProof);
+    const actualDeliveryDate = getActualDeliveryDate(note, latestProof);
+    const signatureUrl = latestProof?.signature_url || "";
+    const proofNotes = latestProof?.notes || "";
+    const hasProof = Boolean(
+      latestProof?.photo_url || latestProof?.signature_url,
+    );
+
     const pickupAddress = buildAddress(
       note.pickup_address,
       note.pickup_city,
@@ -1443,6 +1704,25 @@ export default function DeliveryNotesPage() {
               height: 42px;
               margin-top: 12px;
               border-bottom: 1px solid #111;
+              display: flex;
+              align-items: flex-end;
+              justify-content: center;
+              overflow: hidden;
+            }
+
+            .signatureLine img {
+              display: block;
+              max-width: 100%;
+              max-height: 40px;
+              object-fit: contain;
+            }
+
+            .proofInfo {
+              margin-top: 6px;
+              color: #333;
+              font-size: 7px;
+              font-weight: 750;
+              line-height: 1.35;
             }
 
             .signatureMeta {
@@ -1798,7 +2078,7 @@ export default function DeliveryNotesPage() {
 
                 <span class="value">
                   ${escapePrintHtml(
-                    formatDate(note.delivery_date),
+                    formatDate(actualDeliveryDate),
                   )}
                 </span>
               </div>
@@ -1811,6 +2091,11 @@ export default function DeliveryNotesPage() {
 
               <div class="instructionsText">
                 ${escapePrintHtml(note.notes)}
+                ${
+                  proofNotes
+                    ? `<br /><strong>Preuve de livraison :</strong> ${escapePrintHtml(proofNotes)}`
+                    : ""
+                }
               </div>
             </section>
 
@@ -1846,11 +2131,21 @@ export default function DeliveryNotesPage() {
                   Consignee / Destinataire
                 </span>
 
-                <div class="signatureLine"></div>
+                <div class="signatureLine">
+                  ${
+                    signatureUrl
+                      ? `<img src="${escapePrintHtml(signatureUrl)}" alt="Signature du destinataire" />`
+                      : ""
+                  }
+                </div>
 
                 <div class="signatureMeta">
-                  <span>Signature</span>
-                  <span>Date</span>
+                  <span>${escapePrintHtml(receiverName)}</span>
+                  <span>${escapePrintHtml(formatDate(actualDeliveryDate))}</span>
+                </div>
+
+                <div class="proofInfo">
+                  ${hasProof ? "Preuve électronique enregistrée" : "Preuve de livraison en attente"}
                 </div>
               </div>
             </section>
@@ -1904,6 +2199,80 @@ export default function DeliveryNotesPage() {
       html,
       "width=1100,height=950",
     );
+  };
+
+  const handlePrintDeliveryNote = async (
+    note: DeliveryNote,
+  ) => {
+    try {
+      setPrintingId(note.id);
+      setError("");
+
+      const freshNote =
+        await fetchFreshDeliveryNote(note.id);
+
+      setNotes((current) =>
+        current.map((item) =>
+          String(item.id) === String(freshNote.id)
+            ? { ...item, ...freshNote }
+            : item,
+        ),
+      );
+
+      if (
+        selectedNote &&
+        String(selectedNote.id) === String(freshNote.id)
+      ) {
+        setSelectedNote(freshNote);
+      }
+
+      printDeliveryNote(freshNote);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d’imprimer le bon de livraison.",
+      );
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
+  const handlePrintBillOfLading = async (
+    note: DeliveryNote,
+  ) => {
+    try {
+      setPrintingId(note.id);
+      setError("");
+
+      const freshNote =
+        await fetchFreshDeliveryNote(note.id);
+
+      setNotes((current) =>
+        current.map((item) =>
+          String(item.id) === String(freshNote.id)
+            ? { ...item, ...freshNote }
+            : item,
+        ),
+      );
+
+      if (
+        selectedNote &&
+        String(selectedNote.id) === String(freshNote.id)
+      ) {
+        setSelectedNote(freshNote);
+      }
+
+      printBillOfLading(freshNote);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d’imprimer le Bill of Lading.",
+      );
+    } finally {
+      setPrintingId(null);
+    }
   };
 
   return (

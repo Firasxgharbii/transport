@@ -1,5 +1,9 @@
 const OrderModel = require("../models/orderModel");
 
+const {
+  uploadDeliveryProofFiles,
+} = require("../services/deliveryService");
+
 /* ============================================================
    VALEURS AUTORISÉES
 ============================================================ */
@@ -1537,6 +1541,52 @@ const updateOrderStatus = async (
       });
     }
 
+    /* ----------------------------------------------------------
+       Un chauffeur ne peut pas terminer manuellement une
+       livraison sans preuve complète.
+
+       La route POST /:id/proofs crée la preuve et passe ensuite
+       la commande à completed automatiquement.
+    ---------------------------------------------------------- */
+
+    const authenticatedRole =
+      req.user?.role ||
+      req.user?.role_name ||
+      req.user?.roleName ||
+      null;
+
+    if (
+      status === "completed" &&
+      authenticatedRole === "driver"
+    ) {
+      const proofs =
+        await OrderModel.getDeliveryProofs(
+          orderId,
+        );
+
+      const hasCompleteProof =
+        proofs.some((proof) =>
+          Boolean(
+            proof.signature_url &&
+            proof.photo_url &&
+            (
+              proof.receiver_first_name ||
+              proof.receiver_last_name
+            )
+          )
+        );
+
+      if (!hasCompleteProof) {
+        return res.status(409).json({
+          success: false,
+          code:
+            "DELIVERY_PROOF_REQUIRED",
+          message:
+            "La photo, la signature et le nom du destinataire sont obligatoires avant de terminer la livraison.",
+        });
+      }
+    }
+
     const result =
       await OrderModel.updateStatus(
         orderId,
@@ -2224,11 +2274,6 @@ const createDeliveryProof = async (
     const orderId =
       parsePositiveId(req.params.id);
 
-    const driverId =
-      parsePositiveId(
-        req.body.driver_id,
-      );
-
     if (!orderId) {
       return res.status(400).json({
         success: false,
@@ -2237,13 +2282,221 @@ const createDeliveryProof = async (
       });
     }
 
+    const order =
+      await OrderModel.getOrderById(
+        orderId,
+      );
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Commande introuvable.",
+      });
+    }
+
+    const driverId =
+      parsePositiveId(
+        req.body?.driver_id ||
+          order.driver_id,
+      );
+
     if (!driverId) {
       return res.status(400).json({
         success: false,
         message:
-          "Identifiant du chauffeur invalide.",
+          "Aucun chauffeur valide n’est associé à cette commande.",
       });
     }
+
+    if (
+      order.driver_id &&
+      Number(order.driver_id) !==
+        Number(driverId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Ce chauffeur n’est pas assigné à cette commande.",
+      });
+    }
+
+    const photoFile =
+      req.files?.photo?.[0] ||
+      null;
+
+    const signatureFile =
+      req.files?.signature?.[0] ||
+      null;
+
+    const receiverFirstName =
+      normalizeOptionalText(
+        req.body?.receiver_first_name,
+      );
+
+    const receiverLastName =
+      normalizeOptionalText(
+        req.body?.receiver_last_name,
+      );
+
+    const recipientName =
+      normalizeOptionalText(
+        req.body?.recipient_name,
+      );
+
+    const notes =
+      normalizeOptionalText(
+        req.body?.notes,
+      );
+
+    /* ----------------------------------------------------------
+       NOUVEAU FORMAT : multipart/form-data
+       photo + signature + nom du destinataire
+    ---------------------------------------------------------- */
+
+    const isNewDeliveryProof =
+      Boolean(
+        photoFile ||
+        signatureFile ||
+        receiverFirstName ||
+        receiverLastName,
+      );
+
+    if (isNewDeliveryProof) {
+      if (
+        !receiverFirstName &&
+        !receiverLastName
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Le prénom ou le nom du destinataire est obligatoire.",
+        });
+      }
+
+      if (!photoFile) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "La photo de livraison est obligatoire.",
+        });
+      }
+
+      if (!signatureFile) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "La signature du destinataire est obligatoire.",
+        });
+      }
+
+      const uploadedFiles =
+        await uploadDeliveryProofFiles({
+          photo: photoFile,
+          signature: signatureFile,
+          orderId,
+        });
+
+      const proofId =
+        await OrderModel.createDeliveryProof({
+          order_id:
+            orderId,
+
+          driver_id:
+            driverId,
+
+          receiver_first_name:
+            receiverFirstName,
+
+          receiver_last_name:
+            receiverLastName,
+
+          signature_url:
+            uploadedFiles.signature.url,
+
+          photo_url:
+            uploadedFiles.photo.url,
+
+          notes,
+        });
+
+      /* --------------------------------------------------------
+         Une preuve complète termine automatiquement la commande.
+      -------------------------------------------------------- */
+
+      if (
+        order.status !== "completed"
+      ) {
+        await OrderModel.updateStatus(
+          orderId,
+          "completed",
+        );
+
+        await OrderModel.insertStatusHistory(
+          orderId,
+          "completed",
+          getAuthenticatedUserId(req),
+          "Livraison terminée avec photo et signature du destinataire",
+        );
+      }
+
+      const [
+        updatedOrder,
+        proofs,
+        timeline,
+      ] = await Promise.all([
+        OrderModel.getOrderById(
+          orderId,
+        ),
+
+        OrderModel.getDeliveryProofs(
+          orderId,
+        ),
+
+        OrderModel.getOrderTimeline(
+          orderId,
+        ),
+      ]);
+
+      const createdProof =
+        proofs.find(
+          (proof) =>
+            Number(proof.id) ===
+            Number(proofId),
+        ) ||
+        proofs[0] ||
+        null;
+
+      return res.status(201).json({
+        success: true,
+        message:
+          "Livraison terminée et preuve enregistrée avec succès.",
+
+        proof_id:
+          proofId,
+
+        proof:
+          createdProof,
+
+        order:
+          updatedOrder,
+
+        timeline,
+
+        data: {
+          proof:
+            createdProof,
+          order:
+            updatedOrder,
+          timeline,
+        },
+      });
+    }
+
+    /* ----------------------------------------------------------
+       COMPATIBILITÉ AVEC L’ANCIEN FORMAT JSON
+       proof_type + file_url
+    ---------------------------------------------------------- */
 
     const allowedProofTypes = [
       "photo",
@@ -2252,9 +2505,15 @@ const createDeliveryProof = async (
       "document",
     ];
 
+    const proofType =
+      normalizeOptionalText(
+        req.body?.proof_type,
+      );
+
     if (
+      !proofType ||
       !allowedProofTypes.includes(
-        req.body.proof_type,
+        proofType,
       )
     ) {
       return res.status(400).json({
@@ -2264,44 +2523,45 @@ const createDeliveryProof = async (
       });
     }
 
-    const proofId =
-      await OrderModel.createDeliveryProof(
-        {
-          ...req.body,
-          order_id:
-            orderId,
-          driver_id:
-            driverId,
-          stop_id:
-            normalizeNullableId(
-              req.body.stop_id,
-            ),
-          file_url:
-            normalizeOptionalText(
-              req.body.file_url,
-            ),
-          recipient_name:
-            normalizeOptionalText(
-              req.body.recipient_name,
-            ),
-          confirmation_code:
-            normalizeOptionalText(
-              req.body.confirmation_code,
-            ),
-          latitude:
-            normalizeNullableNumber(
-              req.body.latitude,
-            ),
-          longitude:
-            normalizeNullableNumber(
-              req.body.longitude,
-            ),
-          notes:
-            normalizeOptionalText(
-              req.body.notes,
-            ),
-        },
+    const fileUrl =
+      normalizeOptionalText(
+        req.body?.file_url,
       );
+
+    if (
+      ["photo", "signature"].includes(
+        proofType,
+      ) &&
+      !fileUrl
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "L’URL du fichier est obligatoire pour cette preuve.",
+      });
+    }
+
+    const proofId =
+      await OrderModel.createDeliveryProof({
+        ...req.body,
+
+        order_id:
+          orderId,
+
+        driver_id:
+          driverId,
+
+        proof_type:
+          proofType,
+
+        file_url:
+          fileUrl,
+
+        recipient_name:
+          recipientName,
+
+        notes,
+      });
 
     return res.status(201).json({
       success: true,
@@ -2320,12 +2580,12 @@ const createDeliveryProof = async (
     return res.status(500).json({
       success: false,
       message:
-        "Erreur lors de l’enregistrement de la preuve.",
+        "Erreur lors de l’enregistrement de la preuve de livraison.",
       error: error.message,
     });
   }
-  
 };
+
 /* ============================================================
    BONS DE LIVRAISON
 ============================================================ */
