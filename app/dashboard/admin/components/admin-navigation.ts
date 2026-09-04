@@ -6,6 +6,7 @@ import {
   FileText,
   LayoutDashboard,
   PackageCheck,
+  Route,
   Settings,
   Truck,
   Users,
@@ -49,8 +50,19 @@ export const adminNavigationItems = [
   },
 
   // ==========================================================
+  // DISPATCH
+  // ==========================================================
+
+  {
+    label: "Dispatch",
+    href: "/dashboard/admin/dispatch",
+    icon: Route,
+  },
+
+  // ==========================================================
   // BONS DE LIVRAISON
   // ==========================================================
+
   {
     label: "Bons de livraison",
     href: "/dashboard/admin/delivery-notes",
