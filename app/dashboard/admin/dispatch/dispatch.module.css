@@ -14,7 +14,7 @@
 }
 
 .header h1 {
-  margin: 6px 0 6px;
+  margin: 6px 0;
   font-size: clamp(28px, 3vw, 40px);
   letter-spacing: -0.04em;
 }
@@ -42,7 +42,9 @@
 
 .secondaryBtn,
 .refreshBtn,
-.applyBtn {
+.applyBtn,
+.planBtn,
+.saveOperationBtn {
   min-height: 42px;
   padding: 0 15px;
   border-radius: 12px;
@@ -59,7 +61,8 @@
 }
 
 .refreshBtn:hover,
-.secondaryBtn:hover {
+.secondaryBtn:hover,
+.planBtn:hover {
   border-color: #cfd1d9;
 }
 
@@ -96,15 +99,17 @@
 
 .filters {
   display: grid;
-  grid-template-columns:
-    minmax(240px, 1.5fr)
-    repeat(4, minmax(150px, 0.65fr));
+  grid-template-columns: minmax(240px, 1.5fr) repeat(4, minmax(150px, 0.65fr));
   gap: 10px;
   margin-bottom: 12px;
 }
 
 .filters select,
-.bulkActions select {
+.bulkActions select,
+.operationFormCard select,
+.operationFormCard input,
+.operationFormCard textarea {
+  width: 100%;
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid #e0e1e7;
@@ -112,6 +117,13 @@
   background: #fff;
   color: #202027;
   outline: none;
+  font: inherit;
+}
+
+.operationFormCard textarea {
+  min-height: 96px;
+  padding-top: 10px;
+  resize: vertical;
 }
 
 .searchBox {
@@ -181,7 +193,8 @@
   cursor: pointer;
 }
 
-.applyBtn {
+.applyBtn,
+.saveOperationBtn {
   border-color: #e50935;
   background: #e50935;
   color: #fff;
@@ -189,7 +202,9 @@
 
 .applyBtn:disabled,
 .refreshBtn:disabled,
-.selectionInfo button:disabled {
+.selectionInfo button:disabled,
+.saveOperationBtn:disabled,
+.operationCardActions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -230,7 +245,7 @@
 
 .tableWrap table {
   width: 100%;
-  min-width: 1250px;
+  min-width: 1450px;
   border-collapse: collapse;
 }
 
@@ -260,9 +275,7 @@
 }
 
 .tableWrap tbody tr {
-  transition:
-    background 0.15s ease,
-    opacity 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .tableWrap tbody tr:hover {
@@ -278,10 +291,6 @@
   width: 34px;
   color: #a0a2aa;
   cursor: grab;
-}
-
-.checkCol {
-  width: 38px;
 }
 
 .checkBtn {
@@ -318,8 +327,7 @@
   color: #e50935;
 }
 
-.personCell,
-.vehicleCell {
+.personCell {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -334,8 +342,12 @@
   white-space: nowrap;
 }
 
-.status {
+.status,
+.operationStatus,
+.operationTypeBadge {
   display: inline-flex;
+  align-items: center;
+  width: fit-content;
   padding: 5px 8px;
   border-radius: 999px;
   background: #f0f1f5;
@@ -343,29 +355,69 @@
   font-weight: 900;
 }
 
-.status_completed {
+.status_completed,
+.operationStatus_completed {
   background: #e9f8f2;
   color: #087950;
 }
 
 .status_incident,
-.status_cancelled {
+.status_cancelled,
+.operationStatus_cancelled {
   background: #fff0f3;
   color: #b50027;
 }
 
 .status_delivery_in_progress,
 .status_arrived,
-.status_picked_up {
+.status_picked_up,
+.operationStatus_in_progress {
   background: #eef4ff;
   color: #225ac9;
 }
 
 .status_assigned,
 .status_pending,
-.status_pickup_in_progress {
+.status_pickup_in_progress,
+.operationStatus_assigned,
+.operationStatus_pending {
   background: #fff7df;
   color: #946400;
+}
+
+.operationSummary {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.operationSummary span {
+  min-width: 34px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.opPickup {
+  background: #eef4ff;
+  color: #225ac9;
+}
+
+.opWarehouse {
+  background: #f3edff;
+  color: #6b39ba;
+}
+
+.opDelivery {
+  background: #e9f8f2;
+  color: #087950;
+}
+
+.planBtn {
+  min-height: 34px;
+  padding: 0 11px;
 }
 
 .loadingCell,
@@ -421,6 +473,263 @@
   cursor: not-allowed;
 }
 
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 13, 18, 0.58);
+  backdrop-filter: blur(6px);
+}
+
+.operationsModal {
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #ececf1;
+}
+
+.modalHeader h2 {
+  margin: 5px 0 4px;
+  font-size: 26px;
+}
+
+.modalHeader p {
+  margin: 0;
+  color: #737680;
+}
+
+.iconBtn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #e0e1e7;
+  border-radius: 12px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.quickActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 24px;
+  border-bottom: 1px solid #ececf1;
+  background: #fafafd;
+}
+
+.quickActions button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #dedfe5;
+  border-radius: 10px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.operationsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  gap: 20px;
+  padding: 22px 24px 26px;
+}
+
+.operationsList,
+.operationFormCard {
+  min-width: 0;
+}
+
+.operationFormCard {
+  padding: 18px;
+  border: 1px solid #e5e6eb;
+  border-radius: 16px;
+  background: #fafafd;
+}
+
+.sectionTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sectionTitleRow h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.sectionTitleRow > span {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #11131a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.textBtn {
+  border: 0;
+  background: transparent;
+  color: #e50935;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.operationsLoading,
+.emptyOperations {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  border: 1px dashed #d9dbe2;
+  border-radius: 14px;
+  color: #777a85;
+  text-align: center;
+}
+
+.operationCard {
+  padding: 14px;
+  margin-bottom: 10px;
+  border: 1px solid #e4e5ea;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.operationCardTop,
+.operationFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.operationCardTop > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operationCardActions {
+  display: flex;
+  gap: 6px;
+}
+
+.operationCardActions button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e1e2e8;
+  border-radius: 9px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.operationCardActions button:last-child {
+  color: #b50027;
+}
+
+.operationType_pickup {
+  background: #eef4ff;
+  color: #225ac9;
+}
+
+.operationType_warehouse_in,
+.operationType_warehouse_storage,
+.operationType_warehouse_out {
+  background: #f3edff;
+  color: #6b39ba;
+}
+
+.operationType_delivery {
+  background: #e9f8f2;
+  color: #087950;
+}
+
+.operationMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.operationMeta span,
+.warehouseLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #5f626d;
+  font-size: 12px;
+}
+
+.warehouseLine {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f7f3ff;
+  color: #6b39ba;
+  font-weight: 800;
+}
+
+.operationFooter {
+  margin-top: 12px;
+}
+
+.operationFooter small {
+  max-width: 70%;
+  color: #777a85;
+  text-align: right;
+}
+
+.operationFormCard label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: #4f525d;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.formGrid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.saveOperationBtn {
+  width: 100%;
+  margin-top: 2px;
+}
+
 @media (max-width: 1180px) {
   .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -433,6 +742,10 @@
   .bulkBar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .operationsLayout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -486,5 +799,42 @@
 
   .paginationButtons button {
     flex: 1;
+  }
+
+  .modalBackdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .operationsModal {
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modalHeader,
+  .quickActions,
+  .operationsLayout {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .quickActions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .operationMeta,
+  .formGrid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .operationFooter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operationFooter small {
+    max-width: 100%;
+    text-align: left;
   }
 }
