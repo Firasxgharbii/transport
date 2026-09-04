@@ -49,6 +49,8 @@ const orderRoutes = require(
   "./routes/orderRoutes"
 );
 
+const dispatchRoutes = require("./routes/dispatchRoutes");
+
 const dashboardRoutes = require(
   "./routes/dashboardRoutes"
 );
@@ -308,6 +310,8 @@ app.use(
   "/api/orders",
   orderRoutes
 );
+
+app.use("/api/dispatch", dispatchRoutes);
 
 /* ------------------------------------------------------------
    TRACKING GPS — NOUVEAU
