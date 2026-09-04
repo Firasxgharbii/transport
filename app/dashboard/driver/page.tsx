@@ -81,6 +81,8 @@ type DriverOrder = {
 
   priority?: string;
 
+  route_position?: number | null;
+
   pickup_address?: string;
   pickup_city?: string;
 
@@ -439,8 +441,28 @@ export default function DriverDashboardPage() {
                 : [];
         }
 
+        const dispatchOrdered = [...receivedOrders].sort(
+          (a, b) => {
+            const aPosition =
+              typeof a.route_position === "number"
+                ? a.route_position
+                : Number.MAX_SAFE_INTEGER;
+
+            const bPosition =
+              typeof b.route_position === "number"
+                ? b.route_position
+                : Number.MAX_SAFE_INTEGER;
+
+            if (aPosition !== bPosition) {
+              return aPosition - bPosition;
+            }
+
+            return a.id - b.id;
+          },
+        );
+
         setOrders(
-          receivedOrders,
+          dispatchOrdered,
         );
       } catch (reason) {
         console.error(reason);
@@ -1310,7 +1332,9 @@ export default function DriverDashboardPage() {
                   styles.sectionLabel
                 }
               >
-                LIVRAISON PRIORITAIRE
+                {activeDelivery.route_position
+                  ? `PROCHAINE LIVRAISON · #${activeDelivery.route_position}`
+                  : "LIVRAISON PRIORITAIRE"}
               </span>
 
               <h2>
@@ -1649,7 +1673,9 @@ export default function DriverDashboardPage() {
                             styles.orderNumber
                           }
                         >
-                          #
+                          {order.route_position
+                            ? `#${order.route_position} · `
+                            : ""}
                           {order.order_number ||
                             order.reference ||
                             order.id}

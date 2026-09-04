@@ -240,7 +240,6 @@ const DriverModel = {
   },
 
   /* =====================================================
-     NOUVEAU :
      RÉCUPÉRER LE CHAUFFEUR PAR USER ID
 
      Utilisé notamment par :
@@ -739,6 +738,10 @@ const DriverModel = {
 
   /* =====================================================
      RÉCUPÉRER LES COMMANDES DU CHAUFFEUR
+
+     IMPORTANT :
+     L'ordre du Dispatch est prioritaire grâce à
+     orders.route_position.
   ===================================================== */
 
   async getDriverOrders(driverId) {
@@ -763,6 +766,9 @@ const DriverModel = {
 
           o.status,
           o.priority,
+
+          /* POSITION DÉFINIE PAR LE DISPATCH */
+          o.route_position,
 
           o.total_amount,
 
@@ -796,13 +802,37 @@ const DriverModel = {
 
         WHERE o.driver_id = ?
 
+        /* ===============================================
+           ORDRE EXACT DU DISPATCH
+
+           1. Les commandes ayant une route_position
+              passent en premier.
+
+           2. #1, #2, #3, #4...
+
+           3. Les commandes sans position restent
+              ensuite triées par date et heure.
+        =============================================== */
+
         ORDER BY
+          CASE
+            WHEN o.route_position IS NULL THEN 1
+            ELSE 0
+          END ASC,
+
+          o.route_position ASC,
+
           COALESCE(
             o.pickup_date,
             DATE(o.created_at)
-          ) DESC,
+          ) ASC,
 
-          o.pickup_time DESC
+          COALESCE(
+            o.pickup_time,
+            '23:59:59'
+          ) ASC,
+
+          o.id ASC
       `,
       [driverId]
     );
