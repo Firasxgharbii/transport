@@ -59,11 +59,10 @@ const OrderModel = {
         COALESCE(d.phone, u.phone) AS driver_phone,
 
         COALESCE(
-          NULLIF(TRIM(CONCAT_WS(' ', v.brand, v.model)), ''),
-          v.vehicle_number,
+          NULLIF(TRIM(CONCAT_WS(' ', v.make, v.model)), ''),
           d.vehicle_name
         ) AS vehicle_name,
-        COALESCE(v.plate_number, d.vehicle_plate) AS vehicle_plate,
+        COALESCE(v.plate, d.vehicle_plate) AS vehicle_plate,
         d.availability_status,
 
         (
@@ -133,11 +132,10 @@ const OrderModel = {
           COALESCE(d.phone, u.phone) AS driver_phone,
 
           COALESCE(
-            NULLIF(TRIM(CONCAT_WS(' ', v.brand, v.model)), ''),
-            v.vehicle_number,
+            NULLIF(TRIM(CONCAT_WS(' ', v.make, v.model)), ''),
             d.vehicle_name
           ) AS vehicle_name,
-          COALESCE(v.plate_number, d.vehicle_plate) AS vehicle_plate,
+          COALESCE(v.plate, d.vehicle_plate) AS vehicle_plate,
           d.availability_status,
 
           (
