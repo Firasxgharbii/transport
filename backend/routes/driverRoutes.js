@@ -15,43 +15,26 @@ const roleMiddleware = require(
 );
 
 /* =========================================================
-   SCANNER — OPÉRATIONS DU CHAUFFEUR CONNECTÉ
-   GET /api/drivers/me/operations
+   IMPORTANT — ROUTES SCANNER
+
+   Les anciennes routes suivantes ont été retirées
+   temporairement car les fonctions correspondantes
+   n'existent pas actuellement dans driverController.js :
+
+   - driverController.getCurrentDriverOperations
+   - driverController.getCurrentDriverScanHistory
+   - driverController.scanPackage
+
+   Elles faisaient planter complètement le backend avec :
+   TypeError: argument handler must be a function
+
+   On les réactivera lorsque les fonctions scanner seront
+   ajoutées proprement dans driverController.js.
 ========================================================= */
-
-router.get(
-  "/me/operations",
-  authMiddleware,
-  roleMiddleware("driver"),
-  driverController.getCurrentDriverOperations
-);
-
-/* =========================================================
-   SCANNER — HISTORIQUE DES SCANS
-   GET /api/drivers/me/scans
-========================================================= */
-
-router.get(
-  "/me/scans",
-  authMiddleware,
-  roleMiddleware("driver"),
-  driverController.getCurrentDriverScanHistory
-);
-
-/* =========================================================
-   SCANNER — ENREGISTRER UN SCAN
-   POST /api/drivers/me/scan
-========================================================= */
-
-router.post(
-  "/me/scan",
-  authMiddleware,
-  roleMiddleware("driver"),
-  driverController.scanPackage
-);
 
 /* =========================================================
    RÉCUPÉRER LE CHAUFFEUR CONNECTÉ
+
    GET /api/drivers/me
 ========================================================= */
 
@@ -64,6 +47,7 @@ router.get(
 
 /* =========================================================
    RÉCUPÉRER LES COMMANDES D'UN CHAUFFEUR
+
    GET /api/drivers/:id/orders
 ========================================================= */
 
@@ -80,6 +64,7 @@ router.get(
 
 /* =========================================================
    RÉCUPÉRER LE VÉHICULE D'UN CHAUFFEUR
+
    GET /api/drivers/:id/vehicle
 ========================================================= */
 
@@ -96,6 +81,7 @@ router.get(
 
 /* =========================================================
    ASSIGNER UN VÉHICULE À UN CHAUFFEUR
+
    PUT /api/drivers/:id/vehicle
 ========================================================= */
 
@@ -111,6 +97,7 @@ router.put(
 
 /* =========================================================
    DÉSAFFECTER LE VÉHICULE D'UN CHAUFFEUR
+
    DELETE /api/drivers/:id/vehicle
 ========================================================= */
 
@@ -126,6 +113,7 @@ router.delete(
 
 /* =========================================================
    RÉCUPÉRER TOUS LES CHAUFFEURS
+
    GET /api/drivers
 ========================================================= */
 
@@ -141,6 +129,7 @@ router.get(
 
 /* =========================================================
    RÉCUPÉRER UN CHAUFFEUR
+
    GET /api/drivers/:id
 ========================================================= */
 
@@ -156,6 +145,7 @@ router.get(
 
 /* =========================================================
    CRÉER UN CHAUFFEUR
+
    POST /api/drivers
 ========================================================= */
 
@@ -171,6 +161,7 @@ router.post(
 
 /* =========================================================
    MODIFIER UN CHAUFFEUR
+
    PUT /api/drivers/:id
 ========================================================= */
 
@@ -186,6 +177,7 @@ router.put(
 
 /* =========================================================
    SUPPRIMER UN CHAUFFEUR
+
    DELETE /api/drivers/:id
 ========================================================= */
 
