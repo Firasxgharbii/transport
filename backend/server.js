@@ -97,64 +97,87 @@ const HOST =
    CORS
 ============================================================ */
 
+const normalizeOrigin = (value) => {
+  if (!value) {
+    return "";
+  }
+
+  return String(value)
+    .trim()
+    .replace(/\/+$/, "");
+};
+
 const allowedOrigins = [
   process.env.FRONTEND_URL,
 
-  /* LOCAL */
-
   "http://localhost:3000",
   "http://127.0.0.1:3000",
-
   "http://172.20.10.6:3000",
   "http://192.168.2.22:3000",
   "http://192.168.2.47:3000",
 
-  /* PRODUCTION */
-
   "https://glorysolutions.ca",
   "https://www.glorysolutions.ca",
-].filter(Boolean);
+]
+  .filter(Boolean)
+  .map(normalizeOrigin);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  const normalizedOrigin =
+    normalizeOrigin(origin);
+
+  if (
+    normalizedOrigin ===
+      "https://glorysolutions.ca" ||
+    normalizedOrigin ===
+      "https://www.glorysolutions.ca"
+  ) {
+    return true;
+  }
+
+  if (
+    process.env.NODE_ENV !==
+    "production"
+  ) {
+    try {
+      const parsedOrigin =
+        new URL(normalizedOrigin);
+
+      const localHosts = new Set([
+        "localhost",
+        "127.0.0.1",
+        "172.20.10.6",
+        "192.168.2.22",
+        "192.168.2.47",
+      ]);
+
+      if (
+        localHosts.has(
+          parsedOrigin.hostname
+        )
+      ) {
+        return true;
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ Origine locale CORS invalide :",
+        normalizedOrigin
+      );
+    }
+  }
+
+  return allowedOrigins.includes(
+    normalizedOrigin
+  );
+};
 
 const corsOptions = {
   origin(origin, callback) {
-    /*
-     * Autorise notamment :
-     * - curl
-     * - Postman
-     * - requêtes serveur
-     * - certains clients mobiles
-     */
-
-    if (!origin) {
-      return callback(
-        null,
-        true
-      );
-    }
-
-    /*
-     * En développement local,
-     * accepter les origines locales.
-     */
-
-    if (
-      process.env.NODE_ENV !==
-      "production"
-    ) {
-      return callback(
-        null,
-        true
-      );
-    }
-
-    /*
-     * Production :
-     * seulement les domaines autorisés.
-     */
-
-    if (
-      allowedOrigins.includes(origin)
-    ) {
+    if (isAllowedOrigin(origin)) {
       return callback(
         null,
         true
@@ -184,9 +207,14 @@ const corsOptions = {
   allowedHeaders: [
     "Content-Type",
     "Authorization",
+    "Accept",
+    "Origin",
+    "X-Requested-With",
   ],
 
   credentials: true,
+  optionsSuccessStatus: 204,
+  preflightContinue: false,
 };
 
 /* ============================================================
@@ -1597,4 +1625,4 @@ const startServer =
    LANCEMENT
 ============================================================ */
 
-startServer();
+startServer()
