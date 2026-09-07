@@ -1581,3 +1581,115 @@
     white-space: nowrap;
   }
 }
+
+/* ============================================================
+   HISTORIQUE 12 MOIS — AMÉLIORATIONS
+============================================================ */
+
+/* Les deux barres de filtres restent propres même avec 7 périodes. */
+.commandBar {
+  flex-wrap: wrap;
+}
+
+.filters {
+  max-width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #d8d9df transparent;
+}
+
+.filters::-webkit-scrollbar {
+  height: 5px;
+}
+
+.filters::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d8d9df;
+}
+
+.filters button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.filters button:hover {
+  background: #fff;
+  color: #dc143c;
+}
+
+/* Historique long : zone scrollable et confortable. */
+.orders {
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #d8d9df transparent;
+}
+
+.orders::-webkit-scrollbar {
+  width: 7px;
+}
+
+.orders::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.orders::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d8d9df;
+}
+
+.orders::-webkit-scrollbar-thumb:hover {
+  background: #bfc1c9;
+}
+
+/* Les informations supplémentaires de chaque commande restent lisibles. */
+.orderCard small {
+  color: #9b9da7;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.orderCard small + div {
+  margin-top: 3px;
+  color: #444650;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+@media (max-width: 850px) {
+  .commandBar {
+    width: 100%;
+  }
+
+  .filters {
+    flex-wrap: nowrap;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 600px) {
+  .ordersSection {
+    overflow: hidden;
+  }
+
+  .filters {
+    padding: 4px 3px;
+  }
+
+  .filters button {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 8px;
+  }
+
+  .orders {
+    max-height: 68vh !important;
+  }
+
+  .orderCard small + div {
+    font-size: 8px;
+  }
+}

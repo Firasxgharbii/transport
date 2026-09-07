@@ -39,7 +39,7 @@ import styles from "./driver.module.css";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 const ITEMS_PER_PAGE = 6;
 
@@ -93,7 +93,25 @@ type DriverOrder = {
   scheduled_date?: string;
   scheduled_time?: string;
 
+  pickup_date?: string | null;
+  pickup_time?: string | null;
+  delivery_date?: string | null;
+  delivery_time?: string | null;
+
+  created_at?: string | null;
+  updated_at?: string | null;
+
   client_name?: string;
+  client_first_name?: string | null;
+  client_last_name?: string | null;
+  company_name?: string | null;
+
+  vehicle_make?: string | null;
+  vehicle_model?: string | null;
+  vehicle_plate?: string | null;
+
+  stop_count?: number;
+  completed_stops?: number;
 };
 
 type Position = {
@@ -112,6 +130,15 @@ type GpsState =
   | "error"
   | "unsupported";
 
+type HistoryRange =
+  | "today"
+  | "yesterday"
+  | "7d"
+  | "30d"
+  | "3m"
+  | "6m"
+  | "12m";
+
 /* ============================================================
    HELPERS
 ============================================================ */
@@ -123,7 +150,9 @@ function getToken() {
 
   return (
     localStorage.getItem("glory_token") ||
+    sessionStorage.getItem("glory_token") ||
     localStorage.getItem("token") ||
+    sessionStorage.getItem("token") ||
     ""
   );
 }
@@ -207,6 +236,167 @@ function availabilityLabel(value?: string) {
   }
 }
 
+function getOrderDate(order: DriverOrder) {
+  const raw =
+    order.scheduled_date ||
+    order.pickup_date ||
+    order.delivery_date ||
+    order.created_at ||
+    order.updated_at ||
+    null;
+
+  if (!raw) {
+    return null;
+  }
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function startOfDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function endOfDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(23, 59, 59, 999);
+  return value;
+}
+
+function subtractDays(date: Date, amount: number) {
+  const value = new Date(date);
+  value.setDate(value.getDate() - amount);
+  return value;
+}
+
+function subtractMonths(date: Date, amount: number) {
+  const value = new Date(date);
+  value.setMonth(value.getMonth() - amount);
+  return value;
+}
+
+function getHistoryBounds(range: HistoryRange) {
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
+
+  switch (range) {
+    case "today":
+      return {
+        from: todayStart,
+        to: todayEnd,
+      };
+
+    case "yesterday": {
+      const yesterday = subtractDays(now, 1);
+
+      return {
+        from: startOfDay(yesterday),
+        to: endOfDay(yesterday),
+      };
+    }
+
+    case "7d":
+      return {
+        from: startOfDay(subtractDays(now, 6)),
+        to: todayEnd,
+      };
+
+    case "30d":
+      return {
+        from: startOfDay(subtractDays(now, 29)),
+        to: todayEnd,
+      };
+
+    case "3m":
+      return {
+        from: startOfDay(subtractMonths(now, 3)),
+        to: todayEnd,
+      };
+
+    case "6m":
+      return {
+        from: startOfDay(subtractMonths(now, 6)),
+        to: todayEnd,
+      };
+
+    case "12m":
+    default:
+      return {
+        from: startOfDay(subtractMonths(now, 12)),
+        to: todayEnd,
+      };
+  }
+}
+
+function formatOrderDate(value: Date) {
+  return new Intl.DateTimeFormat("fr-CA", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(value);
+}
+
+function formatOrderDateShort(value?: string | null) {
+  if (!value) {
+    return "Date non définie";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date non définie";
+  }
+
+  return new Intl.DateTimeFormat("fr-CA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function getClientLabel(order: DriverOrder) {
+  return (
+    order.client_name ||
+    order.company_name ||
+    [
+      order.client_first_name,
+      order.client_last_name,
+    ]
+      .filter(Boolean)
+      .join(" ") ||
+    "Livraison"
+  );
+}
+
+function getVehicleLabel(order: DriverOrder) {
+  const name = [
+    order.vehicle_make,
+    order.vehicle_model,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (name && order.vehicle_plate) {
+    return `${name} · ${order.vehicle_plate}`;
+  }
+
+  return (
+    name ||
+    order.vehicle_plate ||
+    "Véhicule non défini"
+  );
+}
+
+
 /* ============================================================
    PAGE
 ============================================================ */
@@ -252,6 +442,9 @@ export default function DriverDashboardPage() {
 
   const [page, setPage] =
     useState(1);
+
+  const [historyRange, setHistoryRange] =
+    useState<HistoryRange>("12m");
 
   /* ==========================================================
      AUTH
@@ -483,6 +676,58 @@ export default function DriverDashboardPage() {
     if (!user) return;
 
     void loadDriverData();
+  }, [
+    user,
+    loadDriverData,
+  ]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    const refreshSilently = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+
+      void loadDriverData();
+    };
+
+    const intervalId =
+      window.setInterval(
+        refreshSilently,
+        5000,
+      );
+
+    window.addEventListener(
+      "focus",
+      refreshSilently,
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      refreshSilently,
+    );
+
+    return () => {
+      window.clearInterval(
+        intervalId,
+      );
+
+      window.removeEventListener(
+        "focus",
+        refreshSilently,
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        refreshSilently,
+      );
+    };
   }, [
     user,
     loadDriverData,
@@ -778,6 +1023,18 @@ export default function DriverDashboardPage() {
       "glory_user",
     );
 
+    sessionStorage.removeItem(
+      "glory_token",
+    );
+
+    sessionStorage.removeItem(
+      "token",
+    );
+
+    sessionStorage.removeItem(
+      "glory_user",
+    );
+
     router.replace("/login");
   }
 
@@ -864,7 +1121,7 @@ export default function DriverDashboardPage() {
     );
 
   /* ==========================================================
-     FILTERING
+     FILTERING + HISTORIQUE 12 MOIS
   ========================================================== */
 
   const filteredOrders =
@@ -874,18 +1131,37 @@ export default function DriverDashboardPage() {
           .trim()
           .toLowerCase();
 
+      const { from, to } =
+        getHistoryBounds(
+          historyRange,
+        );
+
       return orders.filter(
         (order) => {
+          const orderDate =
+            getOrderDate(order);
+
+          const matchesDate =
+            orderDate !== null &&
+            orderDate >= from &&
+            orderDate <= to;
+
           const matchesSearch =
             !value ||
             [
               order.order_number,
               order.reference,
               order.client_name,
+              order.company_name,
+              order.client_first_name,
+              order.client_last_name,
               order.pickup_address,
               order.delivery_address,
               order.pickup_city,
               order.delivery_city,
+              order.vehicle_make,
+              order.vehicle_model,
+              order.vehicle_plate,
             ]
               .filter(Boolean)
               .some((item) =>
@@ -946,6 +1222,7 @@ export default function DriverDashboardPage() {
           }
 
           return (
+            matchesDate &&
             matchesSearch &&
             matchesFilter
           );
@@ -955,13 +1232,63 @@ export default function DriverDashboardPage() {
       orders,
       search,
       filter,
+      historyRange,
     ]);
+
+  const sortedFilteredOrders =
+    useMemo(
+      () =>
+        [...filteredOrders].sort(
+          (a, b) => {
+            const aDate =
+              getOrderDate(a);
+
+            const bDate =
+              getOrderDate(b);
+
+            const aTime =
+              aDate?.getTime() || 0;
+
+            const bTime =
+              bDate?.getTime() || 0;
+
+            if (aTime !== bTime) {
+              return bTime - aTime;
+            }
+
+            const aPosition =
+              typeof a.route_position ===
+              "number"
+                ? a.route_position
+                : Number.MAX_SAFE_INTEGER;
+
+            const bPosition =
+              typeof b.route_position ===
+              "number"
+                ? b.route_position
+                : Number.MAX_SAFE_INTEGER;
+
+            if (
+              aPosition !==
+              bPosition
+            ) {
+              return (
+                aPosition -
+                bPosition
+              );
+            }
+
+            return b.id - a.id;
+          },
+        ),
+      [filteredOrders],
+    );
 
   const totalPages =
     Math.max(
       1,
       Math.ceil(
-        filteredOrders.length /
+        sortedFilteredOrders.length /
           ITEMS_PER_PAGE,
       ),
     );
@@ -971,15 +1298,111 @@ export default function DriverDashboardPage() {
   }, [
     search,
     filter,
+    historyRange,
+  ]);
+
+  useEffect(() => {
+    if (
+      page >
+      totalPages
+    ) {
+      setPage(
+        totalPages,
+      );
+    }
+  }, [
+    page,
+    totalPages,
   ]);
 
   const visibleOrders =
-    filteredOrders.slice(
+    sortedFilteredOrders.slice(
       (page - 1) *
         ITEMS_PER_PAGE,
       page *
         ITEMS_PER_PAGE,
     );
+
+  const groupedVisibleOrders =
+    useMemo(() => {
+      const groups = new Map<
+        string,
+        {
+          date: Date;
+          orders: DriverOrder[];
+        }
+      >();
+
+      for (
+        const order of visibleOrders
+      ) {
+        const date =
+          getOrderDate(order);
+
+        if (!date) {
+          continue;
+        }
+
+        const key =
+          `${date.getFullYear()}-${String(
+            date.getMonth() + 1,
+          ).padStart(
+            2,
+            "0",
+          )}-${String(
+            date.getDate(),
+          ).padStart(
+            2,
+            "0",
+          )}`;
+
+        const existing =
+          groups.get(key);
+
+        if (existing) {
+          existing.orders.push(
+            order,
+          );
+        } else {
+          groups.set(
+            key,
+            {
+              date,
+              orders: [order],
+            },
+          );
+        }
+      }
+
+      return Array.from(
+        groups.values(),
+      ).sort(
+        (a, b) =>
+          b.date.getTime() -
+          a.date.getTime(),
+      );
+    }, [
+      visibleOrders,
+    ]);
+
+  const yearOrderCount =
+    useMemo(() => {
+      const bounds =
+        getHistoryBounds("12m");
+
+      return orders.filter(
+        (order) => {
+          const date =
+            getOrderDate(order);
+
+          return (
+            date !== null &&
+            date >= bounds.from &&
+            date <= bounds.to
+          );
+        },
+      ).length;
+    }, [orders]);
 
   /* ==========================================================
      LOADING
@@ -1267,9 +1690,9 @@ export default function DriverDashboardPage() {
           }
           label="Commandes"
           value={
-            orders.length
+            yearOrderCount
           }
-          description="Total assigné"
+          description="12 derniers mois"
         />
 
         <StatCard
@@ -1462,11 +1885,11 @@ export default function DriverDashboardPage() {
             </span>
 
             <h2>
-              Toutes mes commandes
+              Historique des commandes
             </h2>
 
             <p>
-              Consultez, recherchez et gérez vos livraisons assignées.
+              Consultez vos commandes des 12 derniers mois, séparées par date.
             </p>
           </div>
 
@@ -1559,6 +1982,45 @@ export default function DriverDashboardPage() {
               styles.filters
             }
           >
+            <Clock3
+              size={15}
+            />
+
+            {[
+              ["today", "Aujourd’hui"],
+              ["yesterday", "Hier"],
+              ["7d", "7 jours"],
+              ["30d", "30 jours"],
+              ["3m", "3 mois"],
+              ["6m", "6 mois"],
+              ["12m", "1 an"],
+            ].map(
+              ([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={
+                    historyRange === value
+                      ? styles.filterActive
+                      : ""
+                  }
+                  onClick={() =>
+                    setHistoryRange(
+                      value as HistoryRange,
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ),
+            )}
+          </div>
+
+          <div
+            className={
+              styles.filters
+            }
+          >
             <Filter
               size={15}
             />
@@ -1631,6 +2093,11 @@ export default function DriverDashboardPage() {
           className={
             styles.orders
           }
+          style={{
+            maxHeight: "72vh",
+            overflowY: "auto",
+            paddingRight: 4,
+          }}
         >
           {visibleOrders.length ===
           0 ? (
@@ -1654,151 +2121,301 @@ export default function DriverDashboardPage() {
               </h3>
 
               <p>
-                Aucune livraison ne correspond à votre recherche.
+                Aucune livraison ne correspond à la période et aux filtres sélectionnés.
               </p>
             </div>
           ) : (
-            visibleOrders.map(
-              (order) => (
-                <article
+            groupedVisibleOrders.map(
+              (group) => (
+                <section
                   key={
-                    order.id
+                    group.date.toISOString()
                   }
-                  className={
-                    styles.orderCard
-                  }
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                  }}
                 >
                   <div
-                    className={
-                      styles.orderTop
-                    }
+                    style={{
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 4,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent:
+                        "space-between",
+                      gap: 12,
+                      padding:
+                        "10px 12px",
+                      borderRadius: 12,
+                      background:
+                        "rgba(255,255,255,0.96)",
+                      border:
+                        "1px solid rgba(15,23,42,0.08)",
+                      backdropFilter:
+                        "blur(12px)",
+                    }}
                   >
-                    <div
-                      className={
-                        styles.orderIdentity
-                      }
-                    >
-                      <div
-                        className={
-                          styles.orderIcon
-                        }
+                    <div>
+                      <strong
+                        style={{
+                          display: "block",
+                          textTransform:
+                            "capitalize",
+                        }}
                       >
-                        <PackageCheck
-                          size={18}
-                        />
-                      </div>
+                        {formatOrderDate(
+                          group.date,
+                        )}
+                      </strong>
 
-                      <div>
-                        <span
-                          className={
-                            styles.orderNumber
-                          }
-                        >
-                          {order.route_position
-                            ? `#${order.route_position} · `
-                            : ""}
-                          {order.order_number ||
-                            order.reference ||
-                            order.id}
-                        </span>
-
-                        <h3>
-                          {order.client_name ||
-                            "Livraison"}
-                        </h3>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`${styles.orderStatus} ${statusClass(
-                        order.status,
-                      )}`}
-                    >
-                      {statusLabel(
-                        order.status,
-                      )}
-                    </span>
-                  </div>
-
-                  <div
-                    className={
-                      styles.orderRoute
-                    }
-                  >
-                    <RoutePoint
-                      type="pickup"
-                      label="RAMASSAGE"
-                      address={
-                        order.pickup_address ||
-                        "Adresse non disponible"
-                      }
-                      city={
-                        order.pickup_city
-                      }
-                    />
-
-                    <div
-                      className={
-                        styles.routeConnector
-                      }
-                    />
-
-                    <RoutePoint
-                      type="delivery"
-                      label="LIVRAISON"
-                      address={
-                        order.delivery_address ||
-                        "Adresse non disponible"
-                      }
-                      city={
-                        order.delivery_city
-                      }
-                    />
-                  </div>
-
-                  <div
-                    className={
-                      styles.orderFooter
-                    }
-                  >
-                    <div
-                      className={
-                        styles.schedule
-                      }
-                    >
-                      <Clock3
-                        size={15}
-                      />
-
-                      <span>
-                        {order.scheduled_date ||
-                          "Date non définie"}
-
-                        {order.scheduled_time
-                          ? ` · ${order.scheduled_time}`
+                      <span
+                        style={{
+                          fontSize: 12,
+                          opacity: 0.65,
+                        }}
+                      >
+                        {
+                          group.orders
+                            .length
+                        }{" "}
+                        commande
+                        {group.orders
+                          .length > 1
+                          ? "s"
                           : ""}
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      className={
-                        styles.orderButton
-                      }
-                      onClick={() =>
-                        router.push(
-                          `/dashboard/driver/orders/${order.id}`,
-                        )
-                      }
-                    >
-                      Voir la livraison
-
-                      <ChevronRight
-                        size={16}
-                      />
-                    </button>
+                    <Clock3
+                      size={17}
+                    />
                   </div>
-                </article>
+
+                  {group.orders.map(
+                    (order) => (
+                      <article
+                        key={
+                          order.id
+                        }
+                        className={
+                          styles.orderCard
+                        }
+                      >
+                        <div
+                          className={
+                            styles.orderTop
+                          }
+                        >
+                          <div
+                            className={
+                              styles.orderIdentity
+                            }
+                          >
+                            <div
+                              className={
+                                styles.orderIcon
+                              }
+                            >
+                              <PackageCheck
+                                size={18}
+                              />
+                            </div>
+
+                            <div>
+                              <span
+                                className={
+                                  styles.orderNumber
+                                }
+                              >
+                                {order.route_position
+                                  ? `#${order.route_position} · `
+                                  : ""}
+                                {order.order_number ||
+                                  order.reference ||
+                                  order.id}
+                              </span>
+
+                              <h3>
+                                {getClientLabel(
+                                  order,
+                                )}
+                              </h3>
+                            </div>
+                          </div>
+
+                          <span
+                            className={`${styles.orderStatus} ${statusClass(
+                              order.status,
+                            )}`}
+                          >
+                            {statusLabel(
+                              order.status,
+                            )}
+                          </span>
+                        </div>
+
+                        <div
+                          className={
+                            styles.orderRoute
+                          }
+                        >
+                          <RoutePoint
+                            type="pickup"
+                            label="RAMASSAGE"
+                            address={
+                              order.pickup_address ||
+                              "Adresse non disponible"
+                            }
+                            city={
+                              order.pickup_city
+                            }
+                          />
+
+                          <div
+                            className={
+                              styles.routeConnector
+                            }
+                          />
+
+                          <RoutePoint
+                            type="delivery"
+                            label="LIVRAISON"
+                            address={
+                              order.delivery_address ||
+                              "Adresse non disponible"
+                            }
+                            city={
+                              order.delivery_city
+                            }
+                          />
+                        </div>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(150px, 1fr))",
+                            gap: 8,
+                            marginTop: 12,
+                          }}
+                        >
+                          <div>
+                            <small>
+                              Ramassage
+                            </small>
+                            <div>
+                              {formatOrderDateShort(
+                                order.pickup_date ||
+                                  order.scheduled_date,
+                              )}
+                              {order.pickup_time ||
+                              order.scheduled_time
+                                ? ` · ${
+                                    order.pickup_time ||
+                                    order.scheduled_time
+                                  }`
+                                : ""}
+                            </div>
+                          </div>
+
+                          <div>
+                            <small>
+                              Livraison
+                            </small>
+                            <div>
+                              {formatOrderDateShort(
+                                order.delivery_date,
+                              )}
+                              {order.delivery_time
+                                ? ` · ${order.delivery_time}`
+                                : ""}
+                            </div>
+                          </div>
+
+                          <div>
+                            <small>
+                              Véhicule
+                            </small>
+                            <div>
+                              {getVehicleLabel(
+                                order,
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <small>
+                              Arrêts
+                            </small>
+                            <div>
+                              {Number(
+                                order.completed_stops ||
+                                  0,
+                              )}
+                              {" / "}
+                              {Number(
+                                order.stop_count ||
+                                  0,
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={
+                            styles.orderFooter
+                          }
+                        >
+                          <div
+                            className={
+                              styles.schedule
+                            }
+                          >
+                            <Clock3
+                              size={15}
+                            />
+
+                            <span>
+                              {formatOrderDateShort(
+                                order.scheduled_date ||
+                                  order.pickup_date ||
+                                  order.created_at,
+                              )}
+
+                              {order.scheduled_time ||
+                              order.pickup_time
+                                ? ` · ${
+                                    order.scheduled_time ||
+                                    order.pickup_time
+                                  }`
+                                : ""}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className={
+                              styles.orderButton
+                            }
+                            onClick={() =>
+                              router.push(
+                                `/dashboard/driver/orders/${order.id}`,
+                              )
+                            }
+                          >
+                            Voir la livraison
+
+                            <ChevronRight
+                              size={16}
+                            />
+                          </button>
+                        </div>
+                      </article>
+                    ),
+                  )}
+                </section>
               ),
             )
           )}
@@ -1808,7 +2425,7 @@ export default function DriverDashboardPage() {
             PAGINATION
         ==================================================== */}
 
-        {filteredOrders.length >
+        {sortedFilteredOrders.length >
           0 && (
           <div
             className={
@@ -1816,8 +2433,8 @@ export default function DriverDashboardPage() {
             }
           >
             <span>
-              {filteredOrders.length} commande
-              {filteredOrders.length >
+              {sortedFilteredOrders.length} commande
+              {sortedFilteredOrders.length >
               1
                 ? "s"
                 : ""}
