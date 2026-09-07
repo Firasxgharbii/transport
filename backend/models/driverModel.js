@@ -772,6 +772,56 @@ const DriverModel = {
 
           o.total_amount,
 
+          /* ==========================
+             PROGRESSION DU PLANNING
+          ========================== */
+
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+          ) AS stop_count,
+
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+              AND os.status = 'completed'
+          ) AS completed_stops,
+
+          (
+            SELECT COUNT(*)
+            FROM order_stops os
+            WHERE os.order_id = o.id
+              AND os.status <> 'completed'
+          ) AS remaining_stops,
+
+          (
+            SELECT COUNT(*)
+            FROM order_packages p
+            WHERE p.order_id = o.id
+          ) AS package_count,
+
+          (
+            SELECT COUNT(*)
+            FROM order_packages p
+            WHERE p.order_id = o.id
+              AND p.current_status = 'delivered'
+          ) AS delivered_packages,
+
+          (
+            SELECT COUNT(*)
+            FROM order_packages p
+            WHERE p.order_id = o.id
+              AND p.current_status <> 'delivered'
+          ) AS remaining_packages,
+
+          (
+            SELECT MAX(se.scanned_at)
+            FROM scan_events se
+            WHERE se.order_id = o.id
+          ) AS last_scan_at,
+
           o.created_at,
           o.updated_at,
 
