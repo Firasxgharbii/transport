@@ -1,0 +1,407 @@
+.page {
+  min-height: 100vh;
+  background: #f5f6f8;
+  color: #15171a;
+  padding: 28px;
+}
+
+.header {
+  max-width: 1180px;
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.backButton {
+  border: 1px solid #dedfe3;
+  background: #fff;
+  border-radius: 12px;
+  padding: 11px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.header > div span,
+.cardTitle span {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #a20f2d;
+  margin-bottom: 5px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.05;
+}
+
+.header p {
+  margin: 8px 0 0;
+  color: #686d76;
+}
+
+.securityBanner,
+.gpsCard,
+.processingCard {
+  max-width: 1180px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e4e5e9;
+  padding: 15px 17px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.securityBanner {
+  border-left: 4px solid #a20f2d;
+}
+
+.securityBanner p,
+.gpsCard span,
+.processingCard span {
+  margin: 3px 0 0;
+  display: block;
+  color: #70757e;
+  font-size: 14px;
+}
+
+.grid {
+  max-width: 1180px;
+  margin: 0 auto 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 18px;
+}
+
+.scannerCard,
+.manualCard {
+  background: #fff;
+  border: 1px solid #e3e4e8;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 28px rgba(20, 22, 26, 0.05);
+}
+
+.cardTitle {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.iconBox {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #f9e9ed;
+  color: #a20f2d;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.cardTitle h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.videoWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #111317;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.videoPlaceholder {
+  position: absolute;
+  inset: 0;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 22px;
+}
+
+.videoPlaceholder span {
+  color: #b9bdc6;
+  font-size: 14px;
+}
+
+.scanOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.scanFrame {
+  width: min(74%, 420px);
+  height: 42%;
+  border: 3px solid rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.2);
+}
+
+.cameraActions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+
+.primaryButton,
+.secondaryButton {
+  border: 0;
+  border-radius: 13px;
+  padding: 13px 17px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.primaryButton {
+  background: #a20f2d;
+  color: #fff;
+  width: 100%;
+}
+
+.secondaryButton {
+  background: #eceef1;
+  color: #23262b;
+  width: 100%;
+}
+
+.primaryButton:hover,
+.secondaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.inlineWarning {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #fff3d9;
+  color: #7e5400;
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 14px;
+}
+
+.helperText {
+  color: #6e737c;
+  line-height: 1.55;
+  margin: 0 0 18px;
+}
+
+.manualForm label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+
+.inputWrap {
+  border: 1px solid #d9dbe0;
+  background: #fafbfc;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px;
+  margin-bottom: 11px;
+}
+
+.inputWrap:focus-within {
+  border-color: #a20f2d;
+  box-shadow: 0 0 0 3px rgba(162, 15, 45, 0.08);
+}
+
+.inputWrap input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 14px 0;
+  font: inherit;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.deviceInfo {
+  margin-top: 18px;
+  padding: 14px;
+  background: #f4f5f7;
+  border-radius: 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.deviceInfo span {
+  display: block;
+  margin-top: 3px;
+  color: #6e737c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.resultCard {
+  max-width: 1180px;
+  margin: 0 auto 18px;
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  gap: 14px;
+  border: 1px solid;
+}
+
+.success {
+  background: #edf9f2;
+  border-color: #bfe7cf;
+  color: #176838;
+}
+
+.warning {
+  background: #fff8e7;
+  border-color: #f1d89a;
+  color: #7a5700;
+}
+
+.danger {
+  background: #fff0f1;
+  border-color: #efc3c8;
+  color: #9b1c2c;
+}
+
+.resultIcon {
+  flex: 0 0 auto;
+}
+
+.resultContent > span {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.resultContent h2 {
+  margin: 5px 0 14px;
+  color: #191b1f;
+  font-size: 21px;
+}
+
+.resultDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.resultDetails > div {
+  min-width: 180px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+
+.resultDetails small {
+  display: block;
+  color: #71767e;
+  margin-bottom: 3px;
+}
+
+.resultDetails strong {
+  color: #1b1d21;
+}
+
+.completedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-weight: 800;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 18px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .page {
+    padding: 12px;
+  }
+
+  .scannerCard,
+  .manualCard {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .videoWrap {
+    aspect-ratio: 3 / 4;
+  }
+
+  .resultCard {
+    padding: 15px;
+  }
+
+  .resultDetails {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .resultDetails > div {
+    min-width: 0;
+  }
+}

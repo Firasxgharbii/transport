@@ -839,6 +839,766 @@ const DriverModel = {
 
     return rows;
   },
+
+  /* =====================================================
+     OPÉRATIONS ASSIGNÉES AU CHAUFFEUR CONNECTÉ
+  ===================================================== */
+
+  async getDriverOperations(driverId) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          op.id,
+          op.order_id,
+          op.operation_type,
+          op.driver_id,
+          op.vehicle_id,
+          op.warehouse_name,
+          op.scheduled_date,
+          op.scheduled_time,
+          op.completed_at,
+          op.status,
+          op.route_position,
+          op.notes,
+          op.created_at,
+          op.updated_at,
+
+          o.order_number,
+          o.pickup_address,
+          o.delivery_address,
+          o.pickup_date,
+          o.pickup_time,
+          o.delivery_date,
+          o.delivery_time,
+          o.priority,
+
+          c.first_name AS client_first_name,
+          c.last_name AS client_last_name,
+          c.company_name,
+
+          v.make AS vehicle_make,
+          v.model AS vehicle_model,
+          v.plate AS vehicle_plate
+
+        FROM order_operations op
+
+        INNER JOIN orders o
+          ON o.id = op.order_id
+
+        LEFT JOIN clients c
+          ON c.id = o.client_id
+
+        LEFT JOIN vehicles v
+          ON v.id = op.vehicle_id
+
+        WHERE op.driver_id = ?
+          AND op.status <> 'cancelled'
+
+        ORDER BY
+          CASE
+            WHEN op.status = 'in_progress' THEN 0
+            WHEN op.status = 'assigned' THEN 1
+            WHEN op.status = 'pending' THEN 2
+            WHEN op.status = 'completed' THEN 3
+            ELSE 4
+          END ASC,
+          CASE
+            WHEN op.route_position IS NULL THEN 1
+            ELSE 0
+          END ASC,
+          op.route_position ASC,
+          COALESCE(op.scheduled_date, DATE(op.created_at)) ASC,
+          COALESCE(op.scheduled_time, '23:59:59') ASC,
+          op.id ASC
+      `,
+      [driverId]
+    );
+
+    return rows;
+  },
+
+  /* =====================================================
+     HISTORIQUE DES SCANS DU CHAUFFEUR
+  ===================================================== */
+
+  async getDriverScanHistory(driverId, limit = 50) {
+    const safeLimit = Math.min(
+      200,
+      Math.max(1, Number(limit) || 50)
+    );
+
+    const [rows] = await db.query(
+      `
+        SELECT
+          se.id,
+          se.order_id,
+          se.package_id,
+          se.operation_id,
+          se.driver_id,
+          se.vehicle_id,
+          se.scanned_code,
+          se.scan_type,
+          se.scan_status,
+          se.latitude,
+          se.longitude,
+          se.accuracy,
+          se.device_type,
+          se.device_name,
+          se.scan_source,
+          se.notes,
+          se.scanned_at,
+
+          p.barcode,
+          p.package_number,
+          p.current_status AS package_status,
+
+          o.order_number,
+
+          op.operation_type,
+          op.warehouse_name
+
+        FROM scan_events se
+
+        INNER JOIN order_packages p
+          ON p.id = se.package_id
+
+        INNER JOIN orders o
+          ON o.id = se.order_id
+
+        LEFT JOIN order_operations op
+          ON op.id = se.operation_id
+
+        WHERE se.driver_id = ?
+
+        ORDER BY se.scanned_at DESC, se.id DESC
+        LIMIT ?
+      `,
+      [driverId, safeLimit]
+    );
+
+    return rows;
+  },
+
+  /* =====================================================
+     TRAITER UN SCAN CHAUFFEUR
+
+     - Le chauffeur vient de req.user côté contrôleur.
+     - Le code peut être :
+         GLY-2026-000125-P01
+       ou directement :
+         GLY-2026-000125
+       Dans ce deuxième cas, P01 est créé automatiquement.
+     - scanType peut être "auto" : le backend choisit la
+       prochaine opération active assignée au chauffeur.
+  ===================================================== */
+
+  async processDriverScan(driverId, payload) {
+    const connection = await db.getConnection();
+
+    const cleanCode = String(payload.scanned_code || "")
+      .trim()
+      .toUpperCase();
+
+    const requestedScanType = String(
+      payload.scan_type || "auto"
+    )
+      .trim()
+      .toLowerCase();
+
+    const source = [
+      "camera",
+      "zebra",
+      "manual",
+      "barcode_scanner",
+    ].includes(payload.scan_source)
+      ? payload.scan_source
+      : "camera";
+
+    const nullableNumber = (value) => {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+
+      const number = Number(value);
+      return Number.isFinite(number) ? number : null;
+    };
+
+    const scanTypeToPackageStatus = {
+      pickup: "picked_up",
+      warehouse_in: "warehouse_in",
+      warehouse_storage: "warehouse_storage",
+      warehouse_out: "warehouse_out",
+      load_vehicle: "out_for_delivery",
+      delivery: "delivered",
+      incident: "incident",
+    };
+
+    const operationToScanType = {
+      pickup: "pickup",
+      warehouse_in: "warehouse_in",
+      warehouse_storage: "warehouse_storage",
+      warehouse_out: "warehouse_out",
+      delivery: "delivery",
+    };
+
+    const allowedRequestedTypes = [
+      "auto",
+      "pickup",
+      "warehouse_in",
+      "warehouse_storage",
+      "warehouse_out",
+      "load_vehicle",
+      "delivery",
+      "incident",
+    ];
+
+    if (!cleanCode) {
+      const error = new Error("Le code-barres est obligatoire.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!allowedRequestedTypes.includes(requestedScanType)) {
+      const error = new Error("Type de scan invalide.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    try {
+      await connection.beginTransaction();
+
+      /* -------------------------------------------------
+         1. Retrouver le colis par son barcode
+      ------------------------------------------------- */
+
+      let [packageRows] = await connection.query(
+        `
+          SELECT
+            p.id,
+            p.order_id,
+            p.barcode,
+            p.package_number,
+            p.description,
+            p.weight,
+            p.current_status,
+            o.order_number
+          FROM order_packages p
+          INNER JOIN orders o
+            ON o.id = p.order_id
+          WHERE UPPER(p.barcode) = ?
+          LIMIT 1
+        `,
+        [cleanCode]
+      );
+
+      let packageRow = packageRows[0] || null;
+
+      /* -------------------------------------------------
+         2. Compatibilité immédiate :
+            si le chauffeur scanne directement le numéro
+            de commande, créer automatiquement P01.
+      ------------------------------------------------- */
+
+      if (!packageRow) {
+        const [orderRows] = await connection.query(
+          `
+            SELECT id, order_number
+            FROM orders
+            WHERE UPPER(order_number) = ?
+            LIMIT 1
+          `,
+          [cleanCode]
+        );
+
+        const order = orderRows[0] || null;
+
+        if (order) {
+          const generatedBarcode = `${String(
+            order.order_number
+          ).toUpperCase()}-P01`;
+
+          await connection.query(
+            `
+              INSERT INTO order_packages (
+                order_id,
+                barcode,
+                package_number,
+                current_status
+              )
+              VALUES (?, ?, 1, 'created')
+              ON DUPLICATE KEY UPDATE
+                id = LAST_INSERT_ID(id),
+                updated_at = CURRENT_TIMESTAMP
+            `,
+            [order.id, generatedBarcode]
+          );
+
+          [packageRows] = await connection.query(
+            `
+              SELECT
+                p.id,
+                p.order_id,
+                p.barcode,
+                p.package_number,
+                p.description,
+                p.weight,
+                p.current_status,
+                o.order_number
+              FROM order_packages p
+              INNER JOIN orders o
+                ON o.id = p.order_id
+              WHERE p.order_id = ?
+                AND p.package_number = 1
+              LIMIT 1
+            `,
+            [order.id]
+          );
+
+          packageRow = packageRows[0] || null;
+        }
+      }
+
+      if (!packageRow) {
+        const error = new Error(
+          "Aucun colis ou numéro de commande correspondant à ce code."
+        );
+        error.statusCode = 404;
+        throw error;
+      }
+
+      /* -------------------------------------------------
+         3. Trouver les opérations actives assignées
+            à CE chauffeur pour CETTE commande.
+      ------------------------------------------------- */
+
+      const [operationRows] = await connection.query(
+        `
+          SELECT
+            op.id,
+            op.order_id,
+            op.operation_type,
+            op.driver_id,
+            op.vehicle_id,
+            op.warehouse_name,
+            op.scheduled_date,
+            op.scheduled_time,
+            op.status,
+            op.route_position
+          FROM order_operations op
+          WHERE op.order_id = ?
+            AND op.driver_id = ?
+            AND op.status IN ('pending', 'assigned', 'in_progress')
+          ORDER BY
+            CASE
+              WHEN op.status = 'in_progress' THEN 0
+              WHEN op.status = 'assigned' THEN 1
+              ELSE 2
+            END ASC,
+            CASE
+              WHEN op.route_position IS NULL THEN 1
+              ELSE 0
+            END ASC,
+            op.route_position ASC,
+            COALESCE(op.scheduled_date, DATE(op.created_at)) ASC,
+            COALESCE(op.scheduled_time, '23:59:59') ASC,
+            op.id ASC
+          FOR UPDATE
+        `,
+        [packageRow.order_id, driverId]
+      );
+
+      let operation = null;
+      let finalScanType = requestedScanType;
+
+      if (requestedScanType === "auto") {
+        operation = operationRows[0] || null;
+
+        if (operation) {
+          finalScanType =
+            operationToScanType[operation.operation_type] || "";
+        }
+      } else if (requestedScanType === "incident") {
+        operation = operationRows[0] || null;
+      } else if (requestedScanType === "load_vehicle") {
+        operation =
+          operationRows.find((item) =>
+            ["warehouse_out", "delivery"].includes(
+              item.operation_type
+            )
+          ) || null;
+      } else {
+        operation =
+          operationRows.find(
+            (item) => item.operation_type === requestedScanType
+          ) || null;
+      }
+
+      /* -------------------------------------------------
+         4. Vérifier si ce scan a déjà été accepté.
+      ------------------------------------------------- */
+
+      const duplicateParams = [
+        packageRow.id,
+        driverId,
+        finalScanType || requestedScanType,
+      ];
+
+      let duplicateSql = `
+        SELECT id, operation_id, scanned_at
+        FROM scan_events
+        WHERE package_id = ?
+          AND driver_id = ?
+          AND scan_type = ?
+          AND scan_status = 'accepted'
+      `;
+
+      if (operation?.id) {
+        duplicateSql += " AND operation_id = ?";
+        duplicateParams.push(operation.id);
+      }
+
+      duplicateSql += " ORDER BY id DESC LIMIT 1";
+
+      const [duplicateRows] = await connection.query(
+        duplicateSql,
+        duplicateParams
+      );
+
+      const previousAcceptedScan = duplicateRows[0] || null;
+
+      if (previousAcceptedScan) {
+        const [duplicateInsert] = await connection.query(
+          `
+            INSERT INTO scan_events (
+              order_id,
+              package_id,
+              operation_id,
+              driver_id,
+              vehicle_id,
+              scanned_code,
+              scan_type,
+              scan_status,
+              latitude,
+              longitude,
+              accuracy,
+              device_type,
+              device_name,
+              scan_source,
+              notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'duplicate', ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            packageRow.order_id,
+            packageRow.id,
+            operation?.id || previousAcceptedScan.operation_id || null,
+            driverId,
+            operation?.vehicle_id || null,
+            cleanCode,
+            finalScanType || requestedScanType,
+            nullableNumber(payload.latitude),
+            nullableNumber(payload.longitude),
+            nullableNumber(payload.accuracy),
+            payload.device_type || null,
+            payload.device_name || null,
+            source,
+            payload.notes || "Scan déjà enregistré.",
+          ]
+        );
+
+        await connection.commit();
+
+        return {
+          success: true,
+          duplicate: true,
+          scan_status: "duplicate",
+          message: "Ce scan a déjà été enregistré.",
+          event_id: duplicateInsert.insertId,
+          package: packageRow,
+          operation,
+          scan_type: finalScanType || requestedScanType,
+        };
+      }
+
+      /* -------------------------------------------------
+         5. Si aucune opération n'est assignée au chauffeur,
+            conserver le scan comme REJETÉ pour audit.
+      ------------------------------------------------- */
+
+      if (!operation && requestedScanType !== "incident") {
+        const rejectedType =
+          requestedScanType === "auto"
+            ? "incident"
+            : requestedScanType;
+
+        const [rejectedInsert] = await connection.query(
+          `
+            INSERT INTO scan_events (
+              order_id,
+              package_id,
+              operation_id,
+              driver_id,
+              vehicle_id,
+              scanned_code,
+              scan_type,
+              scan_status,
+              latitude,
+              longitude,
+              accuracy,
+              device_type,
+              device_name,
+              scan_source,
+              notes
+            )
+            VALUES (?, ?, NULL, ?, NULL, ?, ?, 'rejected', ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            packageRow.order_id,
+            packageRow.id,
+            driverId,
+            cleanCode,
+            rejectedType,
+            nullableNumber(payload.latitude),
+            nullableNumber(payload.longitude),
+            nullableNumber(payload.accuracy),
+            payload.device_type || null,
+            payload.device_name || null,
+            source,
+            payload.notes ||
+              "Aucune opération active assignée à ce chauffeur pour cette commande.",
+          ]
+        );
+
+        await connection.commit();
+
+        return {
+          success: false,
+          rejected: true,
+          scan_status: "rejected",
+          statusCode: 403,
+          message:
+            "Cette opération n'est pas assignée à votre compte chauffeur.",
+          event_id: rejectedInsert.insertId,
+          package: packageRow,
+          operation: null,
+          scan_type: rejectedType,
+        };
+      }
+
+      if (!finalScanType || !scanTypeToPackageStatus[finalScanType]) {
+        const error = new Error(
+          "Impossible de déterminer le type d'opération à scanner."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      /* -------------------------------------------------
+         6. Enregistrer le scan accepté.
+      ------------------------------------------------- */
+
+      const [insertResult] = await connection.query(
+        `
+          INSERT INTO scan_events (
+            order_id,
+            package_id,
+            operation_id,
+            driver_id,
+            vehicle_id,
+            scanned_code,
+            scan_type,
+            scan_status,
+            latitude,
+            longitude,
+            accuracy,
+            device_type,
+            device_name,
+            scan_source,
+            notes
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          packageRow.order_id,
+          packageRow.id,
+          operation?.id || null,
+          driverId,
+          operation?.vehicle_id || null,
+          cleanCode,
+          finalScanType,
+          nullableNumber(payload.latitude),
+          nullableNumber(payload.longitude),
+          nullableNumber(payload.accuracy),
+          payload.device_type || null,
+          payload.device_name || null,
+          source,
+          payload.notes || null,
+        ]
+      );
+
+      /* -------------------------------------------------
+         7. Mettre à jour l'état physique du colis.
+      ------------------------------------------------- */
+
+      const packageStatus =
+        scanTypeToPackageStatus[finalScanType];
+
+      await connection.query(
+        `
+          UPDATE order_packages
+          SET
+            current_status = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        [packageStatus, packageRow.id]
+      );
+
+      /* -------------------------------------------------
+         8. Démarrer l'opération si nécessaire.
+      ------------------------------------------------- */
+
+      if (operation?.id && operation.status === "pending") {
+        await connection.query(
+          `
+            UPDATE order_operations
+            SET
+              status = 'in_progress',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `,
+          [operation.id]
+        );
+      }
+
+      /* -------------------------------------------------
+         9. Pour une opération normale, la terminer quand
+            TOUS les colis connus de la commande ont été
+            scannés pour cette opération.
+
+            load_vehicle reste un événement supplémentaire
+            et ne clôture pas automatiquement l'opération.
+      ------------------------------------------------- */
+
+      let operationCompleted = false;
+
+      if (
+        operation?.id &&
+        finalScanType !== "load_vehicle" &&
+        finalScanType !== "incident"
+      ) {
+        const [countRows] = await connection.query(
+          `
+            SELECT
+              (SELECT COUNT(*)
+               FROM order_packages
+               WHERE order_id = ?) AS total_packages,
+
+              (SELECT COUNT(DISTINCT package_id)
+               FROM scan_events
+               WHERE operation_id = ?
+                 AND scan_status = 'accepted'
+                 AND scan_type = ?) AS scanned_packages
+          `,
+          [
+            packageRow.order_id,
+            operation.id,
+            finalScanType,
+          ]
+        );
+
+        const totalPackages = Number(
+          countRows[0]?.total_packages || 0
+        );
+
+        const scannedPackages = Number(
+          countRows[0]?.scanned_packages || 0
+        );
+
+        if (
+          totalPackages > 0 &&
+          scannedPackages >= totalPackages
+        ) {
+          await connection.query(
+            `
+              UPDATE order_operations
+              SET
+                status = 'completed',
+                completed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `,
+            [operation.id]
+          );
+
+          operationCompleted = true;
+        }
+      }
+
+      const [eventRows] = await connection.query(
+        `
+          SELECT
+            id,
+            order_id,
+            package_id,
+            operation_id,
+            driver_id,
+            vehicle_id,
+            scanned_code,
+            scan_type,
+            scan_status,
+            latitude,
+            longitude,
+            accuracy,
+            device_type,
+            device_name,
+            scan_source,
+            notes,
+            scanned_at,
+            created_at
+          FROM scan_events
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [insertResult.insertId]
+      );
+
+      await connection.commit();
+
+      return {
+        success: true,
+        duplicate: false,
+        rejected: false,
+        scan_status: "accepted",
+        message: operationCompleted
+          ? "Scan accepté. Opération terminée."
+          : "Scan accepté avec succès.",
+        event: eventRows[0] || null,
+        package: {
+          ...packageRow,
+          current_status: packageStatus,
+        },
+        operation: operation
+          ? {
+              ...operation,
+              status: operationCompleted
+                ? "completed"
+                : operation.status === "pending"
+                  ? "in_progress"
+                  : operation.status,
+            }
+          : null,
+        operation_completed: operationCompleted,
+        scan_type: finalScanType,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
 };
 
 module.exports = DriverModel;

@@ -13,6 +13,7 @@ import {
   PackageCheck,
   RefreshCw,
   Search,
+  ScanLine,
   ShieldCheck,
   Truck,
   UserRound,
@@ -1468,6 +1469,26 @@ export default function DriverDashboardPage() {
               Consultez, recherchez et gérez vos livraisons assignées.
             </p>
           </div>
+
+          <button
+            type="button"
+            className={
+              styles.refresh
+            }
+            onClick={() =>
+              router.push(
+                "/dashboard/driver/scanner",
+              )
+            }
+          >
+            <ScanLine
+              size={17}
+            />
+
+            <span>
+              Scanner un colis
+            </span>
+          </button>
 
           <button
             type="button"

@@ -15,17 +15,50 @@ const roleMiddleware = require(
 );
 
 /* =========================================================
+   SCANNER — OPÉRATIONS DU CHAUFFEUR CONNECTÉ
+   GET /api/drivers/me/operations
+========================================================= */
+
+router.get(
+  "/me/operations",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.getCurrentDriverOperations
+);
+
+/* =========================================================
+   SCANNER — HISTORIQUE DES SCANS
+   GET /api/drivers/me/scans
+========================================================= */
+
+router.get(
+  "/me/scans",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.getCurrentDriverScanHistory
+);
+
+/* =========================================================
+   SCANNER — ENREGISTRER UN SCAN
+   POST /api/drivers/me/scan
+========================================================= */
+
+router.post(
+  "/me/scan",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.scanPackage
+);
+
+/* =========================================================
    RÉCUPÉRER LE CHAUFFEUR CONNECTÉ
    GET /api/drivers/me
 ========================================================= */
 
 router.get(
   "/me",
-
   authMiddleware,
-
   roleMiddleware("driver"),
-
   driverController.getCurrentDriver
 );
 
@@ -36,15 +69,12 @@ router.get(
 
 router.get(
   "/:id/orders",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher",
     "driver"
   ),
-
   driverController.getDriverOrders
 );
 
@@ -55,15 +85,12 @@ router.get(
 
 router.get(
   "/:id/vehicle",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher",
     "driver"
   ),
-
   driverController.getDriverVehicle
 );
 
@@ -74,14 +101,11 @@ router.get(
 
 router.put(
   "/:id/vehicle",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher"
   ),
-
   driverController.assignVehicle
 );
 
@@ -92,14 +116,11 @@ router.put(
 
 router.delete(
   "/:id/vehicle",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher"
   ),
-
   driverController.unassignVehicle
 );
 
@@ -110,14 +131,11 @@ router.delete(
 
 router.get(
   "/",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher"
   ),
-
   driverController.getDrivers
 );
 
@@ -128,14 +146,11 @@ router.get(
 
 router.get(
   "/:id",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher"
   ),
-
   driverController.getDriver
 );
 
@@ -146,14 +161,11 @@ router.get(
 
 router.post(
   "/",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher"
   ),
-
   driverController.createDriver
 );
 
@@ -164,14 +176,11 @@ router.post(
 
 router.put(
   "/:id",
-
   authMiddleware,
-
   roleMiddleware(
     "super_admin",
     "dispatcher"
   ),
-
   driverController.updateDriver
 );
 
@@ -182,11 +191,8 @@ router.put(
 
 router.delete(
   "/:id",
-
   authMiddleware,
-
   roleMiddleware("super_admin"),
-
   driverController.deleteDriver
 );
 
