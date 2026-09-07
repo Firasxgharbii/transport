@@ -115,6 +115,8 @@ const sanitizeUser = (user) => {
     last_name: user.last_name,
     email: user.email,
     phone: user.phone || null,
+    account_type: user.account_type || "individual",
+    company_name: user.company_name || null,
     status: user.status,
     role: user.role_name || user.role,
   };
@@ -133,6 +135,7 @@ exports.registerClient = async (req, res) => {
       email,
       phone,
       password,
+      account_type,
       company_name,
     } = req.body;
 
@@ -148,8 +151,32 @@ exports.registerClient = async (req, res) => {
     const normalizedPhone =
       normalizeText(phone) || null;
 
+    const requestedAccountType =
+      normalizeText(account_type);
+
+    if (
+      requestedAccountType &&
+      !["individual", "company"].includes(
+        requestedAccountType
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_ACCOUNT_TYPE",
+        message:
+          "Le type de compte sélectionné est invalide.",
+      });
+    }
+
+    const normalizedAccountType =
+      requestedAccountType === "company"
+        ? "company"
+        : "individual";
+
     const normalizedCompanyName =
-      normalizeText(company_name) || null;
+      normalizedAccountType === "company"
+        ? normalizeText(company_name) || null
+        : null;
 
     if (
       !normalizedFirstName ||
@@ -184,6 +211,44 @@ exports.registerClient = async (req, res) => {
         message:
           "Veuillez entrer une adresse courriel valide.",
       });
+    }
+
+    if (
+      normalizedAccountType === "company" &&
+      !normalizedCompanyName
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "COMPANY_NAME_REQUIRED",
+        message:
+          "Veuillez entrer le nom de votre entreprise.",
+      });
+    }
+
+    if (
+      normalizedCompanyName &&
+      normalizedCompanyName.length > 150
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "COMPANY_NAME_TOO_LONG",
+        message:
+          "Le nom de l’entreprise ne peut pas dépasser 150 caractères.",
+      });
+    }
+
+    if (normalizedPhone) {
+      const phonePattern =
+        /^[0-9+()\-\s]{7,20}$/;
+
+      if (!phonePattern.test(normalizedPhone)) {
+        return res.status(400).json({
+          success: false,
+          code: "INVALID_PHONE",
+          message:
+            "Veuillez entrer un numéro de téléphone valide.",
+        });
+      }
     }
 
     const passwordError =
@@ -247,10 +312,12 @@ exports.registerClient = async (req, res) => {
           last_name,
           email,
           phone,
+          account_type,
+          company_name,
           password,
           status
         )
-        VALUES (?, ?, ?, ?, ?, ?, 'pending')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
       `,
       [
         roleRows[0].id,
@@ -258,6 +325,8 @@ exports.registerClient = async (req, res) => {
         normalizedLastName,
         normalizedEmail,
         normalizedPhone,
+        normalizedAccountType,
+        normalizedCompanyName,
         hashedPassword,
       ]
     );
@@ -267,7 +336,10 @@ exports.registerClient = async (req, res) => {
       {
         userId: result.insertId,
         email: normalizedEmail,
-        companyName: normalizedCompanyName,
+        accountType:
+          normalizedAccountType,
+        companyName:
+          normalizedCompanyName,
       }
     );
 
@@ -279,7 +351,10 @@ exports.registerClient = async (req, res) => {
       data: {
         userId: result.insertId,
         email: normalizedEmail,
-        companyName: normalizedCompanyName,
+        accountType:
+          normalizedAccountType,
+        companyName:
+          normalizedCompanyName,
         accountStatus: "pending",
       },
     });
@@ -304,7 +379,8 @@ exports.registerClient = async (req, res) => {
       message:
         "Une erreur est survenue pendant la création du compte.",
       error:
-        process.env.NODE_ENV === "development"
+        process.env.NODE_ENV ===
+        "development"
           ? error.message
           : undefined,
     });
@@ -535,6 +611,8 @@ exports.login = async (req, res) => {
           users.last_name,
           users.email,
           users.phone,
+          users.account_type,
+          users.company_name,
           users.password,
           users.status,
           users.created_at,
@@ -668,6 +746,8 @@ exports.me = async (req, res) => {
           users.last_name,
           users.email,
           users.phone,
+          users.account_type,
+          users.company_name,
           users.status,
           users.created_at,
           users.updated_at,

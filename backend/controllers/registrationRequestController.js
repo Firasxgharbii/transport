@@ -1,11 +1,43 @@
 const db = require("../config/db");
 
 /* =========================================================
+   NORMALISER LES DONNÉES CLIENT
+========================================================= */
+
+function normalizeClientData(user) {
+  const accountType =
+    user.account_type === "company"
+      ? "company"
+      : "individual";
+
+  return {
+    firstName: String(user.first_name || "").trim(),
+    lastName: String(user.last_name || "").trim(),
+    email: user.email
+      ? String(user.email).trim().toLowerCase()
+      : null,
+    phone: user.phone
+      ? String(user.phone).trim() || null
+      : null,
+    accountType,
+    companyName:
+      accountType === "company" && user.company_name
+        ? String(user.company_name).trim() || null
+        : null,
+  };
+}
+
+/* =========================================================
    CRÉER / SYNCHRONISER LE CLIENT D'UN UTILISATEUR
 
    Évite les doublons :
    - recherche d'abord avec user_id
    - puis avec email
+   - sinon crée un nouveau client
+
+   IMPORTANT :
+   Les informations du client sont toujours synchronisées
+   avec les informations actuelles du compte utilisateur.
 ========================================================= */
 
 async function ensureClientForUser(user) {
@@ -15,8 +47,10 @@ async function ensureClientForUser(user) {
     );
   }
 
+  const clientData = normalizeClientData(user);
+
   /* ---------------------------------------------------------
-     1. Vérifier si un client existe déjà avec ce user_id
+     1. Client déjà relié à ce user_id
   --------------------------------------------------------- */
 
   const [existingByUserId] = await db.query(
@@ -30,63 +64,97 @@ async function ensureClientForUser(user) {
   );
 
   if (existingByUserId.length) {
+    const clientId = existingByUserId[0].id;
+
+    await db.query(
+      `
+        UPDATE clients
+        SET
+          first_name = ?,
+          last_name = ?,
+          company_name = ?,
+          phone = ?,
+          email = ?
+        WHERE id = ?
+      `,
+      [
+        clientData.firstName,
+        clientData.lastName,
+        clientData.companyName,
+        clientData.phone,
+        clientData.email,
+        clientId,
+      ]
+    );
+
     return {
-      clientId: existingByUserId[0].id,
+      clientId,
       created: false,
+      synchronized: true,
     };
   }
 
   /* ---------------------------------------------------------
-     2. Vérifier si le courriel existe déjà dans clients
+     2. Client existant avec le même courriel
   --------------------------------------------------------- */
 
-  if (user.email) {
+  if (clientData.email) {
     const [existingByEmail] = await db.query(
       `
         SELECT
           id,
           user_id
         FROM clients
-        WHERE email = ?
+        WHERE LOWER(email) = LOWER(?)
         LIMIT 1
       `,
-      [user.email]
+      [clientData.email]
     );
 
     if (existingByEmail.length) {
-      const existingClient =
-        existingByEmail[0];
+      const existingClient = existingByEmail[0];
 
       /*
-       * Le client existe déjà mais n'est pas encore
-       * relié à cet utilisateur.
+       * Si ce client est déjà relié à un autre utilisateur,
+       * on ne vole jamais cette liaison.
        */
-      if (!existingClient.user_id) {
-        await db.query(
-          `
-            UPDATE clients
-            SET
-              user_id = ?,
-              first_name = COALESCE(NULLIF(?, ''), first_name),
-              last_name = COALESCE(NULLIF(?, ''), last_name),
-              phone = COALESCE(NULLIF(?, ''), phone),
-              email = COALESCE(NULLIF(?, ''), email)
-            WHERE id = ?
-          `,
-          [
-            user.id,
-            user.first_name || null,
-            user.last_name || null,
-            user.phone || null,
-            user.email || null,
-            existingClient.id,
-          ]
+      if (
+        existingClient.user_id &&
+        Number(existingClient.user_id) !==
+          Number(user.id)
+      ) {
+        throw new Error(
+          "Un profil client avec ce courriel est déjà relié à un autre utilisateur."
         );
       }
+
+      await db.query(
+        `
+          UPDATE clients
+          SET
+            user_id = ?,
+            first_name = ?,
+            last_name = ?,
+            company_name = ?,
+            phone = ?,
+            email = ?
+          WHERE id = ?
+        `,
+        [
+          user.id,
+          clientData.firstName,
+          clientData.lastName,
+          clientData.companyName,
+          clientData.phone,
+          clientData.email,
+          existingClient.id,
+        ]
+      );
 
       return {
         clientId: existingClient.id,
         created: false,
+        synchronized: true,
       };
     }
   }
@@ -118,7 +186,7 @@ async function ensureClientForUser(user) {
         ?,
         ?,
         ?,
-        NULL,
+        ?,
         ?,
         ?,
         NULL,
@@ -130,10 +198,11 @@ async function ensureClientForUser(user) {
     `,
     [
       user.id,
-      user.first_name || "",
-      user.last_name || "",
-      user.phone || null,
-      user.email || null,
+      clientData.firstName,
+      clientData.lastName,
+      clientData.companyName,
+      clientData.phone,
+      clientData.email,
       "Client créé automatiquement après approbation de l'inscription.",
     ]
   );
@@ -141,6 +210,7 @@ async function ensureClientForUser(user) {
   return {
     clientId: result.insertId,
     created: true,
+    synchronized: true,
   };
 }
 
@@ -160,6 +230,8 @@ exports.getRegistrationRequests = async (
         users.last_name,
         users.email,
         users.phone,
+        users.account_type,
+        users.company_name,
         users.status,
         users.created_at,
         users.updated_at
@@ -195,11 +267,11 @@ exports.getRegistrationRequests = async (
 /* =========================================================
    APPROUVER UNE DEMANDE
 
-   IMPORTANT :
    Lors de l'approbation :
    1. user devient active
-   2. client est créé automatiquement
+   2. client est créé ou retrouvé
    3. clients.user_id = users.id
+   4. toutes les informations sont synchronisées
 ========================================================= */
 
 exports.approveRegistrationRequest = async (
@@ -209,10 +281,6 @@ exports.approveRegistrationRequest = async (
   try {
     const { id } = req.params;
 
-    /* -------------------------------------------------------
-       Récupérer toutes les informations nécessaires
-    ------------------------------------------------------- */
-
     const [users] = await db.query(
       `
         SELECT
@@ -221,6 +289,8 @@ exports.approveRegistrationRequest = async (
           last_name,
           email,
           phone,
+          account_type,
+          company_name,
           status
         FROM users
         WHERE id = ?
@@ -232,21 +302,15 @@ exports.approveRegistrationRequest = async (
     if (!users.length) {
       return res.status(404).json({
         success: false,
-        message:
-          "Utilisateur introuvable.",
+        message: "Utilisateur introuvable.",
       });
     }
 
     const user = users[0];
+    const wasAlreadyActive =
+      user.status === "active";
 
-    /* -------------------------------------------------------
-       Même s'il est déjà actif, on vérifie quand même
-       qu'un client correspondant existe.
-
-       C'est important pour tes anciens utilisateurs approuvés.
-    ------------------------------------------------------- */
-
-    if (user.status !== "active") {
+    if (!wasAlreadyActive) {
       const [result] = await db.query(
         `
           UPDATE users
@@ -267,25 +331,22 @@ exports.approveRegistrationRequest = async (
       }
     }
 
-    /* -------------------------------------------------------
-       Créer ou relier automatiquement le client
-    ------------------------------------------------------- */
-
     const clientResult =
       await ensureClientForUser(user);
 
     return res.status(200).json({
       success: true,
       status: "active",
-
-      message:
-        user.status === "active"
-          ? "Utilisateur déjà approuvé. Le profil client a été vérifié et synchronisé."
-          : "La demande a été approuvée et le client a été créé avec succès.",
-
+      message: wasAlreadyActive
+        ? "Utilisateur déjà approuvé. Le profil client a été vérifié et synchronisé."
+        : clientResult.created
+          ? "La demande a été approuvée et le client a été créé avec succès."
+          : "La demande a été approuvée et le profil client a été synchronisé avec succès.",
       client: {
         id: clientResult.clientId,
         created: clientResult.created,
+        synchronized:
+          clientResult.synchronized,
       },
     });
   } catch (error) {
@@ -299,8 +360,7 @@ exports.approveRegistrationRequest = async (
       message:
         "Impossible d'approuver cette demande.",
       error:
-        process.env.NODE_ENV ===
-        "development"
+        process.env.NODE_ENV === "development"
           ? error.message
           : undefined,
     });
@@ -334,8 +394,7 @@ exports.rejectRegistrationRequest = async (
     if (!users.length) {
       return res.status(404).json({
         success: false,
-        message:
-          "Utilisateur introuvable.",
+        message: "Utilisateur introuvable.",
       });
     }
 
@@ -416,16 +475,13 @@ exports.deleteRegistrationRequest = async (
     if (!users.length) {
       return res.status(404).json({
         success: false,
-        message:
-          "Utilisateur introuvable.",
+        message: "Utilisateur introuvable.",
       });
     }
 
     /*
-     * On détache d'abord le client éventuel.
-     *
-     * Cela évite une erreur de clé étrangère
-     * si clients.user_id référence users.id.
+     * On détache d'abord le client éventuel afin
+     * d'éviter une erreur de clé étrangère.
      */
     await db.query(
       `

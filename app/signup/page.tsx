@@ -30,6 +30,7 @@ import styles from "./signup.module.css";
 type SignupFormData = {
   firstName: string;
   lastName: string;
+  accountType: "individual" | "company";
   companyName: string;
   phone: string;
   email: string;
@@ -45,6 +46,8 @@ type SignupResponse = {
   data?: {
     userId?: number;
     email?: string;
+    accountType?: "individual" | "company";
+    companyName?: string | null;
     accountStatus?: string;
   };
 };
@@ -56,6 +59,7 @@ const API_URL =
 const initialFormData: SignupFormData = {
   firstName: "",
   lastName: "",
+  accountType: "individual",
   companyName: "",
   phone: "",
   email: "",
@@ -144,6 +148,22 @@ export default function SignupPage() {
     }
   };
 
+  const handleAccountTypeChange = (
+    accountType: "individual" | "company"
+  ) => {
+    setFormData((previousData) => ({
+      ...previousData,
+      accountType,
+      companyName:
+        accountType === "individual"
+          ? ""
+          : previousData.companyName,
+    }));
+
+    setErrorMessage("");
+    setSuccessMessage("");
+  };
+
   const validateForm = () => {
     const normalizedFirstName =
       formData.firstName.trim();
@@ -156,6 +176,16 @@ export default function SignupPage() {
 
     const normalizedPhone =
       formData.phone.trim();
+
+    const normalizedCompanyName =
+      formData.companyName.trim();
+
+    if (
+      formData.accountType === "company" &&
+      !normalizedCompanyName
+    ) {
+      return "Veuillez entrer le nom de votre entreprise.";
+    }
 
     if (normalizedFirstName.length < 2) {
       return "Veuillez entrer un prénom valide.";
@@ -236,9 +266,13 @@ export default function SignupPage() {
             last_name:
               formData.lastName.trim(),
 
+            account_type:
+              formData.accountType,
+
             company_name:
-              formData.companyName.trim() ||
-              null,
+              formData.accountType === "company"
+                ? formData.companyName.trim()
+                : null,
 
             phone:
               formData.phone.trim() || null,
@@ -575,40 +609,140 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <div className={styles.fieldsGrid}>
-                <div className={styles.field}>
-                  <label htmlFor="companyName">
-                    Entreprise
-                    <span>Optionnel</span>
-                  </label>
+              <div className={styles.field}>
+                <label>Type de client</label>
 
-                  <div
-                    className={
-                      styles.inputWrapper
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(2, minmax(0, 1fr))",
+                    gap: "12px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleAccountTypeChange(
+                        "individual"
+                      )
                     }
+                    disabled={isSubmitting}
+                    aria-pressed={
+                      formData.accountType ===
+                      "individual"
+                    }
+                    style={{
+                      minHeight: "64px",
+                      border:
+                        formData.accountType ===
+                        "individual"
+                          ? "2px solid #dc143c"
+                          : "1px solid #d9dce3",
+                      borderRadius: "12px",
+                      background:
+                        formData.accountType ===
+                        "individual"
+                          ? "rgba(220, 20, 60, 0.06)"
+                          : "#ffffff",
+                      cursor: isSubmitting
+                        ? "not-allowed"
+                        : "pointer",
+                      fontWeight: 700,
+                      color: "#17191f",
+                    }}
+                  >
+                    <User
+                      size={18}
+                      style={{
+                        verticalAlign: "middle",
+                        marginRight: "8px",
+                      }}
+                    />
+                    Particulier
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleAccountTypeChange(
+                        "company"
+                      )
+                    }
+                    disabled={isSubmitting}
+                    aria-pressed={
+                      formData.accountType ===
+                      "company"
+                    }
+                    style={{
+                      minHeight: "64px",
+                      border:
+                        formData.accountType ===
+                        "company"
+                          ? "2px solid #dc143c"
+                          : "1px solid #d9dce3",
+                      borderRadius: "12px",
+                      background:
+                        formData.accountType ===
+                        "company"
+                          ? "rgba(220, 20, 60, 0.06)"
+                          : "#ffffff",
+                      cursor: isSubmitting
+                        ? "not-allowed"
+                        : "pointer",
+                      fontWeight: 700,
+                      color: "#17191f",
+                    }}
                   >
                     <Building2
                       size={18}
-                      className={
-                        styles.inputIcon
-                      }
+                      style={{
+                        verticalAlign: "middle",
+                        marginRight: "8px",
+                      }}
                     />
-
-                    <input
-                      id="companyName"
-                      name="companyName"
-                      type="text"
-                      value={
-                        formData.companyName
-                      }
-                      onChange={handleChange}
-                      placeholder="Nom de l’entreprise"
-                      autoComplete="organization"
-                      disabled={isSubmitting}
-                      maxLength={150}
-                    />
-                  </div>
+                    Entreprise
+                  </button>
                 </div>
+              </div>
+
+              <div className={styles.fieldsGrid}>
+                {formData.accountType ===
+                  "company" && (
+                  <div className={styles.field}>
+                    <label htmlFor="companyName">
+                      Nom de l’entreprise
+                    </label>
+
+                    <div
+                      className={
+                        styles.inputWrapper
+                      }
+                    >
+                      <Building2
+                        size={18}
+                        className={
+                          styles.inputIcon
+                        }
+                      />
+
+                      <input
+                        id="companyName"
+                        name="companyName"
+                        type="text"
+                        value={
+                          formData.companyName
+                        }
+                        onChange={handleChange}
+                        placeholder="Nom de l’entreprise"
+                        autoComplete="organization"
+                        disabled={isSubmitting}
+                        maxLength={150}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className={styles.field}>
                   <label htmlFor="phone">
