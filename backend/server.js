@@ -1625,4 +1625,4 @@ const startServer =
    LANCEMENT
 ============================================================ */
 
-startServer(
+startServer()
