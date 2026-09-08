@@ -10,8 +10,10 @@ import {
   Loader2,
   MapPin,
   Package,
+  Pencil,
   Plus,
   Printer,
+  Trash2,
   RefreshCw,
   Search,
   Truck,
@@ -82,6 +84,12 @@ type Order = {
 
   stops_count?: number | string | null;
   stop_count?: number | string | null;
+  completed_stops?: number | string | null;
+  remaining_stops?: number | string | null;
+
+  service_type?: string | null;
+  total_amount?: number | string | null;
+  updated_at?: string | null;
 
   priority?: string | null;
   status?: string | null;
@@ -393,6 +401,13 @@ export default function OrdersPage() {
     assigning,
     setAssigning,
   ] = useState(false);
+
+  const [
+    deletingOrderId,
+    setDeletingOrderId,
+  ] = useState<number | null>(
+    null,
+  );
 
   const [
     error,
@@ -750,6 +765,74 @@ export default function OrdersPage() {
       } finally {
         setAssigning(
           false,
+        );
+      }
+    };
+
+  /* ==========================================================
+     SUPPRIMER UNE COMMANDE
+  ========================================================== */
+
+  const deleteOrder =
+    async (order: Order) => {
+      const status =
+        normalizeStatus(
+          order.status,
+        );
+
+      if (status === "completed") {
+        setError(
+          "Une commande terminée ne peut pas être supprimée.",
+        );
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `Supprimer définitivement ${getOrderNumber(
+            order,
+          )} ? Cette action est réservée au super administrateur.`,
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setDeletingOrderId(
+          order.id,
+        );
+        setError("");
+        setSuccess("");
+
+        await authenticatedFetch(
+          `/api/orders/${order.id}`,
+          {
+            method: "DELETE",
+          },
+        );
+
+        setSuccess(
+          "Commande supprimée avec succès.",
+        );
+
+        await loadOrders();
+
+        window.setTimeout(
+          () => {
+            setSuccess("");
+          },
+          3500,
+        );
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Impossible de supprimer la commande.",
+        );
+      } finally {
+        setDeletingOrderId(
+          null,
         );
       }
     };
@@ -1589,57 +1672,52 @@ export default function OrdersPage() {
                                 styles.routeCell
                               }
                             >
-                              <span>
-                                <MapPin
-                                  size={
-                                    14
-                                  }
-                                />
+                              {order.pickup_address && (
+                                <span>
+                                  <MapPin size={14} />
+                                  <strong>
+                                    Ramassage
+                                  </strong>
+                                  <em>
+                                    {[
+                                      order.pickup_address,
+                                      order.pickup_city,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </em>
+                                </span>
+                              )}
 
-                                <strong>
-                                  Départ
-                                </strong>
+                              {order.delivery_address && (
+                                <span>
+                                  <MapPin size={14} />
+                                  <strong>
+                                    Livraison
+                                  </strong>
+                                  <em>
+                                    {[
+                                      order.delivery_address,
+                                      order.delivery_city,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                  </em>
+                                </span>
+                              )}
 
-                                <em>
-                                  {[
-                                    order.pickup_address,
-                                    order.pickup_city,
-                                  ]
-                                    .filter(
-                                      Boolean,
-                                    )
-                                    .join(
-                                      ", ",
-                                    ) ||
-                                    "Non défini"}
-                                </em>
-                              </span>
-
-                              <span>
-                                <MapPin
-                                  size={
-                                    14
-                                  }
-                                />
-
-                                <strong>
-                                  Arrivée
-                                </strong>
-
-                                <em>
-                                  {[
-                                    order.delivery_address,
-                                    order.delivery_city,
-                                  ]
-                                    .filter(
-                                      Boolean,
-                                    )
-                                    .join(
-                                      ", ",
-                                    ) ||
-                                    "Non défini"}
-                                </em>
-                              </span>
+                              {!order.pickup_address &&
+                                !order.delivery_address && (
+                                  <span>
+                                    <AlertCircle size={14} />
+                                    <strong>
+                                      Trajet
+                                    </strong>
+                                    <em>
+                                      À vérifier
+                                    </em>
+                                  </span>
+                                )}
                             </div>
                           </td>
 
@@ -1711,6 +1789,11 @@ export default function OrdersPage() {
                               }
                             >
                               {Number(
+                                order.completed_stops ??
+                                  0,
+                              )}
+                              /
+                              {Number(
                                 order.stops_count ??
                                   order.stop_count ??
                                   0,
@@ -1755,7 +1838,8 @@ export default function OrdersPage() {
                               }
                             >
                               {formatMoney(
-                                order.amount,
+                                order.total_amount ??
+                                  order.amount,
                               )}
                             </strong>
                           </td>
@@ -1776,6 +1860,7 @@ export default function OrdersPage() {
 
                               {formatDate(
                                 order.pickup_date ||
+                                  order.delivery_date ||
                                   order.created_at,
                               )}
                             </div>
@@ -1796,11 +1881,17 @@ export default function OrdersPage() {
                                 }
                                 title="Voir la commande"
                               >
-                                <Eye
-                                  size={
-                                    15
-                                  }
-                                />
+                                <Eye size={15} />
+                              </Link>
+
+                              <Link
+                                href={`/dashboard/admin/orders/${order.id}`}
+                                className={
+                                  styles.actionButton
+                                }
+                                title="Modifier la commande"
+                              >
+                                <Pencil size={15} />
                               </Link>
 
                               <button
@@ -1808,18 +1899,18 @@ export default function OrdersPage() {
                                 className={
                                   styles.actionButton
                                 }
-                                title="Assigner un chauffeur"
+                                title={
+                                  driverName
+                                    ? "Réassigner le chauffeur"
+                                    : "Assigner un chauffeur"
+                                }
                                 onClick={() =>
                                   void openAssignModal(
                                     order,
                                   )
                                 }
                               >
-                                <UserRound
-                                  size={
-                                    15
-                                  }
-                                />
+                                <UserRound size={15} />
                               </button>
 
                               <button
@@ -1832,11 +1923,45 @@ export default function OrdersPage() {
                                   window.print()
                                 }
                               >
-                                <Printer
-                                  size={
-                                    15
-                                  }
-                                />
+                                <Printer size={15} />
+                              </button>
+
+                              <button
+                                type="button"
+                                className={
+                                  styles.actionButton
+                                }
+                                title={
+                                  normalizeStatus(
+                                    order.status,
+                                  ) === "completed"
+                                    ? "Une commande terminée est protégée"
+                                    : "Supprimer la commande"
+                                }
+                                disabled={
+                                  deletingOrderId ===
+                                    order.id ||
+                                  normalizeStatus(
+                                    order.status,
+                                  ) === "completed"
+                                }
+                                onClick={() =>
+                                  void deleteOrder(
+                                    order,
+                                  )
+                                }
+                              >
+                                {deletingOrderId ===
+                                order.id ? (
+                                  <Loader2
+                                    size={15}
+                                    className={
+                                      styles.spin
+                                    }
+                                  />
+                                ) : (
+                                  <Trash2 size={15} />
+                                )}
                               </button>
                             </div>
                           </td>

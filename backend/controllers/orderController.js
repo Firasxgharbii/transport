@@ -42,6 +42,12 @@ const ALLOWED_STOP_STATUSES = [
   "skipped",
 ];
 
+const ALLOWED_SERVICE_TYPES = [
+  "pickup_only",
+  "delivery_only",
+  "pickup_delivery",
+];
+
 /* ============================================================
    UTILITAIRES
 ============================================================ */
@@ -162,6 +168,99 @@ function getAuthenticatedUserId(req) {
     req.user?.user_id ||
     null
   );
+}
+
+function normalizeServiceType(
+  value,
+  pickupAddress,
+  deliveryAddress,
+) {
+  if (
+    value !== undefined &&
+    value !== null &&
+    value !== ""
+  ) {
+    const normalizedValue =
+      String(value).trim();
+
+    return ALLOWED_SERVICE_TYPES.includes(
+      normalizedValue,
+    )
+      ? normalizedValue
+      : null;
+  }
+
+  if (pickupAddress && deliveryAddress) {
+    return "pickup_delivery";
+  }
+
+  if (pickupAddress) {
+    return "pickup_only";
+  }
+
+  if (deliveryAddress) {
+    return "delivery_only";
+  }
+
+  return null;
+}
+
+function buildOrderAuditComment({
+  prefix,
+  existingOrder,
+  updatedData,
+  explicitComment,
+}) {
+  const changes = [];
+
+  const trackedFields = [
+    ["client_id", "client"],
+    ["driver_id", "chauffeur"],
+    ["vehicle_id", "véhicule"],
+    ["pickup_address", "adresse de ramassage"],
+    ["delivery_address", "adresse de livraison"],
+    ["pickup_date", "date de ramassage"],
+    ["pickup_time", "heure de ramassage"],
+    ["delivery_date", "date de livraison"],
+    ["delivery_time", "heure de livraison"],
+    ["pallets_count", "palettes"],
+    ["priority", "priorité"],
+    ["status", "statut"],
+  ];
+
+  for (const [field, label] of trackedFields) {
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        updatedData,
+        field,
+      )
+    ) {
+      continue;
+    }
+
+    const before =
+      existingOrder?.[field] ?? null;
+    const after =
+      updatedData[field] ?? null;
+
+    if (
+      String(before ?? "") !==
+      String(after ?? "")
+    ) {
+      changes.push(label);
+    }
+  }
+
+  const userComment =
+    normalizeOptionalText(explicitComment);
+
+  if (userComment) {
+    changes.push(userComment);
+  }
+
+  return changes.length
+    ? `${prefix} : ${changes.join(", ")}`
+    : prefix;
 }
 
 /* ============================================================
@@ -320,6 +419,8 @@ const createOrder = async (
 
       status,
       stops,
+      service_type,
+      order_type,
     } = req.body;
 
     const clientId =
@@ -366,24 +467,59 @@ const createOrder = async (
         pickup_address,
       );
 
-    if (!normalizedPickupAddress) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "L’adresse de ramassage est obligatoire.",
-      });
-    }
-
     const normalizedDeliveryAddress =
       normalizeOptionalText(
         delivery_address,
       );
 
-    if (!normalizedDeliveryAddress) {
+    const normalizedServiceType =
+      normalizeServiceType(
+        service_type || order_type,
+        normalizedPickupAddress,
+        normalizedDeliveryAddress,
+      );
+
+    if (!normalizedServiceType) {
       return res.status(400).json({
         success: false,
         message:
-          "L’adresse de livraison est obligatoire.",
+          "Le type de commande est invalide. Utilisez pickup_only, delivery_only ou pickup_delivery.",
+      });
+    }
+
+    if (
+      normalizedServiceType === "pickup_only" &&
+      !normalizedPickupAddress
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "L’adresse de ramassage est obligatoire pour une commande de ramassage seulement.",
+      });
+    }
+
+    if (
+      normalizedServiceType === "delivery_only" &&
+      !normalizedDeliveryAddress
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "L’adresse de livraison est obligatoire pour une commande de livraison seulement.",
+      });
+    }
+
+    if (
+      normalizedServiceType === "pickup_delivery" &&
+      (
+        !normalizedPickupAddress ||
+        !normalizedDeliveryAddress
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Les adresses de ramassage et de livraison sont obligatoires pour ce type de commande.",
       });
     }
 
@@ -702,7 +838,7 @@ const createOrder = async (
       orderId,
       normalizedStatus,
       getAuthenticatedUserId(req),
-      "Commande créée",
+      `Commande créée · type ${normalizedServiceType}`,
     );
 
     const createdOrder =
@@ -901,25 +1037,78 @@ const updateOrder = async (
       }
     }
 
-    if (
-      updatedData.pickup_address ===
-      null
-    ) {
+    const requestedServiceType =
+      req.body.service_type ||
+      req.body.order_type;
+
+    const finalPickupAddress =
+      Object.prototype.hasOwnProperty.call(
+        updatedData,
+        "pickup_address",
+      )
+        ? updatedData.pickup_address
+        : normalizeOptionalText(
+            existingOrder.pickup_address,
+          );
+
+    const finalDeliveryAddress =
+      Object.prototype.hasOwnProperty.call(
+        updatedData,
+        "delivery_address",
+      )
+        ? updatedData.delivery_address
+        : normalizeOptionalText(
+            existingOrder.delivery_address,
+          );
+
+    const normalizedServiceType =
+      normalizeServiceType(
+        requestedServiceType,
+        finalPickupAddress,
+        finalDeliveryAddress,
+      );
+
+    if (!normalizedServiceType) {
       return res.status(400).json({
         success: false,
         message:
-          "L’adresse de ramassage est obligatoire.",
+          "Le type de commande est invalide ou aucune adresse opérationnelle n’est disponible.",
       });
     }
 
     if (
-      updatedData.delivery_address ===
-      null
+      normalizedServiceType === "pickup_only" &&
+      !finalPickupAddress
     ) {
       return res.status(400).json({
         success: false,
         message:
-          "L’adresse de livraison est obligatoire.",
+          "Une adresse de ramassage est obligatoire pour ce type de commande.",
+      });
+    }
+
+    if (
+      normalizedServiceType === "delivery_only" &&
+      !finalDeliveryAddress
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Une adresse de livraison est obligatoire pour ce type de commande.",
+      });
+    }
+
+    if (
+      normalizedServiceType === "pickup_delivery" &&
+      (
+        !finalPickupAddress ||
+        !finalDeliveryAddress
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Les adresses de ramassage et de livraison sont obligatoires pour ce type de commande.",
       });
     }
 
@@ -1131,11 +1320,12 @@ const updateOrder = async (
       });
     }
 
-    if (
+    const statusChanged =
       updatedData.status &&
       updatedData.status !==
-        existingOrder.status
-    ) {
+        existingOrder.status;
+
+    if (statusChanged) {
       await OrderModel.insertStatusHistory(
         orderId,
         updatedData.status,
@@ -1143,6 +1333,33 @@ const updateOrder = async (
         normalizeOptionalText(
           req.body.comment,
         ) || "Statut modifié",
+      );
+    }
+
+    const nonStatusChanges =
+      Object.keys(updatedData).filter(
+        (field) =>
+          field !== "status" &&
+          String(existingOrder?.[field] ?? "") !==
+            String(updatedData[field] ?? ""),
+      );
+
+    if (nonStatusChanges.length > 0) {
+      await OrderModel.insertStatusHistory(
+        orderId,
+        statusChanged
+          ? updatedData.status
+          : existingOrder.status,
+        getAuthenticatedUserId(req),
+        buildOrderAuditComment({
+          prefix: "Commande modifiée",
+          existingOrder,
+          updatedData,
+          explicitComment:
+            statusChanged
+              ? null
+              : req.body.comment,
+        }),
       );
     }
 

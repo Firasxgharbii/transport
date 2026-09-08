@@ -31,8 +31,14 @@ type Client = {
   phone?: string | null;
 };
 
+type ServiceType =
+  | "pickup_only"
+  | "delivery_only"
+  | "pickup_delivery";
+
 type FormState = {
   client_id: string;
+  service_type: ServiceType;
 
   pickup_address: string;
   pickup_city: string;
@@ -63,6 +69,7 @@ const API_URL =
 
 const INITIAL_FORM: FormState = {
   client_id: "",
+  service_type: "pickup_delivery",
 
   pickup_address: "",
   pickup_city: "",
@@ -225,27 +232,66 @@ export default function NewOrderPage() {
     }));
   };
 
+  const hasPickup =
+    form.service_type === "pickup_only" ||
+    form.service_type === "pickup_delivery";
+
+  const hasDelivery =
+    form.service_type === "delivery_only" ||
+    form.service_type === "pickup_delivery";
+
+  const buildAddress = (
+    street: string,
+    city: string,
+    province: string,
+    postalCode: string,
+  ) =>
+    [
+      street.trim(),
+      city.trim(),
+      province.trim(),
+      postalCode.trim().toUpperCase(),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   const validateForm = () => {
     if (!form.client_id) {
       return "Veuillez sélectionner un client.";
     }
 
     if (
-      !form.pickup_address.trim() ||
-      !form.pickup_city.trim()
+      hasPickup &&
+      (
+        !form.pickup_address.trim() ||
+        !form.pickup_city.trim()
+      )
     ) {
       return "Veuillez entrer l’adresse complète de ramassage.";
     }
 
     if (
-      !form.delivery_address.trim() ||
-      !form.delivery_city.trim()
+      hasDelivery &&
+      (
+        !form.delivery_address.trim() ||
+        !form.delivery_city.trim()
+      )
     ) {
       return "Veuillez entrer l’adresse complète de livraison.";
     }
 
-    if (!form.pickup_date) {
+    if (
+      hasPickup &&
+      !form.pickup_date
+    ) {
       return "Veuillez sélectionner la date de ramassage.";
+    }
+
+    if (
+      hasDelivery &&
+      !form.delivery_date
+    ) {
+      return "Veuillez sélectionner la date de livraison.";
     }
 
     if (!form.description.trim()) {
@@ -299,55 +345,69 @@ export default function NewOrderPage() {
           form.client_id,
         ),
 
+        service_type:
+          form.service_type,
+
         pickup_address:
-          form.pickup_address.trim(),
-        pickup_city:
-          form.pickup_city.trim(),
-        pickup_province:
-          form.pickup_province.trim(),
-        pickup_postal_code:
-          form.pickup_postal_code
-            .trim()
-            .toUpperCase(),
+          hasPickup
+            ? buildAddress(
+                form.pickup_address,
+                form.pickup_city,
+                form.pickup_province,
+                form.pickup_postal_code,
+              )
+            : null,
 
         delivery_address:
-          form.delivery_address.trim(),
-        delivery_city:
-          form.delivery_city.trim(),
-        delivery_province:
-          form.delivery_province.trim(),
-        delivery_postal_code:
-          form.delivery_postal_code
-            .trim()
-            .toUpperCase(),
+          hasDelivery
+            ? buildAddress(
+                form.delivery_address,
+                form.delivery_city,
+                form.delivery_province,
+                form.delivery_postal_code,
+              )
+            : null,
 
         pickup_date:
-          form.pickup_date,
+          hasPickup && form.pickup_date
+            ? form.pickup_date
+            : null,
 
         delivery_date:
-          form.delivery_date || null,
+          hasDelivery && form.delivery_date
+            ? form.delivery_date
+            : null,
 
         description:
           form.description.trim(),
 
-        quantity:
+        pallets_count:
           Number(form.quantity),
-
-        weight:
-          form.weight
-            ? Number(form.weight)
-            : null,
 
         priority:
           form.priority,
 
-        amount:
+        subtotal:
+          form.amount
+            ? Number(form.amount)
+            : 0,
+
+        taxes: 0,
+
+        total_amount:
           form.amount
             ? Number(form.amount)
             : 0,
 
         notes:
-          form.notes.trim() || null,
+          [
+            form.notes.trim(),
+            form.weight
+              ? `Poids déclaré : ${form.weight} kg`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n") || null,
 
         status: "pending",
       };
@@ -927,6 +987,58 @@ export default function NewOrderPage() {
             <section className="card">
               <div className="cardTitle">
                 <div className="cardTitleIcon">
+                  <Package size={19} />
+                </div>
+
+                <div>
+                  <h2>Type de commande</h2>
+                  <p>
+                    Choisissez le parcours opérationnel de cette commande.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid">
+                <div className="field full">
+                  <label>
+                    Service <span className="required">*</span>
+                  </label>
+
+                  <select
+                    value={form.service_type}
+                    onChange={(event) =>
+                      updateField(
+                        "service_type",
+                        event.target.value as ServiceType,
+                      )
+                    }
+                  >
+                    <option value="pickup_only">
+                      Ramassage seulement
+                    </option>
+                    <option value="delivery_only">
+                      Livraison seulement
+                    </option>
+                    <option value="pickup_delivery">
+                      Ramassage + livraison
+                    </option>
+                  </select>
+
+                  <small style={{ color: "#667085", marginTop: 8 }}>
+                    {form.service_type === "pickup_only"
+                      ? "La commande se termine après le ramassage."
+                      : form.service_type === "delivery_only"
+                        ? "La commande contient uniquement une destination de livraison."
+                        : "Parcours complet : ramassage puis livraison."}
+                  </small>
+                </div>
+              </div>
+            </section>
+
+            {hasPickup && (
+            <section className="card">
+              <div className="cardTitle">
+                <div className="cardTitleIcon">
                   <MapPin
                     size={19}
                   />
@@ -1090,6 +1202,9 @@ export default function NewOrderPage() {
               </div>
             </section>
 
+            )}
+
+            {hasDelivery && (
             <section className="card">
               <div className="cardTitle">
                 <div className="cardTitleIcon">
@@ -1252,6 +1367,8 @@ export default function NewOrderPage() {
                 </div>
               </div>
             </section>
+
+            )}
 
             <section className="card">
               <div className="cardTitle">

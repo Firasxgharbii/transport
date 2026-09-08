@@ -14,6 +14,7 @@ import {
   MapPin,
   Navigation,
   Package,
+  Pencil,
   Phone,
   Plus,
   RefreshCw,
@@ -91,7 +92,12 @@ type Order = {
   delivery_address?: string | null;
 
   pickup_date?: string | null;
+  pickup_time?: string | null;
   delivery_date?: string | null;
+  delivery_time?: string | null;
+
+  pallets_count?: number | string | null;
+  service_type?: "pickup_only" | "delivery_only" | "pickup_delivery" | string | null;
 
   status?: OrderStatus | string;
 
@@ -499,6 +505,41 @@ export default function OrderDetailsPage() {
     setNewStopNotes,
   ] = useState("");
 
+  const [
+    editingOrder,
+    setEditingOrder,
+  ] = useState(false);
+
+  const [
+    editPickupAddress,
+    setEditPickupAddress,
+  ] = useState("");
+
+  const [
+    editDeliveryAddress,
+    setEditDeliveryAddress,
+  ] = useState("");
+
+  const [
+    editPickupDate,
+    setEditPickupDate,
+  ] = useState("");
+
+  const [
+    editDeliveryDate,
+    setEditDeliveryDate,
+  ] = useState("");
+
+  const [
+    editPriority,
+    setEditPriority,
+  ] = useState("normal");
+
+  const [
+    editNotes,
+    setEditNotes,
+  ] = useState("");
+
   /* ==========================================================
      API
   ========================================================== */
@@ -668,6 +709,29 @@ export default function OrderDetailsPage() {
             receivedOrder.failure_reason ||
             receivedOrder.cancellation_reason ||
             "",
+        );
+
+        setEditPickupAddress(
+          receivedOrder.pickup_address || "",
+        );
+        setEditDeliveryAddress(
+          receivedOrder.delivery_address || "",
+        );
+        setEditPickupDate(
+          receivedOrder.pickup_date
+            ? String(receivedOrder.pickup_date).slice(0, 10)
+            : "",
+        );
+        setEditDeliveryDate(
+          receivedOrder.delivery_date
+            ? String(receivedOrder.delivery_date).slice(0, 10)
+            : "",
+        );
+        setEditPriority(
+          receivedOrder.priority || "normal",
+        );
+        setEditNotes(
+          receivedOrder.notes || "",
         );
 
         const results =
@@ -1095,6 +1159,151 @@ export default function OrderDetailsPage() {
     };
 
   /* ==========================================================
+     UPDATE ORDER
+  ========================================================== */
+
+  const updateOrder = async () => {
+    if (!order) return;
+
+    const hasPickup =
+      Boolean(order.pickup_address);
+    const hasDelivery =
+      Boolean(order.delivery_address);
+
+    const serviceType =
+      hasPickup && hasDelivery
+        ? "pickup_delivery"
+        : hasPickup
+          ? "pickup_only"
+          : "delivery_only";
+
+    if (
+      serviceType !== "delivery_only" &&
+      !editPickupAddress.trim()
+    ) {
+      setError(
+        "L'adresse de ramassage est obligatoire.",
+      );
+      return;
+    }
+
+    if (
+      serviceType !== "pickup_only" &&
+      !editDeliveryAddress.trim()
+    ) {
+      setError(
+        "L'adresse de livraison est obligatoire.",
+      );
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      await apiFetch(
+        `/api/orders/${orderId}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            service_type: serviceType,
+            pickup_address:
+              serviceType === "delivery_only"
+                ? null
+                : editPickupAddress.trim(),
+            delivery_address:
+              serviceType === "pickup_only"
+                ? null
+                : editDeliveryAddress.trim(),
+            pickup_date:
+              serviceType === "delivery_only"
+                ? null
+                : editPickupDate || null,
+            delivery_date:
+              serviceType === "pickup_only"
+                ? null
+                : editDeliveryDate || null,
+            priority:
+              editPriority || "normal",
+            notes:
+              editNotes.trim() || null,
+            comment:
+              "Modification depuis la fiche administrateur",
+          }),
+        },
+      );
+
+      setEditingOrder(false);
+      setSuccess(
+        "Commande modifiée avec succès. La modification a été ajoutée à l'historique.",
+      );
+      await loadOrder();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de modifier la commande.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ==========================================================
+     DELETE ORDER
+  ========================================================== */
+
+  const deleteOrder = async () => {
+    if (!order) return;
+
+    if (order.status === "completed") {
+      setError(
+        "Une commande terminée ne peut pas être supprimée.",
+      );
+      return;
+    }
+
+    const label =
+      order.order_number ||
+      order.reference ||
+      `#${order.id}`;
+
+    const confirmed =
+      window.confirm(
+        `Supprimer définitivement la commande ${label} ? Cette action est réservée au super administrateur.`,
+      );
+
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      await apiFetch(
+        `/api/orders/${orderId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      router.replace(
+        "/dashboard/admin/orders",
+      );
+      router.refresh();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de supprimer la commande.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ==========================================================
      DERIVED VALUES
   ========================================================== */
 
@@ -1253,6 +1462,37 @@ export default function OrderDetailsPage() {
           />
 
           Actualiser
+        </button>
+
+        <button
+          type="button"
+          className={styles.refreshButton}
+          disabled={saving}
+          onClick={() =>
+            setEditingOrder(
+              (value) => !value,
+            )
+          }
+        >
+          <Pencil size={17} />
+          {editingOrder
+            ? "Fermer modification"
+            : "Modifier"}
+        </button>
+
+        <button
+          type="button"
+          className={styles.refreshButton}
+          disabled={
+            saving ||
+            order.status === "completed"
+          }
+          onClick={() =>
+            void deleteOrder()
+          }
+        >
+          <Trash2 size={17} />
+          Supprimer
         </button>
       </div>
 
@@ -1495,19 +1735,18 @@ export default function OrderDetailsPage() {
                 styles.route
               }
             >
-              <RoutePoint
-                type="pickup"
-                label="RAMASSAGE"
-                address={
-                  order.pickup_address ||
-                  "Adresse non définie"
-                }
-                date={
-                  formatDate(
-                    order.pickup_date,
-                  )
-                }
-              />
+              {order.pickup_address && (
+                <RoutePoint
+                  type="pickup"
+                  label="RAMASSAGE"
+                  address={order.pickup_address}
+                  date={
+                    formatDate(
+                      order.pickup_date,
+                    )
+                  }
+                />
+              )}
 
               {sortedStops.map(
                 (
@@ -1563,19 +1802,18 @@ export default function OrderDetailsPage() {
                 ),
               )}
 
-              <RoutePoint
-                type="delivery"
-                label="LIVRAISON"
-                address={
-                  order.delivery_address ||
-                  "Adresse non définie"
-                }
-                date={
-                  formatDate(
-                    order.delivery_date,
-                  )
-                }
-              />
+              {order.delivery_address && (
+                <RoutePoint
+                  type="delivery"
+                  label="LIVRAISON"
+                  address={order.delivery_address}
+                  date={
+                    formatDate(
+                      order.delivery_date,
+                    )
+                  }
+                />
+              )}
             </div>
 
             <div
@@ -1643,6 +1881,128 @@ export default function OrderDetailsPage() {
               </button>
             </div>
           </section>
+
+          {editingOrder && (
+            <section
+              className={styles.panel}
+            >
+              <PanelHeader
+                icon={<Pencil size={20} />}
+                eyebrow="Modification"
+                title="Modifier la commande"
+                description="Les changements importants seront conservés dans l'historique."
+              />
+
+              <div className={styles.infoGrid}>
+                {order.pickup_address && (
+                  <label className={styles.field}>
+                    <span>Adresse de ramassage</span>
+                    <input
+                      value={editPickupAddress}
+                      onChange={(event) =>
+                        setEditPickupAddress(
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                )}
+
+                {order.delivery_address && (
+                  <label className={styles.field}>
+                    <span>Adresse de livraison</span>
+                    <input
+                      value={editDeliveryAddress}
+                      onChange={(event) =>
+                        setEditDeliveryAddress(
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                )}
+
+                {order.pickup_address && (
+                  <label className={styles.field}>
+                    <span>Date de ramassage</span>
+                    <input
+                      type="date"
+                      value={editPickupDate}
+                      onChange={(event) =>
+                        setEditPickupDate(
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                )}
+
+                {order.delivery_address && (
+                  <label className={styles.field}>
+                    <span>Date de livraison</span>
+                    <input
+                      type="date"
+                      value={editDeliveryDate}
+                      onChange={(event) =>
+                        setEditDeliveryDate(
+                          event.target.value,
+                        )
+                      }
+                    />
+                  </label>
+                )}
+
+                <label className={styles.field}>
+                  <span>Priorité</span>
+                  <select
+                    value={editPriority}
+                    onChange={(event) =>
+                      setEditPriority(
+                        event.target.value,
+                      )
+                    }
+                  >
+                    <option value="low">Basse</option>
+                    <option value="normal">Normale</option>
+                    <option value="high">Haute</option>
+                    <option value="urgent">Urgente</option>
+                  </select>
+                </label>
+
+                <label className={styles.field}>
+                  <span>Notes</span>
+                  <textarea
+                    rows={4}
+                    value={editNotes}
+                    onChange={(event) =>
+                      setEditNotes(
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={saving}
+                onClick={() =>
+                  void updateOrder()
+                }
+              >
+                {saving ? (
+                  <Loader2
+                    size={16}
+                    className={styles.spin}
+                  />
+                ) : (
+                  <Save size={16} />
+                )}
+                Enregistrer les modifications
+              </button>
+            </section>
+          )}
 
           {/* CLIENT */}
 
@@ -2241,6 +2601,18 @@ export default function OrderDetailsPage() {
                 styles.summaryList
               }
             >
+              <SummaryRow
+                label="Type de commande"
+                value={
+                  order.pickup_address &&
+                  order.delivery_address
+                    ? "Ramassage + livraison"
+                    : order.pickup_address
+                      ? "Ramassage seulement"
+                      : "Livraison seulement"
+                }
+              />
+
               <SummaryRow
                 label="Priorité"
                 value={
