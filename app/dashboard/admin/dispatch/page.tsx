@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock3,
   GripVertical,
+  History,
   Loader2,
   PackageCheck,
   Pencil,
@@ -117,6 +118,28 @@ type OrderOperation = {
   driver_last_name?: string | null;
   vehicle_name?: string | null;
   vehicle_plate?: string | null;
+};
+
+type TimelineItem = {
+  id?: number | string | null;
+  status?: string | null;
+  old_status?: string | null;
+  new_status?: string | null;
+  reason?: string | null;
+  comment?: string | null;
+  created_at?: string | null;
+  changed_by_name?: string | null;
+  user_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+};
+
+type GlobalHistoryItem = TimelineItem & {
+  history_key: string;
+  order_id: number;
+  order_number: string;
+  client_name: string;
 };
 
 type OperationForm = {
@@ -260,6 +283,40 @@ function asCount(value: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function historyDate(value?: string | null) {
+  if (!value) return "Date inconnue";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("fr-CA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function historyAction(item: TimelineItem) {
+  if (item.old_status && item.new_status) {
+    return `${statusLabel(item.old_status)} → ${statusLabel(item.new_status)}`;
+  }
+  if (item.new_status) return statusLabel(item.new_status);
+  if (item.status) return statusLabel(item.status);
+  return "Mise à jour";
+}
+
+function historyActor(item: TimelineItem) {
+  const fullName = [item.first_name, item.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return (
+    item.changed_by_name ||
+    item.user_name ||
+    fullName ||
+    item.email ||
+    "Système"
+  );
+}
+
 export default function DispatchPage() {
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -285,6 +342,14 @@ export default function DispatchPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [positionInputs, setPositionInputs] = useState<Record<number, string>>({});
+  const [positionSavingId, setPositionSavingId] = useState<number | null>(null);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyProgress, setHistoryProgress] = useState({ loaded: 0, total: 0 });
+  const [historyItems, setHistoryItems] = useState<GlobalHistoryItem[]>([]);
+  const [historySearch, setHistorySearch] = useState("");
 
   const [activeOrder, setActiveOrder] = useState<DispatchOrder | null>(null);
   const [operations, setOperations] = useState<OrderOperation[]>([]);
@@ -348,13 +413,24 @@ export default function DispatchPage() {
       const result = await apiFetch<DispatchResponse>(
         `/api/dispatch/orders?${queryString}`,
       );
-      setOrders(
-        Array.isArray(result.orders)
-          ? result.orders
-          : Array.isArray(result.data)
-            ? result.data
-            : [],
+      const loadedOrders = Array.isArray(result.orders)
+        ? result.orders
+        : Array.isArray(result.data)
+          ? result.data
+          : [];
+
+      setOrders(loadedOrders);
+
+      const base = (page - 1) * limit;
+      setPositionInputs(
+        Object.fromEntries(
+          loadedOrders.map((order, index) => [
+            order.id,
+            String(order.route_position ?? base + index + 1),
+          ]),
+        ),
       );
+
       setTotal(result.pagination?.total || 0);
       setTotalPages(result.pagination?.totalPages || 1);
     } catch (reason) {
@@ -543,6 +619,70 @@ export default function DispatchPage() {
     }
   };
 
+  const syncLocalPositions = (nextOrders: DispatchOrder[]) => {
+    const base = (page - 1) * limit;
+    const positioned = nextOrders.map((order, index) => ({
+      ...order,
+      route_position: base + index + 1,
+    }));
+
+    setOrders(positioned);
+    setPositionInputs(
+      Object.fromEntries(
+        positioned.map((order) => [order.id, String(order.route_position)]),
+      ),
+    );
+
+    return positioned;
+  };
+
+  const moveOrderToPosition = async (orderId: number) => {
+    const raw = positionInputs[orderId]?.trim() || "";
+    const desiredPosition = Number(raw);
+    const firstPosition = (page - 1) * limit + 1;
+    const lastPosition = firstPosition + orders.length - 1;
+
+    if (!Number.isInteger(desiredPosition)) {
+      setError("Entre un numéro de position valide.");
+      return;
+    }
+
+    if (desiredPosition < firstPosition || desiredPosition > lastPosition) {
+      setError(
+        `Sur cette page, choisis une position entre ${firstPosition} et ${lastPosition}.`,
+      );
+      return;
+    }
+
+    const from = orders.findIndex((item) => item.id === orderId);
+    const to = desiredPosition - firstPosition;
+
+    if (from < 0 || to < 0 || to >= orders.length) return;
+
+    if (from === to) {
+      setSuccess(`La commande est déjà en position ${desiredPosition}.`);
+      return;
+    }
+
+    try {
+      setPositionSavingId(orderId);
+      setError("");
+
+      const next = [...orders];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+
+      const positioned = syncLocalPositions(next);
+      await saveReorder(positioned);
+
+      setSuccess(
+        `Commande déplacée de la position ${firstPosition + from} à ${desiredPosition}.`,
+      );
+    } finally {
+      setPositionSavingId(null);
+    }
+  };
+
   const handleDrop = (targetId: number) => {
     if (!draggedId || draggedId === targetId) {
       setDraggedId(null);
@@ -556,10 +696,126 @@ export default function DispatchPage() {
     const next = [...orders];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    setOrders(next);
+
+    const positioned = syncLocalPositions(next);
     setDraggedId(null);
-    void saveReorder(next);
+    void saveReorder(positioned);
   };
+
+  const loadGlobalHistory = async () => {
+    try {
+      setHistoryOpen(true);
+      setHistoryLoading(true);
+      setHistoryItems([]);
+      setHistorySearch("");
+      setError("");
+
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("search", search.trim());
+      if (clientId) params.set("client_id", clientId);
+      if (status) params.set("status", status);
+      if (driverFilter) params.set("driver_id", driverFilter);
+
+      const idResult = await apiFetch<{ ids?: number[]; data?: number[] }>(
+        `/api/dispatch/order-ids?${params}`,
+      );
+
+      const ids = Array.isArray(idResult.ids)
+        ? idResult.ids
+        : Array.isArray(idResult.data)
+          ? idResult.data
+          : [];
+
+      setHistoryProgress({ loaded: 0, total: ids.length });
+
+      const collected: GlobalHistoryItem[] = [];
+      const batchSize = 10;
+
+      for (let start = 0; start < ids.length; start += batchSize) {
+        const batch = ids.slice(start, start + batchSize);
+
+        const results = await Promise.allSettled(
+          batch.map((id) =>
+            apiFetch<{
+              order?: DispatchOrder & { timeline?: TimelineItem[] };
+              data?: DispatchOrder & { timeline?: TimelineItem[] };
+            }>(`/api/orders/${id}`),
+          ),
+        );
+
+        results.forEach((result, resultIndex) => {
+          if (result.status !== "fulfilled") return;
+
+          const received = result.value.order || result.value.data;
+          if (!received) return;
+
+          const timeline = Array.isArray(received.timeline)
+            ? received.timeline
+            : [];
+
+          const number = received.order_number || `#${received.id}`;
+          const name = clientName(received);
+
+          timeline.forEach((item, timelineIndex) => {
+            collected.push({
+              ...item,
+              history_key: `${received.id}-${String(
+                item.id ?? timelineIndex,
+              )}-${String(item.created_at ?? "")}`,
+              order_id: received.id,
+              order_number: number,
+              client_name: name,
+            });
+          });
+        });
+
+        setHistoryProgress({
+          loaded: Math.min(start + batch.length, ids.length),
+          total: ids.length,
+        });
+
+        setHistoryItems(
+          [...collected].sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime;
+          }),
+        );
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de charger l’historique global.",
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const visibleHistoryItems = useMemo(() => {
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return historyItems;
+
+    return historyItems.filter((item) =>
+      [
+        item.order_number,
+        item.client_name,
+        item.old_status,
+        item.new_status,
+        item.status,
+        item.reason,
+        item.comment,
+        item.changed_by_name,
+        item.user_name,
+        item.first_name,
+        item.last_name,
+        item.email,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q)),
+    );
+  }, [historyItems, historySearch]);
 
   const openOperations = async (order: DispatchOrder) => {
     setActiveOrder(order);
@@ -700,6 +956,19 @@ export default function DispatchPage() {
         </div>
 
         <div className={styles.headerActions}>
+          <button
+            className={styles.secondaryBtn}
+            onClick={() => void loadGlobalHistory()}
+            disabled={historyLoading}
+            type="button"
+          >
+            {historyLoading ? (
+              <Loader2 size={17} className={styles.spin} />
+            ) : (
+              <History size={17} />
+            )}
+            Historique
+          </button>
           <Link href="/dashboard/admin/orders" className={styles.secondaryBtn}>
             Commandes
           </Link>
@@ -930,9 +1199,76 @@ export default function DispatchPage() {
                         </button>
                       </td>
                       <td>
-                        <span className={styles.position}>
-                          {order.route_position ?? (page - 1) * limit + index + 1}
-                        </span>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            minWidth: 112,
+                          }}
+                        >
+                          <input
+                            type="number"
+                            min={(page - 1) * limit + 1}
+                            max={(page - 1) * limit + orders.length}
+                            value={
+                              positionInputs[order.id] ??
+                              String(
+                                order.route_position ??
+                                  (page - 1) * limit + index + 1,
+                              )
+                            }
+                            onChange={(event) =>
+                              setPositionInputs((current) => ({
+                                ...current,
+                                [order.id]: event.target.value,
+                              }))
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void moveOrderToPosition(order.id);
+                              }
+                            }}
+                            aria-label={`Position de ${
+                              order.order_number || `commande ${order.id}`
+                            }`}
+                            style={{
+                              width: 62,
+                              height: 34,
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 8,
+                              padding: "0 8px",
+                              fontWeight: 700,
+                              textAlign: "center",
+                              background: "#fff",
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void moveOrderToPosition(order.id)}
+                            disabled={positionSavingId === order.id}
+                            title="Déplacer à cette position"
+                            style={{
+                              height: 34,
+                              minWidth: 38,
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 8,
+                              background: "#fff",
+                              cursor:
+                                positionSavingId === order.id
+                                  ? "wait"
+                                  : "pointer",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {positionSavingId === order.id ? (
+                              <Loader2 size={15} className={styles.spin} />
+                            ) : (
+                              "OK"
+                            )}
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <Link
@@ -1016,6 +1352,218 @@ export default function DispatchPage() {
           </div>
         </footer>
       </section>
+
+
+      {historyOpen && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={() => setHistoryOpen(false)}
+        >
+          <section
+            className={styles.operationsModal}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={{ maxWidth: 1180 }}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <span className={styles.eyebrow}>
+                  <History size={16} /> Historique global
+                </span>
+                <h2>Historique de toutes les commandes</h2>
+                <p>
+                  Statuts, utilisateur, date et raison pour toutes les commandes
+                  correspondant aux filtres actuels.
+                </p>
+              </div>
+              <button
+                className={styles.iconBtn}
+                onClick={() => setHistoryOpen(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(260px, 1fr) auto",
+                gap: 12,
+                alignItems: "center",
+                padding: "0 0 18px",
+              }}
+            >
+              <div className={styles.searchBox}>
+                <Search size={17} />
+                <input
+                  value={historySearch}
+                  onChange={(event) => setHistorySearch(event.target.value)}
+                  placeholder="Commande, client, statut, utilisateur, raison..."
+                />
+              </div>
+
+              <button
+                className={styles.refreshBtn}
+                onClick={() => void loadGlobalHistory()}
+                disabled={historyLoading}
+                type="button"
+              >
+                <RefreshCw
+                  size={17}
+                  className={historyLoading ? styles.spin : ""}
+                />
+                Recharger
+              </button>
+            </div>
+
+            {historyLoading && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: "12px 14px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  background: "#fafafa",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <Loader2 size={18} className={styles.spin} />
+                Chargement de l’historique : {historyProgress.loaded} /{" "}
+                {historyProgress.total} commandes
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                marginBottom: 14,
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: 999,
+                  background: "#f3f4f6",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {visibleHistoryItems.length} événement(s)
+              </span>
+              <span
+                style={{
+                  padding: "7px 10px",
+                  borderRadius: 999,
+                  background: "#fff1f2",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {historyProgress.total} commande(s)
+              </span>
+            </div>
+
+            <div
+              style={{
+                overflow: "auto",
+                maxHeight: "62vh",
+                border: "1px solid #e5e7eb",
+                borderRadius: 14,
+              }}
+            >
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead
+                  style={{
+                    position: "sticky",
+                    top: 0,
+                    background: "#fafafa",
+                    zIndex: 1,
+                  }}
+                >
+                  <tr>
+                    <th style={{ padding: 12, textAlign: "left" }}>Date</th>
+                    <th style={{ padding: 12, textAlign: "left" }}>Commande</th>
+                    <th style={{ padding: 12, textAlign: "left" }}>Client</th>
+                    <th style={{ padding: 12, textAlign: "left" }}>Action</th>
+                    <th style={{ padding: 12, textAlign: "left" }}>Par</th>
+                    <th style={{ padding: 12, textAlign: "left" }}>Raison / note</th>
+                    <th style={{ padding: 12, textAlign: "left" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!historyLoading && visibleHistoryItems.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        style={{
+                          padding: 32,
+                          textAlign: "center",
+                          color: "#6b7280",
+                        }}
+                      >
+                        Aucun événement trouvé.
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleHistoryItems.map((item) => (
+                      <tr
+                        key={item.history_key}
+                        style={{ borderTop: "1px solid #e5e7eb" }}
+                      >
+                        <td
+                          style={{
+                            padding: 12,
+                            whiteSpace: "nowrap",
+                            fontSize: 13,
+                          }}
+                        >
+                          {historyDate(item.created_at)}
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          <Link
+                            href={`/dashboard/admin/orders/${item.order_id}`}
+                            className={styles.orderNumber}
+                          >
+                            {item.order_number}
+                          </Link>
+                        </td>
+                        <td style={{ padding: 12 }}>{item.client_name}</td>
+                        <td style={{ padding: 12 }}>
+                          <strong>{historyAction(item)}</strong>
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          {historyActor(item)}
+                        </td>
+                        <td
+                          style={{
+                            padding: 12,
+                            maxWidth: 320,
+                            whiteSpace: "normal",
+                          }}
+                        >
+                          {item.reason || item.comment || "—"}
+                        </td>
+                        <td style={{ padding: 12 }}>
+                          <Link
+                            href={`/dashboard/admin/orders/${item.order_id}`}
+                            className={styles.planBtn}
+                          >
+                            Voir
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
 
       {activeOrder && (
         <div className={styles.modalBackdrop} onMouseDown={closeOperations}>

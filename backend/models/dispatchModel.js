@@ -203,6 +203,54 @@ const DispatchModel = {
   ALLOWED_OPERATION_TYPES,
   ALLOWED_OPERATION_STATUSES,
 
+  async getOrderSnapshotById(orderId) {
+    const id = positiveInt(orderId);
+    if (!id) return null;
+
+    const [rows] = await db.query(
+      `SELECT
+        id,
+        order_number,
+        driver_id,
+        vehicle_id,
+        status,
+        route_position,
+        updated_at
+      FROM orders
+      WHERE id = ?
+      LIMIT 1`,
+      [id],
+    );
+
+    return rows[0] || null;
+  },
+
+  async getOrderSnapshots(orderIds = []) {
+    const ids = [...new Set(orderIds.map(Number))]
+      .filter((id) => Number.isInteger(id) && id > 0)
+      .slice(0, 1000);
+
+    if (!ids.length) return [];
+
+    const placeholders = ids.map(() => "?").join(",");
+
+    const [rows] = await db.query(
+      `SELECT
+        id,
+        order_number,
+        driver_id,
+        vehicle_id,
+        status,
+        route_position,
+        updated_at
+      FROM orders
+      WHERE id IN (${placeholders})`,
+      ids,
+    );
+
+    return rows;
+  },
+
   async getOrders(filters = {}) {
     const page = positiveInt(filters.page, 1);
     const limit = Math.min(Math.max(positiveInt(filters.limit, 100), 1), 250);
@@ -391,7 +439,10 @@ const DispatchModel = {
       }
 
       await connection.commit();
-      return { affectedRows: normalized.length };
+      return {
+        affectedRows: normalized.length,
+        ids: normalized.map((item) => item.id),
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
