@@ -20,18 +20,18 @@ const TrackingModel = {
 
     const [result] = await db.query(
       `
-      INSERT INTO driver_locations (
-        driver_id,
-        order_id,
-        latitude,
-        longitude,
-        speed,
-        heading,
-        accuracy,
-        battery_level,
-        recorded_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO driver_locations (
+          driver_id,
+          order_id,
+          latitude,
+          longitude,
+          speed,
+          heading,
+          accuracy,
+          battery_level,
+          recorded_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         driver_id,
@@ -43,348 +43,485 @@ const TrackingModel = {
         accuracy ?? null,
         battery_level ?? null,
         recorded_at || new Date(),
-      ],
+      ]
     );
 
     return result.insertId;
   },
 
   /* =========================================================
-     RÉCUPÉRER LA DERNIÈRE POSITION D’UN CHAUFFEUR
+     DERNIÈRE POSITION GPS D'UN CHAUFFEUR
   ========================================================= */
 
   async getLatestDriverLocation(driverId) {
     const [rows] = await db.query(
       `
-      SELECT
-        dl.id,
-        dl.driver_id,
-        dl.order_id,
-        dl.latitude,
-        dl.longitude,
-        dl.speed,
-        dl.heading,
-        dl.accuracy,
-        dl.battery_level,
-        dl.recorded_at,
-        dl.created_at,
+        SELECT
+          dl.id,
+          dl.driver_id,
+          dl.order_id,
+          dl.latitude,
+          dl.longitude,
+          dl.speed,
+          dl.heading,
+          dl.accuracy,
+          dl.battery_level,
+          dl.recorded_at,
+          dl.created_at,
 
-        u.first_name AS driver_first_name,
-        u.last_name AS driver_last_name,
-        u.email AS driver_email,
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name,
+          u.email AS driver_email,
 
-        d.phone AS driver_phone,
-        d.availability_status,
+          d.phone AS driver_phone,
+          d.availability_status,
 
-        o.order_number,
-        o.status AS order_status,
-        o.pickup_address,
-        o.delivery_address
+          o.order_number,
+          o.status AS order_status,
+          o.pickup_address,
+          o.delivery_address
 
-      FROM driver_locations dl
+        FROM driver_locations dl
 
-      INNER JOIN drivers d
-        ON d.id = dl.driver_id
+        INNER JOIN drivers d
+          ON d.id = dl.driver_id
 
-      INNER JOIN users u
-        ON u.id = d.user_id
+        INNER JOIN users u
+          ON u.id = d.user_id
 
-      LEFT JOIN orders o
-        ON o.id = dl.order_id
+        LEFT JOIN orders o
+          ON o.id = dl.order_id
 
-      WHERE dl.driver_id = ?
+        WHERE dl.driver_id = ?
 
-      ORDER BY
-        dl.recorded_at DESC,
-        dl.id DESC
+        ORDER BY
+          dl.recorded_at DESC,
+          dl.id DESC
 
-      LIMIT 1
+        LIMIT 1
       `,
-      [driverId],
+      [driverId]
     );
 
     return rows[0] || null;
   },
 
   /* =========================================================
-     RÉCUPÉRER LES DERNIÈRES POSITIONS DE TOUS LES CHAUFFEURS
+     DERNIÈRES POSITIONS GPS DE TOUS LES CHAUFFEURS
+
+     Admin / Dispatch.
   ========================================================= */
 
   async getLatestLocations() {
     const [rows] = await db.query(
       `
-      SELECT
-        dl.id,
-        dl.driver_id,
-        dl.order_id,
-        dl.latitude,
-        dl.longitude,
-        dl.speed,
-        dl.heading,
-        dl.accuracy,
-        dl.battery_level,
-        dl.recorded_at,
-        dl.created_at,
-
-        u.first_name AS driver_first_name,
-        u.last_name AS driver_last_name,
-        u.email AS driver_email,
-
-        COALESCE(
-          d.phone,
-          u.phone
-        ) AS driver_phone,
-
-        d.availability_status,
-        d.vehicle_name,
-        d.vehicle_plate,
-        d.last_seen_at,
-
-        o.order_number,
-        o.status AS order_status,
-        o.pickup_address,
-        o.delivery_address,
-        o.pickup_date,
-        o.pickup_time,
-        o.delivery_date,
-        o.delivery_time
-
-      FROM driver_locations dl
-
-      INNER JOIN (
         SELECT
-          driver_id,
-          MAX(recorded_at) AS max_recorded_at
+          dl.id,
+          dl.driver_id,
+          dl.order_id,
+          dl.latitude,
+          dl.longitude,
+          dl.speed,
+          dl.heading,
+          dl.accuracy,
+          dl.battery_level,
+          dl.recorded_at,
+          dl.created_at,
 
-        FROM driver_locations
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name,
+          u.email AS driver_email,
 
-        GROUP BY driver_id
-      ) latest
-        ON latest.driver_id = dl.driver_id
-        AND latest.max_recorded_at = dl.recorded_at
+          COALESCE(
+            d.phone,
+            u.phone
+          ) AS driver_phone,
 
-      INNER JOIN drivers d
-        ON d.id = dl.driver_id
+          d.availability_status,
+          d.vehicle_name,
+          d.vehicle_plate,
+          d.last_seen_at,
 
-      INNER JOIN users u
-        ON u.id = d.user_id
+          o.order_number,
+          o.status AS order_status,
+          o.pickup_address,
+          o.delivery_address,
+          o.pickup_date,
+          o.pickup_time,
+          o.delivery_date,
+          o.delivery_time
 
-      LEFT JOIN orders o
-        ON o.id = dl.order_id
+        FROM driver_locations dl
 
-      ORDER BY dl.recorded_at DESC
-      `,
+        INNER JOIN drivers d
+          ON d.id = dl.driver_id
+
+        INNER JOIN users u
+          ON u.id = d.user_id
+
+        LEFT JOIN orders o
+          ON o.id = dl.order_id
+
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM driver_locations newer
+
+          WHERE newer.driver_id = dl.driver_id
+            AND (
+              newer.recorded_at > dl.recorded_at
+              OR (
+                newer.recorded_at = dl.recorded_at
+                AND newer.id > dl.id
+              )
+            )
+        )
+
+        ORDER BY
+          dl.recorded_at DESC,
+          dl.id DESC
+      `
     );
 
     return rows;
   },
 
   /* =========================================================
-     HISTORIQUE GPS D’UN CHAUFFEUR
+     HISTORIQUE GPS D'UN CHAUFFEUR
   ========================================================= */
 
   async getDriverLocationHistory(
     driverId,
-    limit = 100,
+    limit = 100
   ) {
     const safeLimit = Math.min(
       Math.max(
         Number(limit) || 100,
-        1,
+        1
       ),
-      1000,
+      1000
     );
 
     const [rows] = await db.query(
       `
-      SELECT
-        id,
-        driver_id,
-        order_id,
-        latitude,
-        longitude,
-        speed,
-        heading,
-        accuracy,
-        battery_level,
-        recorded_at,
-        created_at
+        SELECT
+          id,
+          driver_id,
+          order_id,
+          latitude,
+          longitude,
+          speed,
+          heading,
+          accuracy,
+          battery_level,
+          recorded_at,
+          created_at
 
-      FROM driver_locations
+        FROM driver_locations
 
-      WHERE driver_id = ?
+        WHERE driver_id = ?
 
-      ORDER BY
-        recorded_at DESC,
-        id DESC
+        ORDER BY
+          recorded_at DESC,
+          id DESC
 
-      LIMIT ?
+        LIMIT ?
       `,
       [
         driverId,
         safeLimit,
-      ],
+      ]
     );
 
     return rows;
   },
 
   /* =========================================================
-     HISTORIQUE GPS D’UNE COMMANDE
+     HISTORIQUE GPS D'UNE COMMANDE
   ========================================================= */
 
   async getOrderLocationHistory(
     orderId,
-    limit = 500,
+    limit = 500
   ) {
     const safeLimit = Math.min(
       Math.max(
         Number(limit) || 500,
-        1,
+        1
       ),
-      2000,
+      2000
     );
 
     const [rows] = await db.query(
       `
-      SELECT
-        dl.id,
-        dl.driver_id,
-        dl.order_id,
-        dl.latitude,
-        dl.longitude,
-        dl.speed,
-        dl.heading,
-        dl.accuracy,
-        dl.battery_level,
-        dl.recorded_at,
-        dl.created_at,
+        SELECT
+          dl.id,
+          dl.driver_id,
+          dl.order_id,
+          dl.latitude,
+          dl.longitude,
+          dl.speed,
+          dl.heading,
+          dl.accuracy,
+          dl.battery_level,
+          dl.recorded_at,
+          dl.created_at,
 
-        u.first_name AS driver_first_name,
-        u.last_name AS driver_last_name
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name
 
-      FROM driver_locations dl
+        FROM driver_locations dl
 
-      INNER JOIN drivers d
-        ON d.id = dl.driver_id
+        INNER JOIN drivers d
+          ON d.id = dl.driver_id
 
-      INNER JOIN users u
-        ON u.id = d.user_id
+        INNER JOIN users u
+          ON u.id = d.user_id
 
-      WHERE dl.order_id = ?
+        WHERE dl.order_id = ?
 
-      ORDER BY
-        dl.recorded_at ASC,
-        dl.id ASC
+        ORDER BY
+          dl.recorded_at ASC,
+          dl.id ASC
 
-      LIMIT ?
+        LIMIT ?
       `,
       [
         orderId,
         safeLimit,
-      ],
+      ]
     );
 
     return rows;
   },
 
   /* =========================================================
-     RÉCUPÉRER LA DERNIÈRE POSITION D’UNE COMMANDE
+     DERNIÈRE POSITION GPS D'UNE COMMANDE
   ========================================================= */
 
   async getLatestOrderLocation(orderId) {
     const [rows] = await db.query(
       `
-      SELECT
-        dl.id,
-        dl.driver_id,
-        dl.order_id,
-        dl.latitude,
-        dl.longitude,
-        dl.speed,
-        dl.heading,
-        dl.accuracy,
-        dl.battery_level,
-        dl.recorded_at,
-        dl.created_at,
+        SELECT
+          dl.id,
+          dl.driver_id,
+          dl.order_id,
+          dl.latitude,
+          dl.longitude,
+          dl.speed,
+          dl.heading,
+          dl.accuracy,
+          dl.battery_level,
+          dl.recorded_at,
+          dl.created_at,
 
-        u.first_name AS driver_first_name,
-        u.last_name AS driver_last_name,
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name,
 
-        o.order_number,
-        o.status AS order_status,
-        o.pickup_address,
-        o.delivery_address
+          o.order_number,
+          o.status AS order_status,
+          o.pickup_address,
+          o.delivery_address
 
-      FROM driver_locations dl
+        FROM driver_locations dl
 
-      INNER JOIN drivers d
-        ON d.id = dl.driver_id
+        INNER JOIN drivers d
+          ON d.id = dl.driver_id
 
-      INNER JOIN users u
-        ON u.id = d.user_id
+        INNER JOIN users u
+          ON u.id = d.user_id
 
-      INNER JOIN orders o
-        ON o.id = dl.order_id
+        INNER JOIN orders o
+          ON o.id = dl.order_id
 
-      WHERE dl.order_id = ?
+        WHERE dl.order_id = ?
 
-      ORDER BY
-        dl.recorded_at DESC,
-        dl.id DESC
+        ORDER BY
+          dl.recorded_at DESC,
+          dl.id DESC
 
-      LIMIT 1
+        LIMIT 1
       `,
-      [orderId],
+      [orderId]
     );
 
     return rows[0] || null;
   },
 
   /* =========================================================
-     VÉRIFIER QU’UN CHAUFFEUR EXISTE
+     TROUVER UN CHAUFFEUR PAR DRIVER ID
   ========================================================= */
 
   async driverExists(driverId) {
     const [rows] = await db.query(
       `
-      SELECT
-        id,
-        user_id,
-        availability_status
+        SELECT
+          id,
+          user_id,
+          availability_status
 
-      FROM drivers
+        FROM drivers
 
-      WHERE id = ?
+        WHERE id = ?
 
-      LIMIT 1
+        LIMIT 1
       `,
-      [driverId],
+      [driverId]
     );
 
     return rows[0] || null;
   },
 
   /* =========================================================
-     VÉRIFIER QU’UNE COMMANDE EXISTE
+     TROUVER LE DRIVER LIÉ AU USER AUTHENTIFIÉ
+
+     JWT :
+       req.user.id = users.id
+
+     Relation :
+       users.id -> drivers.user_id -> drivers.id
+  ========================================================= */
+
+  async getDriverByUserId(userId) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          id,
+          user_id,
+          availability_status
+
+        FROM drivers
+
+        WHERE user_id = ?
+
+        LIMIT 1
+      `,
+      [userId]
+    );
+
+    return rows[0] || null;
+  },
+
+  /* =========================================================
+     TROUVER LE CLIENT LIÉ AU USER AUTHENTIFIÉ
+
+     Relation :
+       users.id -> clients.user_id -> clients.id
+  ========================================================= */
+
+  async getClientByUserId(userId) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          id,
+          company_id,
+          user_id
+
+        FROM clients
+
+        WHERE user_id = ?
+
+        LIMIT 1
+      `,
+      [userId]
+    );
+
+    return rows[0] || null;
+  },
+
+  /* =========================================================
+     VÉRIFIER UNE COMMANDE
+
+     On récupère volontairement :
+       - client_id
+       - driver_id
+
+     Ces champs permettront au controller de vérifier
+     les autorisations sans faire confiance au frontend.
   ========================================================= */
 
   async orderExists(orderId) {
     const [rows] = await db.query(
       `
-      SELECT
-        id,
-        order_number,
-        driver_id,
-        status
+        SELECT
+          id,
+          order_number,
+          client_id,
+          driver_id,
+          status
 
-      FROM orders
+        FROM orders
 
-      WHERE id = ?
+        WHERE id = ?
 
-      LIMIT 1
+        LIMIT 1
       `,
-      [orderId],
+      [orderId]
+    );
+
+    return rows[0] || null;
+  },
+
+  /* =========================================================
+     VÉRIFIER SI UNE COMMANDE APPARTIENT À UN CLIENT
+  ========================================================= */
+
+  async clientOwnsOrder(
+    clientId,
+    orderId
+  ) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          id,
+          order_number,
+          client_id,
+          driver_id,
+          status
+
+        FROM orders
+
+        WHERE id = ?
+          AND client_id = ?
+
+        LIMIT 1
+      `,
+      [
+        orderId,
+        clientId,
+      ]
+    );
+
+    return rows[0] || null;
+  },
+
+  /* =========================================================
+     VÉRIFIER SI UNE COMMANDE EST ASSIGNÉE À UN CHAUFFEUR
+  ========================================================= */
+
+  async driverOwnsOrder(
+    driverId,
+    orderId
+  ) {
+    const [rows] = await db.query(
+      `
+        SELECT
+          id,
+          order_number,
+          client_id,
+          driver_id,
+          status
+
+        FROM orders
+
+        WHERE id = ?
+          AND driver_id = ?
+
+        LIMIT 1
+      `,
+      [
+        orderId,
+        driverId,
+      ]
     );
 
     return rows[0] || null;
@@ -397,15 +534,15 @@ const TrackingModel = {
   async updateDriverLastSeen(driverId) {
     const [result] = await db.query(
       `
-      UPDATE drivers
+        UPDATE drivers
 
-      SET
-        last_seen_at = CURRENT_TIMESTAMP,
-        updated_at = CURRENT_TIMESTAMP
+        SET
+          last_seen_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
 
-      WHERE id = ?
+        WHERE id = ?
       `,
-      [driverId],
+      [driverId]
     );
 
     return result;
@@ -413,32 +550,27 @@ const TrackingModel = {
 
   /* =========================================================
      SUPPRIMER LES ANCIENNES POSITIONS GPS
-
-     Exemple :
-     olderThanDays = 30
   ========================================================= */
 
   async deleteOldLocations(
-    olderThanDays = 30,
+    olderThanDays = 30
   ) {
     const days = Math.max(
-      Number(
-        olderThanDays,
-      ) || 30,
-      1,
+      Number(olderThanDays) || 30,
+      1
     );
 
     const [result] = await db.query(
       `
-      DELETE FROM driver_locations
+        DELETE FROM driver_locations
 
-      WHERE recorded_at <
-        DATE_SUB(
-          CURRENT_TIMESTAMP,
-          INTERVAL ? DAY
-        )
+        WHERE recorded_at <
+          DATE_SUB(
+            CURRENT_TIMESTAMP,
+            INTERVAL ? DAY
+          )
       `,
-      [days],
+      [days]
     );
 
     return result;

@@ -986,6 +986,7 @@ const DriverModel = {
           se.operation_id,
           se.driver_id,
           se.vehicle_id,
+          se.scanned_by_user_id,
           se.scanned_code,
           se.scan_type,
           se.scan_status,
@@ -1042,8 +1043,20 @@ const DriverModel = {
        prochaine opération active assignée au chauffeur.
   ===================================================== */
 
-  async processDriverScan(driverId, payload) {
+  async processDriverScan(driverId, authenticatedUserId, payload) {
     const connection = await db.getConnection();
+
+    const scannedByUserId = Number(authenticatedUserId);
+
+    if (!Number.isInteger(scannedByUserId) || scannedByUserId <= 0) {
+      connection.release();
+
+      const error = new Error(
+        "Utilisateur authentifié invalide pour enregistrer le scan."
+      );
+      error.statusCode = 401;
+      throw error;
+    }
 
     const cleanCode = String(payload.scanned_code || "")
       .trim()
@@ -1103,13 +1116,30 @@ const DriverModel = {
     ];
 
     if (!cleanCode) {
+      connection.release();
+
       const error = new Error("Le code-barres est obligatoire.");
       error.statusCode = 400;
       throw error;
     }
 
     if (!allowedRequestedTypes.includes(requestedScanType)) {
+      connection.release();
+
       const error = new Error("Type de scan invalide.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (
+      requestedScanType === "incident" &&
+      !String(payload.notes || "").trim()
+    ) {
+      connection.release();
+
+      const error = new Error(
+        "Un commentaire est obligatoire pour une livraison impossible ou un incident."
+      );
       error.statusCode = 400;
       throw error;
     }
@@ -1325,6 +1355,7 @@ const DriverModel = {
               operation_id,
               driver_id,
               vehicle_id,
+              scanned_by_user_id,
               scanned_code,
               scan_type,
               scan_status,
@@ -1336,7 +1367,7 @@ const DriverModel = {
               scan_source,
               notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'duplicate', ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'duplicate', ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             packageRow.order_id,
@@ -1344,6 +1375,7 @@ const DriverModel = {
             operation?.id || previousAcceptedScan.operation_id || null,
             driverId,
             operation?.vehicle_id || null,
+            scannedByUserId,
             cleanCode,
             finalScanType || requestedScanType,
             nullableNumber(payload.latitude),
@@ -1389,6 +1421,7 @@ const DriverModel = {
               operation_id,
               driver_id,
               vehicle_id,
+              scanned_by_user_id,
               scanned_code,
               scan_type,
               scan_status,
@@ -1400,12 +1433,13 @@ const DriverModel = {
               scan_source,
               notes
             )
-            VALUES (?, ?, NULL, ?, NULL, ?, ?, 'rejected', ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, NULL, ?, NULL, ?, ?, ?, 'rejected', ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             packageRow.order_id,
             packageRow.id,
             driverId,
+            scannedByUserId,
             cleanCode,
             rejectedType,
             nullableNumber(payload.latitude),
@@ -1455,6 +1489,7 @@ const DriverModel = {
             operation_id,
             driver_id,
             vehicle_id,
+            scanned_by_user_id,
             scanned_code,
             scan_type,
             scan_status,
@@ -1466,7 +1501,7 @@ const DriverModel = {
             scan_source,
             notes
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           packageRow.order_id,
@@ -1474,6 +1509,7 @@ const DriverModel = {
           operation?.id || null,
           driverId,
           operation?.vehicle_id || null,
+          scannedByUserId,
           cleanCode,
           finalScanType,
           nullableNumber(payload.latitude),
@@ -1594,6 +1630,7 @@ const DriverModel = {
             operation_id,
             driver_id,
             vehicle_id,
+            scanned_by_user_id,
             scanned_code,
             scan_type,
             scan_status,

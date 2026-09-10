@@ -29,8 +29,23 @@ const ALLOWED_OPERATION_STATUSES = [
 ];
 
 function positiveInt(value, fallback = null) {
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+  }
+
+  const text = String(value).trim();
+
+  if (!/^[1-9]\\d*$/.test(text)) {
+    return fallback;
+  }
+
+  const n = Number(text);
+
+  return Number.isSafeInteger(n) && n > 0 ? n : fallback;
 }
 
 function nullablePositiveInt(value) {
@@ -226,11 +241,23 @@ const DispatchModel = {
   },
 
   async getOrderSnapshots(orderIds = []) {
-    const ids = [...new Set(orderIds.map(Number))]
-      .filter((id) => Number.isInteger(id) && id > 0)
-      .slice(0, 1000);
+    if (!Array.isArray(orderIds) || orderIds.length < 1) {
+      return [];
+    }
 
-    if (!ids.length) return [];
+    const ids = orderIds.map((value) => positiveInt(value));
+
+    if (ids.some((id) => !id)) {
+      throw new Error("Identifiant de commande invalide.");
+    }
+
+    if (new Set(ids).size !== ids.length) {
+      throw new Error("La liste des commandes contient des doublons.");
+    }
+
+    if (ids.length > 1000) {
+      throw new Error("Trop de commandes.");
+    }
 
     const placeholders = ids.map(() => "?").join(",");
 
@@ -253,7 +280,13 @@ const DispatchModel = {
 
   async getOrders(filters = {}) {
     const page = positiveInt(filters.page, 1);
-    const limit = Math.min(Math.max(positiveInt(filters.limit, 100), 1), 250);
+    const requestedLimit = positiveInt(filters.limit, 100);
+    const limit = Math.min(requestedLimit || 100, 250);
+
+    if (page > Math.floor(Number.MAX_SAFE_INTEGER / limit)) {
+      throw new Error("Page invalide.");
+    }
+
     const offset = (page - 1) * limit;
     const { sql, params } = buildFilters(filters);
 
@@ -358,10 +391,19 @@ const DispatchModel = {
   },
 
   async bulkUpdate(orderIds, changes) {
-    const ids = [...new Set(orderIds.map(Number))]
-      .filter((id) => Number.isInteger(id) && id > 0)
-      .slice(0, 1000);
-    if (!ids.length) throw new Error("Aucune commande valide.");
+    if (!Array.isArray(orderIds) || orderIds.length < 1 || orderIds.length > 1000) {
+      throw new Error("Liste de commandes invalide.");
+    }
+
+    const ids = orderIds.map((value) => positiveInt(value));
+
+    if (ids.some((id) => !id)) {
+      throw new Error("Identifiant de commande invalide.");
+    }
+
+    if (new Set(ids).size !== ids.length) {
+      throw new Error("La liste des commandes contient des doublons.");
+    }
 
     const sets = [];
     const values = [];
@@ -402,15 +444,28 @@ const DispatchModel = {
   },
 
   async reorder(items) {
-    const normalized = items
-      .map((item) => ({
-        id: positiveInt(item?.id),
-        route_position: positiveInt(item?.route_position),
-      }))
-      .filter((item) => item.id && item.route_position)
-      .slice(0, 1000);
+    if (!Array.isArray(items) || items.length < 1 || items.length > 1000) {
+      throw new Error("Liste de positions invalide.");
+    }
 
-    if (!normalized.length) throw new Error("Aucune position valide.");
+    const normalized = items.map((item) => ({
+      id: positiveInt(item?.id),
+      route_position: positiveInt(item?.route_position),
+    }));
+
+    if (
+      normalized.some(
+        (item) => !item.id || !item.route_position
+      )
+    ) {
+      throw new Error("Position de commande invalide.");
+    }
+
+    const ids = normalized.map((item) => item.id);
+
+    if (new Set(ids).size !== ids.length) {
+      throw new Error("La liste des commandes contient des doublons.");
+    }
 
     const connection = await db.getConnection();
     try {

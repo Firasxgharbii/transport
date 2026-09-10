@@ -71,6 +71,18 @@ const NotificationModel = require(
   "./models/notificationModel"
 );
 
+const DriverModel = require(
+  "./models/driverModel"
+);
+
+const ClientModel = require(
+  "./models/clientModel"
+);
+
+const TrackingModel = require(
+  "./models/trackingModel"
+);
+
 /* ============================================================
    NOUVEAU — TRACKING GPS
 ============================================================ */
@@ -599,86 +611,159 @@ app.get(
 );
 
 /* ============================================================
-   SOCKET.IO — AUTHENTIFICATION DES NOTIFICATIONS
+   SOCKET.IO — AUTHENTIFICATION SÉCURISÉE
+
+   Toutes les fonctions Socket.IO de cette plateforme sont privées.
 
    Le frontend doit envoyer :
    io(API_URL, {
      auth: { token }
    })
-
-   Les anciennes fonctions tracking restent compatibles.
 ============================================================ */
+
+const SOCKET_ALLOWED_ROLES = new Set([
+  "super_admin",
+  "dispatcher",
+  "driver",
+  "client",
+]);
+
+const socketPositiveInteger = (value) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const socketOptionalNumber = (value) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : null;
+};
+
+const emitSocketError = (
+  socket,
+  message,
+  code = "FORBIDDEN"
+) => {
+  socket.emit(
+    "socket:error",
+    {
+      success: false,
+      code,
+      message,
+    }
+  );
+};
 
 io.use((socket, next) => {
   try {
+    if (!process.env.JWT_SECRET) {
+      console.error(
+        "❌ JWT_SECRET absent : connexion Socket.IO refusée."
+      );
+
+      return next(
+        new Error(
+          "Configuration d'authentification indisponible."
+        )
+      );
+    }
+
     const rawToken =
       socket.handshake?.auth?.token ||
       socket.handshake?.headers?.authorization ||
       "";
 
-    const token = String(rawToken).replace(
-      /^Bearer\s+/i,
-      "",
-    );
+    const token = String(rawToken)
+      .replace(
+        /^Bearer\s+/i,
+        ""
+      )
+      .trim();
 
     if (!token) {
-      /*
-       * On autorise encore la connexion pour ne pas casser
-       * le tracking existant. Les rooms privées de notifications
-       * ne seront simplement pas rejointes.
-       */
-      socket.user = null;
-      return next();
-    }
-
-    if (!process.env.JWT_SECRET) {
-      console.warn(
-        "⚠️ JWT_SECRET absent : authentification Socket.IO ignorée.",
+      return next(
+        new Error(
+          "Authentification requise."
+        )
       );
-      socket.user = null;
-      return next();
     }
 
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET,
+      {
+        issuer:
+          "glory-solutions",
+
+        audience:
+          "transport-platform",
+      }
     );
 
+    const userId =
+      socketPositiveInteger(
+        decoded.id
+      );
+
+    const role =
+      typeof decoded.role === "string"
+        ? decoded.role.trim()
+        : "";
+
+    if (
+      !userId ||
+      !SOCKET_ALLOWED_ROLES.has(
+        role
+      )
+    ) {
+      return next(
+        new Error(
+          "Identité Socket.IO invalide."
+        )
+      );
+    }
+
     socket.user = {
-      id:
-        decoded.id ||
-        decoded.user_id ||
-        decoded.sub ||
-        null,
-
-      role:
-        decoded.role ||
-        decoded.role_name ||
-        null,
-
+      id: userId,
+      role,
       email:
-        decoded.email ||
-        null,
+        typeof decoded.email === "string"
+          ? decoded.email
+          : null,
     };
 
     return next();
   } catch (error) {
     console.warn(
-      "⚠️ Token Socket.IO invalide :",
-      error.message,
+      "⚠️ Connexion Socket.IO refusée :",
+      error.message
     );
 
-    /*
-     * On n'interrompt pas la connexion afin de préserver
-     * le tracking GPS existant.
-     */
-    socket.user = null;
-    return next();
+    return next(
+      new Error(
+        "Token invalide ou expiré."
+      )
+    );
   }
 });
 
 /* ============================================================
-   SOCKET.IO — TRACKING TEMPS RÉEL
+   SOCKET.IO — TRACKING TEMPS RÉEL SÉCURISÉ
 ============================================================ */
 
 io.on(
@@ -688,29 +773,26 @@ io.on(
       `🟢 Socket.IO connecté : ${socket.id}`
     );
 
-
     /* ========================================================
-       NOTIFICATIONS PRIVÉES
+       ROOMS PRIVÉES AUTOMATIQUES
     ======================================================== */
 
-    if (socket.user?.id) {
-      socket.join(
-        `user:${Number(socket.user.id)}`,
-      );
-    }
+    socket.join(
+      `user:${socket.user.id}`
+    );
 
-    if (socket.user?.role) {
-      socket.join(
-        `role:${String(socket.user.role)}`,
-      );
-    }
+    socket.join(
+      `role:${socket.user.role}`
+    );
 
     if (
-      socket.user?.role === "super_admin" ||
-      socket.user?.role === "dispatcher"
+      socket.user.role ===
+        "super_admin" ||
+      socket.user.role ===
+        "dispatcher"
     ) {
       socket.join(
-        "notifications:admin",
+        "notifications:admin"
       );
     }
 
@@ -718,27 +800,36 @@ io.on(
       "notifications:ready",
       {
         success: true,
-        authenticated:
-          Boolean(socket.user?.id),
-
+        authenticated: true,
         userId:
-          socket.user?.id || null,
-
+          socket.user.id,
         role:
-          socket.user?.role || null,
-      },
+          socket.user.role,
+      }
     );
 
     /* ========================================================
-       ADMIN / DISPATCHER
-
-       Le dashboard admin peut rejoindre cette room pour
-       recevoir les positions de tous les chauffeurs.
+       ADMIN / DISPATCHER — TRACKING GLOBAL
     ======================================================== */
 
     socket.on(
       "join-tracking",
       () => {
+        if (
+          socket.user.role !==
+            "super_admin" &&
+          socket.user.role !==
+            "dispatcher"
+        ) {
+          emitSocketError(
+            socket,
+            "Accès au tracking global refusé.",
+            "TRACKING_ACCESS_DENIED"
+          );
+
+          return;
+        }
+
         socket.join(
           "tracking"
         );
@@ -747,7 +838,6 @@ io.on(
           "tracking:joined",
           {
             success: true,
-
             room:
               "tracking",
           }
@@ -761,75 +851,128 @@ io.on(
 
     /* ========================================================
        REJOINDRE LE CANAL D'UN CHAUFFEUR
+
+       - super_admin / dispatcher : tous les chauffeurs
+       - driver : uniquement son propre canal
+       - client : jamais
     ======================================================== */
 
     socket.on(
       "join-driver",
-      (driverId) => {
-        const normalizedDriverId =
-          Number(driverId);
+      async (driverId) => {
+        try {
+          const requestedDriverId =
+            socketPositiveInteger(
+              driverId
+            );
 
-        if (
-          !Number.isInteger(
-            normalizedDriverId
-          ) ||
-          normalizedDriverId <= 0
-        ) {
+          if (!requestedDriverId) {
+            emitSocketError(
+              socket,
+              "Identifiant chauffeur invalide.",
+              "INVALID_DRIVER_ID"
+            );
+
+            return;
+          }
+
+          if (
+            socket.user.role ===
+              "client"
+          ) {
+            emitSocketError(
+              socket,
+              "Accès au canal chauffeur refusé.",
+              "DRIVER_ACCESS_DENIED"
+            );
+
+            return;
+          }
+
+          if (
+            socket.user.role ===
+              "driver"
+          ) {
+            const driver =
+              await DriverModel.getDriverByUserId(
+                socket.user.id
+              );
+
+            if (
+              !driver ||
+              Number(driver.id) !==
+                requestedDriverId
+            ) {
+              emitSocketError(
+                socket,
+                "Vous ne pouvez accéder qu'à votre propre canal chauffeur.",
+                "DRIVER_ACCESS_DENIED"
+              );
+
+              return;
+            }
+          } else {
+            const driver =
+              await DriverModel.getDriverById(
+                requestedDriverId
+              );
+
+            if (!driver) {
+              emitSocketError(
+                socket,
+                "Chauffeur introuvable.",
+                "DRIVER_NOT_FOUND"
+              );
+
+              return;
+            }
+          }
+
+          const roomName =
+            `driver:${requestedDriverId}`;
+
+          socket.join(
+            roomName
+          );
+
           socket.emit(
-            "socket:error",
+            "driver:joined",
             {
-              success: false,
-
-              message:
-                "Identifiant chauffeur invalide.",
+              success: true,
+              driverId:
+                requestedDriverId,
+              room:
+                roomName,
             }
           );
 
-          return;
+          console.log(
+            `🚚 ${socket.id} → ${roomName}`
+          );
+        } catch (error) {
+          console.error(
+            "Erreur join-driver :",
+            error
+          );
+
+          emitSocketError(
+            socket,
+            "Impossible de rejoindre le canal chauffeur.",
+            "DRIVER_JOIN_ERROR"
+          );
         }
-
-        const roomName =
-          `driver:${normalizedDriverId}`;
-
-        socket.join(
-          roomName
-        );
-
-        socket.emit(
-          "driver:joined",
-          {
-            success: true,
-
-            driverId:
-              normalizedDriverId,
-
-            room:
-              roomName,
-          }
-        );
-
-        console.log(
-          `🚚 ${socket.id} → ${roomName}`
-        );
       }
     );
-
-    /* ========================================================
-       QUITTER LE CANAL D'UN CHAUFFEUR
-    ======================================================== */
 
     socket.on(
       "leave-driver",
       (driverId) => {
         const normalizedDriverId =
-          Number(driverId);
+          socketPositiveInteger(
+            driverId
+          );
 
-        if (
-          !Number.isInteger(
-            normalizedDriverId
-          ) ||
-          normalizedDriverId <= 0
-        ) {
+        if (!normalizedDriverId) {
           return;
         }
 
@@ -840,80 +983,146 @@ io.on(
     );
 
     /* ========================================================
-       REJOINDRE UNE COMMANDE
+       REJOINDRE LE CANAL D'UNE COMMANDE
 
-       IMPORTANT :
-       même format que trackingController :
-       order:123
+       - super_admin / dispatcher : autorisés
+       - driver : commande assignée à ce chauffeur
+       - client : commande appartenant à ce client
     ======================================================== */
 
     socket.on(
       "join-order",
-      (orderId) => {
-        const normalizedOrderId =
-          Number(orderId);
+      async (orderId) => {
+        try {
+          const normalizedOrderId =
+            socketPositiveInteger(
+              orderId
+            );
 
-        if (
-          !Number.isInteger(
-            normalizedOrderId
-          ) ||
-          normalizedOrderId <= 0
-        ) {
+          if (!normalizedOrderId) {
+            emitSocketError(
+              socket,
+              "Identifiant de commande invalide.",
+              "INVALID_ORDER_ID"
+            );
+
+            return;
+          }
+
+          const order =
+            await TrackingModel.orderExists(
+              normalizedOrderId
+            );
+
+          if (!order) {
+            emitSocketError(
+              socket,
+              "Commande introuvable.",
+              "ORDER_NOT_FOUND"
+            );
+
+            return;
+          }
+
+          if (
+            socket.user.role ===
+              "driver"
+          ) {
+            const driver =
+              await DriverModel.getDriverByUserId(
+                socket.user.id
+              );
+
+            if (
+              !driver ||
+              !order.driver_id ||
+              Number(order.driver_id) !==
+                Number(driver.id)
+            ) {
+              emitSocketError(
+                socket,
+                "Vous n'êtes pas autorisé à suivre cette commande.",
+                "ORDER_ACCESS_DENIED"
+              );
+
+              return;
+            }
+          }
+
+          if (
+            socket.user.role ===
+              "client"
+          ) {
+            const client =
+              await ClientModel.getClientByUserId(
+                socket.user.id
+              );
+
+            if (
+              !client ||
+              Number(order.client_id) !==
+                Number(client.id)
+            ) {
+              /*
+               * Message volontairement générique :
+               * ne pas révéler l'existence d'une commande
+               * appartenant à un autre client.
+               */
+              emitSocketError(
+                socket,
+                "Commande introuvable.",
+                "ORDER_NOT_FOUND"
+              );
+
+              return;
+            }
+          }
+
+          const roomName =
+            `order:${normalizedOrderId}`;
+
+          socket.join(
+            roomName
+          );
+
           socket.emit(
-            "socket:error",
+            "order:joined",
             {
-              success: false,
-
-              message:
-                "Identifiant de commande invalide.",
+              success: true,
+              orderId:
+                normalizedOrderId,
+              room:
+                roomName,
             }
           );
 
-          return;
+          console.log(
+            `📦 ${socket.id} → ${roomName}`
+          );
+        } catch (error) {
+          console.error(
+            "Erreur join-order :",
+            error
+          );
+
+          emitSocketError(
+            socket,
+            "Impossible de rejoindre le canal de la commande.",
+            "ORDER_JOIN_ERROR"
+          );
         }
-
-        const roomName =
-          `order:${normalizedOrderId}`;
-
-        socket.join(
-          roomName
-        );
-
-        socket.emit(
-          "order:joined",
-          {
-            success: true,
-
-            orderId:
-              normalizedOrderId,
-
-            room:
-              roomName,
-          }
-        );
-
-        console.log(
-          `📦 ${socket.id} → ${roomName}`
-        );
       }
     );
-
-    /* ========================================================
-       QUITTER UNE COMMANDE
-    ======================================================== */
 
     socket.on(
       "leave-order",
       (orderId) => {
         const normalizedOrderId =
-          Number(orderId);
+          socketPositiveInteger(
+            orderId
+          );
 
-        if (
-          !Number.isInteger(
-            normalizedOrderId
-          ) ||
-          normalizedOrderId <= 0
-        ) {
+        if (!normalizedOrderId) {
           return;
         }
 
@@ -925,7 +1134,6 @@ io.on(
           "order:left",
           {
             success: true,
-
             orderId:
               normalizedOrderId,
           }
@@ -934,211 +1142,331 @@ io.on(
     );
 
     /* ========================================================
-       POSITION GPS EN TEMPS RÉEL
+       POSITION GPS TEMPS RÉEL
 
-       Cette méthode Socket.IO sert à transmettre rapidement
-       une position.
-
-       L'enregistrement permanent MySQL sera fait par :
-       POST /api/tracking/location
-
-       On ne fait PAS directement d'INSERT MySQL ici.
+       IMPORTANT :
+       - uniquement un compte driver
+       - driver_id réel dérivé du JWT
+       - order_id contrôlé en base
+       - aucun INSERT MySQL ici
+       - POST /api/tracking/location reste la source persistante
     ======================================================== */
+
+    let lastRealtimeLocationAt = 0;
 
     socket.on(
       "driver:location:update",
-      (data) => {
-        const {
-          driverId,
-          orderId = null,
-          latitude,
-          longitude,
-          speed = null,
-          heading = null,
-          accuracy = null,
-          batteryLevel = null,
-        } = data || {};
+      async (data) => {
+        try {
+          if (
+            socket.user.role !==
+              "driver"
+          ) {
+            emitSocketError(
+              socket,
+              "Seul un chauffeur peut transmettre une position GPS.",
+              "LOCATION_UPDATE_DENIED"
+            );
 
-        const normalizedDriverId =
-          Number(driverId);
+            return;
+          }
 
-        const normalizedOrderId =
-          orderId
-            ? Number(orderId)
-            : null;
+          /*
+           * Limite simple par connexion afin d'empêcher
+           * un client compromis de saturer le serveur
+           * avec des milliers d'événements par seconde.
+           */
+          const now =
+            Date.now();
 
-        const normalizedLatitude =
-          Number(latitude);
+          if (
+            now -
+              lastRealtimeLocationAt <
+            250
+          ) {
+            return;
+          }
 
-        const normalizedLongitude =
-          Number(longitude);
+          lastRealtimeLocationAt =
+            now;
 
-        /* ----------------------------------------------------
-           VALIDATION DRIVER
-        ---------------------------------------------------- */
+          const driver =
+            await DriverModel.getDriverByUserId(
+              socket.user.id
+            );
 
-        if (
-          !Number.isInteger(
-            normalizedDriverId
-          ) ||
-          normalizedDriverId <= 0
-        ) {
-          socket.emit(
-            "socket:error",
-            {
-              success: false,
+          if (!driver) {
+            emitSocketError(
+              socket,
+              "Profil chauffeur introuvable.",
+              "DRIVER_PROFILE_NOT_FOUND"
+            );
 
-              message:
-                "Identifiant chauffeur invalide.",
+            return;
+          }
+
+          const {
+            driverId:
+              suppliedDriverId = null,
+            orderId = null,
+            latitude,
+            longitude,
+            speed = null,
+            heading = null,
+            accuracy = null,
+            batteryLevel = null,
+          } = data || {};
+
+          const realDriverId =
+            Number(driver.id);
+
+          /*
+           * Compatibilité frontend :
+           * driverId peut encore être envoyé,
+           * mais il ne constitue jamais l'identité.
+           */
+          if (
+            suppliedDriverId !== null &&
+            suppliedDriverId !== undefined &&
+            suppliedDriverId !== ""
+          ) {
+            const normalizedSuppliedDriverId =
+              socketPositiveInteger(
+                suppliedDriverId
+              );
+
+            if (
+              !normalizedSuppliedDriverId ||
+              normalizedSuppliedDriverId !==
+                realDriverId
+            ) {
+              emitSocketError(
+                socket,
+                "Le chauffeur indiqué ne correspond pas au compte authentifié.",
+                "DRIVER_ID_MISMATCH"
+              );
+
+              return;
             }
-          );
+          }
 
-          return;
-        }
+          const normalizedOrderId =
+            orderId === null ||
+            orderId === undefined ||
+            orderId === ""
+              ? null
+              : socketPositiveInteger(
+                  orderId
+                );
 
-        /* ----------------------------------------------------
-           VALIDATION ORDER
-        ---------------------------------------------------- */
+          if (
+            orderId !== null &&
+            orderId !== undefined &&
+            orderId !== "" &&
+            !normalizedOrderId
+          ) {
+            emitSocketError(
+              socket,
+              "Identifiant commande invalide.",
+              "INVALID_ORDER_ID"
+            );
 
-        if (
-          normalizedOrderId !== null &&
-          (
-            !Number.isInteger(
-              normalizedOrderId
+            return;
+          }
+
+          if (
+            normalizedOrderId
+          ) {
+            const order =
+              await TrackingModel.orderExists(
+                normalizedOrderId
+              );
+
+            if (
+              !order ||
+              !order.driver_id ||
+              Number(order.driver_id) !==
+                realDriverId
+            ) {
+              emitSocketError(
+                socket,
+                "Cette commande n'est pas assignée à ce chauffeur.",
+                "ORDER_ACCESS_DENIED"
+              );
+
+              return;
+            }
+          }
+
+          const normalizedLatitude =
+            Number(latitude);
+
+          const normalizedLongitude =
+            Number(longitude);
+
+          if (
+            !Number.isFinite(
+              normalizedLatitude
             ) ||
-            normalizedOrderId <= 0
-          )
-        ) {
-          socket.emit(
-            "socket:error",
-            {
-              success: false,
+            normalizedLatitude < -90 ||
+            normalizedLatitude > 90 ||
+            !Number.isFinite(
+              normalizedLongitude
+            ) ||
+            normalizedLongitude < -180 ||
+            normalizedLongitude > 180
+          ) {
+            emitSocketError(
+              socket,
+              "Coordonnées GPS invalides.",
+              "INVALID_GPS"
+            );
 
-              message:
-                "Identifiant commande invalide.",
-            }
-          );
+            return;
+          }
 
-          return;
-        }
+          const normalizedSpeed =
+            socketOptionalNumber(
+              speed
+            );
 
-        /* ----------------------------------------------------
-           VALIDATION GPS
-        ---------------------------------------------------- */
+          const normalizedHeading =
+            socketOptionalNumber(
+              heading
+            );
 
-        if (
-          !Number.isFinite(
-            normalizedLatitude
-          ) ||
-          !Number.isFinite(
-            normalizedLongitude
-          ) ||
-          normalizedLatitude < -90 ||
-          normalizedLatitude > 90 ||
-          normalizedLongitude < -180 ||
-          normalizedLongitude > 180
-        ) {
-          socket.emit(
-            "socket:error",
-            {
-              success: false,
+          const normalizedAccuracy =
+            socketOptionalNumber(
+              accuracy
+            );
 
-              message:
-                "Coordonnées GPS invalides.",
-            }
-          );
+          const normalizedBatteryLevel =
+            socketOptionalNumber(
+              batteryLevel
+            );
 
-          return;
-        }
+          if (
+            normalizedSpeed !== null &&
+            normalizedSpeed < 0
+          ) {
+            emitSocketError(
+              socket,
+              "Vitesse GPS invalide.",
+              "INVALID_SPEED"
+            );
 
-        /* ----------------------------------------------------
-           PAYLOAD
-        ---------------------------------------------------- */
+            return;
+          }
 
-        const locationData = {
-          driver_id:
-            normalizedDriverId,
-
-          order_id:
-            normalizedOrderId,
-
-          latitude:
-            normalizedLatitude,
-
-          longitude:
-            normalizedLongitude,
-
-          speed:
-            speed !== null &&
-            Number.isFinite(
-              Number(speed)
+          if (
+            normalizedHeading !== null &&
+            (
+              normalizedHeading < 0 ||
+              normalizedHeading > 360
             )
-              ? Number(speed)
-              : null,
+          ) {
+            emitSocketError(
+              socket,
+              "Direction GPS invalide.",
+              "INVALID_HEADING"
+            );
 
-          heading:
-            heading !== null &&
-            Number.isFinite(
-              Number(heading)
+            return;
+          }
+
+          if (
+            normalizedAccuracy !== null &&
+            normalizedAccuracy < 0
+          ) {
+            emitSocketError(
+              socket,
+              "Précision GPS invalide.",
+              "INVALID_ACCURACY"
+            );
+
+            return;
+          }
+
+          if (
+            normalizedBatteryLevel !== null &&
+            (
+              normalizedBatteryLevel < 0 ||
+              normalizedBatteryLevel > 100
             )
-              ? Number(heading)
-              : null,
+          ) {
+            emitSocketError(
+              socket,
+              "Niveau de batterie invalide.",
+              "INVALID_BATTERY"
+            );
 
-          accuracy:
-            accuracy !== null &&
-            Number.isFinite(
-              Number(accuracy)
-            )
-              ? Number(accuracy)
-              : null,
+            return;
+          }
 
-          battery_level:
-            batteryLevel !== null &&
-            Number.isFinite(
-              Number(batteryLevel)
-            )
-              ? Number(batteryLevel)
-              : null,
+          const locationData = {
+            driver_id:
+              realDriverId,
 
-          recorded_at:
-            new Date()
-              .toISOString(),
-        };
+            order_id:
+              normalizedOrderId,
 
-        /* ----------------------------------------------------
-           ADMIN / DISPATCH
-        ---------------------------------------------------- */
+            latitude:
+              normalizedLatitude,
 
-        io.to(
-          "tracking"
-        ).emit(
-          "driver:location",
-          locationData
-        );
+            longitude:
+              normalizedLongitude,
 
-        /* ----------------------------------------------------
-           ROOM DU CHAUFFEUR
-        ---------------------------------------------------- */
+            speed:
+              normalizedSpeed,
 
-        io.to(
-          `driver:${normalizedDriverId}`
-        ).emit(
-          "driver:location",
-          locationData
-        );
+            heading:
+              normalizedHeading,
 
-        /* ----------------------------------------------------
-           ROOM COMMANDE
-        ---------------------------------------------------- */
+            accuracy:
+              normalizedAccuracy,
 
-        if (
-          normalizedOrderId
-        ) {
+            battery_level:
+              normalizedBatteryLevel,
+
+            recorded_at:
+              new Date()
+                .toISOString(),
+          };
+
           io.to(
-            `order:${normalizedOrderId}`
+            "tracking"
           ).emit(
-            "order:location",
+            "driver:location",
             locationData
+          );
+
+          io.to(
+            `driver:${realDriverId}`
+          ).emit(
+            "driver:location",
+            locationData
+          );
+
+          if (
+            normalizedOrderId
+          ) {
+            io.to(
+              `order:${normalizedOrderId}`
+            ).emit(
+              "order:location",
+              locationData
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Erreur driver:location:update :",
+            error
+          );
+
+          emitSocketError(
+            socket,
+            "Impossible de transmettre la position GPS.",
+            "LOCATION_UPDATE_ERROR"
           );
         }
       }

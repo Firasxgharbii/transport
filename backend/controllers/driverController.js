@@ -1248,6 +1248,225 @@ exports.getDriverOrders = async (
   }
 };
 
+/* =====================================================
+   GET CURRENT DRIVER OPERATIONS
+   GET /api/drivers/me/operations
+===================================================== */
+
+exports.getCurrentDriverOperations = async (req, res) => {
+  try {
+    const userId = Number(
+      req.user?.id ||
+        req.user?.user_id,
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Utilisateur non authentifié.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverByUserId(
+        userId,
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Aucun profil chauffeur associé à cet utilisateur.",
+      });
+    }
+
+    const operations =
+      await DriverModel.getDriverOperations(
+        driver.id,
+      );
+
+    return res.status(200).json({
+      success: true,
+      count: operations.length,
+      operations,
+      data: operations,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getCurrentDriverOperations :",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de récupérer les opérations du chauffeur.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   GET CURRENT DRIVER SCAN HISTORY
+   GET /api/drivers/me/scans
+===================================================== */
+
+exports.getCurrentDriverScanHistory = async (
+  req,
+  res,
+) => {
+  try {
+    const userId = Number(
+      req.user?.id ||
+        req.user?.user_id,
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Utilisateur non authentifié.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverByUserId(
+        userId,
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Aucun profil chauffeur associé à cet utilisateur.",
+      });
+    }
+
+    const limit = req.query?.limit;
+
+    const scans =
+      await DriverModel.getDriverScanHistory(
+        driver.id,
+        limit,
+      );
+
+    return res.status(200).json({
+      success: true,
+      count: scans.length,
+      scans,
+      data: scans,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getCurrentDriverScanHistory :",
+      error,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de récupérer l'historique des scans du chauffeur.",
+      error: error.message,
+    });
+  }
+};
+
+/* =====================================================
+   SCAN PACKAGE FOR CURRENT DRIVER
+   POST /api/drivers/me/scan
+===================================================== */
+
+exports.scanPackage = async (req, res) => {
+  try {
+    const userId = Number(
+      req.user?.id ||
+        req.user?.user_id,
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Utilisateur non authentifié.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverByUserId(
+        userId,
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Aucun profil chauffeur associé à cet utilisateur.",
+      });
+    }
+
+    const result =
+      await DriverModel.processDriverScan(
+        driver.id,
+        userId,
+        req.body || {},
+      );
+
+    const statusCode = Number(
+      result?.statusCode,
+    );
+
+    if (
+      result?.success === false
+    ) {
+      return res
+        .status(
+          Number.isInteger(statusCode) &&
+            statusCode >= 400 &&
+            statusCode <= 599
+            ? statusCode
+            : 400,
+        )
+        .json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error(
+      "Erreur scanPackage :",
+      error,
+    );
+
+    const statusCode = Number(
+      error?.statusCode,
+    );
+
+    return res
+      .status(
+        Number.isInteger(statusCode) &&
+          statusCode >= 400 &&
+          statusCode <= 599
+          ? statusCode
+          : 500,
+      )
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Impossible de traiter le scan.",
+      });
+  }
+};
+
 const DispatchModel = require("../models/dispatchModel");
 
 function parseId(value) {

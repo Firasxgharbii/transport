@@ -3,12 +3,24 @@ const OrderModel = require("../models/orderModel");
 
 function parseId(value) {
   const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : null;
+
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 function getAuthenticatedUserId(req) {
-  return req.user?.id || req.user?.user_id || null;
+  const userId = parseId(req.user?.id ?? req.user?.user_id);
+
+  return userId;
 }
+
+function isPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  );
+}
+
 
 function cleanValue(value) {
   if (value === null || value === undefined || value === "") {
@@ -223,7 +235,6 @@ exports.getDispatchOrders = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Impossible de charger le Dispatch Center.",
-      error: error.message,
     });
   }
 };
@@ -244,7 +255,6 @@ exports.getDispatchOrderIds = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Impossible de récupérer les commandes filtrées.",
-      error: error.message,
     });
   }
 };
@@ -256,9 +266,9 @@ exports.bulkUpdateOrders = async (req, res) => {
       : [];
 
     const changes =
-      req.body?.changes && typeof req.body.changes === "object"
+      isPlainObject(req.body?.changes)
         ? req.body.changes
-        : {};
+        : null;
 
     if (!orderIds.length) {
       return res.status(400).json({
@@ -274,10 +284,38 @@ exports.bulkUpdateOrders = async (req, res) => {
       });
     }
 
-    const beforeRows = await DispatchModel.getOrderSnapshots(orderIds);
+    if (!changes) {
+      return res.status(400).json({
+        success: false,
+        message: "Modifications invalides.",
+      });
+    }
+
+    const parsedOrderIds = orderIds.map(parseId);
+
+    if (
+      parsedOrderIds.some((id) => !id) ||
+      new Set(parsedOrderIds).size !== parsedOrderIds.length
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Liste de commandes invalide.",
+      });
+    }
+
+    const beforeRows = await DispatchModel.getOrderSnapshots(
+      parsedOrderIds,
+    );
+
+    if (beforeRows.length !== parsedOrderIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Une ou plusieurs commandes sont introuvables.",
+      });
+    }
 
     const result = await DispatchModel.bulkUpdate(
-      orderIds,
+      parsedOrderIds,
       changes,
     );
 
@@ -290,6 +328,13 @@ exports.bulkUpdateOrders = async (req, res) => {
     );
 
     const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur non authentifié.",
+      });
+    }
 
     const auditEntries = [];
 
@@ -328,9 +373,7 @@ exports.bulkUpdateOrders = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Mise à jour massive impossible.",
+      message: "Mise à jour massive impossible.",
     });
   }
 };
@@ -355,14 +398,29 @@ exports.reorderOrders = async (req, res) => {
       });
     }
 
-    const requestedIds = items
-      .map((item) => parseId(item?.id))
-      .filter(Boolean);
+    const requestedIds = items.map((item) => parseId(item?.id));
+
+    if (
+      requestedIds.some((id) => !id) ||
+      new Set(requestedIds).size !== requestedIds.length
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Liste de commandes invalide.",
+      });
+    }
 
     const beforeRows =
       await DispatchModel.getOrderSnapshots(
         requestedIds,
       );
+
+    if (beforeRows.length !== requestedIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Une ou plusieurs commandes sont introuvables.",
+      });
+    }
 
     const beforeMap = new Map(
       beforeRows.map((row) => [Number(row.id), row]),
@@ -376,6 +434,14 @@ exports.reorderOrders = async (req, res) => {
       );
 
     const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur non authentifié.",
+      });
+    }
+
     const auditEntries = [];
 
     for (const after of afterRows) {
@@ -419,9 +485,7 @@ exports.reorderOrders = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Réorganisation impossible.",
+      message: "Réorganisation impossible.",
     });
   }
 };
@@ -451,9 +515,7 @@ exports.getOrderOperations = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Impossible de charger les opérations.",
+      message: "Impossible de charger les opérations.",
     });
   }
 };
@@ -469,15 +531,29 @@ exports.createOrderOperation = async (req, res) => {
       });
     }
 
-    const operation =
-      await DispatchModel.createOperation(
-        orderId,
-        req.body || {},
-      );
-
     const orderSnapshot =
       await DispatchModel.getOrderSnapshotById(
         orderId,
+      );
+
+    if (!orderSnapshot) {
+      return res.status(404).json({
+        success: false,
+        message: "Commande introuvable.",
+      });
+    }
+
+    if (!isPlainObject(req.body)) {
+      return res.status(400).json({
+        success: false,
+        message: "Données d’opération invalides.",
+      });
+    }
+
+    const operation =
+      await DispatchModel.createOperation(
+        orderId,
+        req.body,
       );
 
     const userId = getAuthenticatedUserId(req);
@@ -510,9 +586,7 @@ exports.createOrderOperation = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Impossible de créer l’opération.",
+      message: "Impossible de créer l’opération.",
     });
   }
 };
@@ -535,11 +609,32 @@ exports.updateOrderOperation = async (req, res) => {
         operationId,
       );
 
+    if (!before) {
+      return res.status(404).json({
+        success: false,
+        message: "Opération introuvable.",
+      });
+    }
+
+    if (!isPlainObject(req.body)) {
+      return res.status(400).json({
+        success: false,
+        message: "Données d’opération invalides.",
+      });
+    }
+
     const operation =
       await DispatchModel.updateOperation(
         operationId,
-        req.body || {},
+        req.body,
       );
+
+    if (!operation) {
+      return res.status(404).json({
+        success: false,
+        message: "Opération introuvable.",
+      });
+    }
 
     const changes = describeOperationChanges(
       before,
@@ -552,6 +647,13 @@ exports.updateOrderOperation = async (req, res) => {
       await DispatchModel.getOrderSnapshotById(
         orderId,
       );
+
+    if (!orderSnapshot) {
+      return res.status(404).json({
+        success: false,
+        message: "Commande introuvable.",
+      });
+    }
 
     const userId = getAuthenticatedUserId(req);
 
@@ -588,9 +690,96 @@ exports.updateOrderOperation = async (req, res) => {
 
     return res.status(400).json({
       success: false,
+      message: "Impossible de modifier l’opération.",
+    });
+  }
+};
+
+
+/* =====================================================
+   HISTORIQUE DES SCANS ENTREPÔT / DISPATCH
+===================================================== */
+exports.getWarehouseScanHistory = async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur non authentifié.",
+      });
+    }
+
+    const limit = Number(req.query?.limit || 50);
+
+    const scans = await DispatchModel.getWarehouseScanHistory(limit);
+
+    return res.status(200).json({
+      success: true,
+      count: scans.length,
+      data: scans,
+      scans,
+    });
+  } catch (error) {
+    console.error("Erreur getWarehouseScanHistory :", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Impossible de charger l’historique des scans entrepôt.",
+    });
+  }
+};
+
+/* =====================================================
+   SCANNER UN COLIS À L'ENTREPÔT / DISPATCH
+   - scanned_by_user_id vient exclusivement du JWT
+   - driver_id / vehicle_id viennent de l'opération en DB
+===================================================== */
+exports.scanWarehousePackage = async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur non authentifié.",
+      });
+    }
+
+    if (!isPlainObject(req.body)) {
+      return res.status(400).json({
+        success: false,
+        message: "Données de scan invalides.",
+      });
+    }
+
+    const result = await DispatchModel.processWarehouseScan(
+      userId,
+      req.body,
+    );
+
+    const statusCode =
+      Number(result?.statusCode) >= 400
+        ? Number(result.statusCode)
+        : result?.rejected
+          ? 403
+          : 200;
+
+    return res.status(statusCode).json(result);
+  } catch (error) {
+    console.error("Erreur scanWarehousePackage :", error);
+
+    const statusCode =
+      Number(error?.statusCode) >= 400 &&
+      Number(error?.statusCode) <= 599
+        ? Number(error.statusCode)
+        : 400;
+
+    return res.status(statusCode).json({
+      success: false,
       message:
-        error.message ||
-        "Impossible de modifier l’opération.",
+        error?.message ||
+        "Impossible d’enregistrer le scan entrepôt.",
     });
   }
 };
@@ -613,7 +802,21 @@ exports.deleteOrderOperation = async (req, res) => {
         operationId,
       );
 
-    const orderId = Number(operation.order_id);
+    if (!operation) {
+      return res.status(404).json({
+        success: false,
+        message: "Opération introuvable.",
+      });
+    }
+
+    const orderId = parseId(operation.order_id);
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "Commande associée invalide.",
+      });
+    }
 
     const orderSnapshot =
       await DispatchModel.getOrderSnapshotById(
@@ -654,9 +857,7 @@ exports.deleteOrderOperation = async (req, res) => {
 
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        "Impossible de supprimer l’opération.",
+      message: "Impossible de supprimer l’opération.",
     });
   }
 };

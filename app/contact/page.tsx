@@ -50,7 +50,7 @@ const offices: Office[] = [
     city: "Montréal",
     phone: "514-553-6762",
     address:
-      "5975 Av. de l'Authion, Montréal, QC H1M 2W3",
+      "Coming Soon" ,
   },
 ];
 

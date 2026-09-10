@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Camera,
   CheckSquare,
   ChevronLeft,
   ChevronRight,
@@ -10,9 +11,12 @@ import {
   GripVertical,
   History,
   Loader2,
+  Keyboard,
+  MapPin,
   PackageCheck,
   Pencil,
   Plus,
+  ScanLine,
   RefreshCw,
   Search,
   Square,
@@ -142,6 +146,66 @@ type GlobalHistoryItem = TimelineItem & {
   client_name: string;
 };
 
+
+type WarehouseScanType =
+  | "warehouse_in"
+  | "warehouse_storage"
+  | "warehouse_out";
+
+type WarehouseScanSource =
+  | "camera"
+  | "zebra"
+  | "manual"
+  | "barcode_scanner";
+
+type WarehouseScanItem = {
+  id: number;
+  order_id: number;
+  package_id: number;
+  operation_id?: number | null;
+  driver_id?: number | null;
+  vehicle_id?: number | null;
+  scanned_by_user_id?: number | null;
+  scanned_code?: string | null;
+  scan_type?: WarehouseScanType | string | null;
+  scan_status?: "accepted" | "rejected" | "duplicate" | string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  accuracy?: number | string | null;
+  device_type?: string | null;
+  device_name?: string | null;
+  scan_source?: WarehouseScanSource | string | null;
+  notes?: string | null;
+  scanned_at?: string | null;
+  barcode?: string | null;
+  package_number?: number | null;
+  package_status?: string | null;
+  order_number?: string | null;
+  operation_type?: string | null;
+  warehouse_name?: string | null;
+  scanned_by_first_name?: string | null;
+  scanned_by_last_name?: string | null;
+};
+
+type WarehouseScanResponse = {
+  success?: boolean;
+  rejected?: boolean;
+  duplicate?: boolean;
+  scan_status?: string;
+  message?: string;
+  event_id?: number;
+  event?: WarehouseScanItem | null;
+  package?: {
+    id?: number;
+    order_id?: number;
+    barcode?: string | null;
+    package_number?: number | null;
+    current_status?: string | null;
+    order_number?: string | null;
+  } | null;
+  operation?: OrderOperation | null;
+};
+
 type OperationForm = {
   operation_type: OperationType;
   driver_id: string;
@@ -191,6 +255,38 @@ const OPERATION_STATUSES: { value: OperationStatus; label: string }[] = [
   { value: "in_progress", label: "En cours" },
   { value: "completed", label: "Terminée" },
   { value: "cancelled", label: "Annulée" },
+];
+
+
+const WAREHOUSE_SCAN_TYPES: {
+  value: WarehouseScanType;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "warehouse_in",
+    label: "Entrée entrepôt",
+    description: "Le colis vient d’arriver à l’entrepôt.",
+  },
+  {
+    value: "warehouse_storage",
+    label: "Stockage",
+    description: "Le colis est confirmé dans la zone de stockage.",
+  },
+  {
+    value: "warehouse_out",
+    label: "Sortie entrepôt",
+    description: "Le colis quitte l’entrepôt vers sa prochaine étape.",
+  },
+];
+
+const WAREHOUSE_SCAN_SOURCES: {
+  value: WarehouseScanSource;
+  label: string;
+}[] = [
+  { value: "barcode_scanner", label: "Lecteur code-barres USB" },
+  { value: "zebra", label: "Zebra" },
+  { value: "manual", label: "Saisie manuelle" },
 ];
 
 const EMPTY_OPERATION_FORM: OperationForm = {
@@ -358,6 +454,24 @@ export default function DispatchPage() {
   const [editingOperationId, setEditingOperationId] = useState<number | null>(null);
   const [operationForm, setOperationForm] =
     useState<OperationForm>(EMPTY_OPERATION_FORM);
+
+  const [warehouseScannerOpen, setWarehouseScannerOpen] = useState(false);
+  const [warehouseScanCode, setWarehouseScanCode] = useState("");
+  const [warehouseScanType, setWarehouseScanType] =
+    useState<WarehouseScanType>("warehouse_in");
+  const [warehouseScanSource, setWarehouseScanSource] =
+    useState<WarehouseScanSource>("barcode_scanner");
+  const [warehouseScanNotes, setWarehouseScanNotes] = useState("");
+  const [warehouseScanLoading, setWarehouseScanLoading] = useState(false);
+  const [warehouseScanHistoryLoading, setWarehouseScanHistoryLoading] =
+    useState(false);
+  const [warehouseScanHistory, setWarehouseScanHistory] = useState<
+    WarehouseScanItem[]
+  >([]);
+  const [warehouseScanResult, setWarehouseScanResult] =
+    useState<WarehouseScanResponse | null>(null);
+  const [warehouseCameraOpen, setWarehouseCameraOpen] = useState(false);
+  const [warehouseCameraError, setWarehouseCameraError] = useState("");
 
   const apiFetch = useCallback(
     async <T,>(endpoint: string, options: RequestInit = {}) => {
@@ -942,6 +1056,312 @@ export default function DispatchPage() {
     }
   };
 
+
+  const loadWarehouseScanHistory = useCallback(async () => {
+    try {
+      setWarehouseScanHistoryLoading(true);
+
+      const result = await apiFetch<{
+        data?: WarehouseScanItem[];
+        scans?: WarehouseScanItem[];
+      }>("/api/dispatch/warehouse/scans?limit=50");
+
+      const scans = Array.isArray(result.scans)
+        ? result.scans
+        : Array.isArray(result.data)
+          ? result.data
+          : [];
+
+      setWarehouseScanHistory(scans);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de charger l’historique des scans entrepôt.",
+      );
+    } finally {
+      setWarehouseScanHistoryLoading(false);
+    }
+  }, [apiFetch]);
+
+  const openWarehouseScanner = async () => {
+    setWarehouseScannerOpen(true);
+    setWarehouseScanResult(null);
+    setWarehouseCameraError("");
+    await loadWarehouseScanHistory();
+  };
+
+  const getFreshWarehousePosition = () =>
+    new Promise<{
+      latitude: number | null;
+      longitude: number | null;
+      accuracy: number | null;
+    }>((resolve) => {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.geolocation
+      ) {
+        resolve({
+          latitude: null,
+          longitude: null,
+          accuracy: null,
+        });
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+        },
+        () => {
+          resolve({
+            latitude: null,
+            longitude: null,
+            accuracy: null,
+          });
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 10000,
+        },
+      );
+    });
+
+  const submitWarehouseScan = async (
+    codeOverride?: string,
+    sourceOverride?: WarehouseScanSource,
+  ) => {
+    const code = String(codeOverride ?? warehouseScanCode)
+      .trim()
+      .toUpperCase();
+
+    if (!code) {
+      setError("Scanne ou saisis un code-barres.");
+      return;
+    }
+
+    try {
+      setWarehouseScanLoading(true);
+      setError("");
+      setSuccess("");
+      setWarehouseScanResult(null);
+
+      const gps = await getFreshWarehousePosition();
+
+      const result = await apiFetch<WarehouseScanResponse>(
+        "/api/dispatch/warehouse/scan",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            scanned_code: code,
+            scan_type: warehouseScanType,
+            scan_source: sourceOverride || warehouseScanSource,
+            latitude: gps.latitude,
+            longitude: gps.longitude,
+            accuracy: gps.accuracy,
+            device_type:
+              typeof navigator !== "undefined"
+                ? /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+                  ? "mobile"
+                  : "desktop"
+                : "unknown",
+            device_name:
+              typeof navigator !== "undefined"
+                ? navigator.userAgent.slice(0, 150)
+                : null,
+            notes: warehouseScanNotes.trim() || null,
+          }),
+        },
+      );
+
+      setWarehouseScanResult(result);
+      setWarehouseScanCode("");
+
+      if (result.duplicate) {
+        setSuccess(result.message || "Scan déjà enregistré.");
+      } else {
+        setSuccess(result.message || "Scan entrepôt enregistré.");
+      }
+
+      await Promise.all([
+        loadWarehouseScanHistory(),
+        loadOrders(),
+      ]);
+    } catch (reason) {
+      const message =
+        reason instanceof Error
+          ? reason.message
+          : "Scan entrepôt impossible.";
+
+      setWarehouseScanResult({
+        success: false,
+        rejected: true,
+        scan_status: "rejected",
+        message,
+      });
+      setError(message);
+
+      await loadWarehouseScanHistory();
+    } finally {
+      setWarehouseScanLoading(false);
+    }
+  };
+
+  const startWarehouseCamera = async () => {
+    setWarehouseCameraError("");
+
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      setWarehouseCameraError(
+        "La caméra n’est pas disponible sur cet appareil.",
+      );
+      return;
+    }
+
+    const BarcodeDetectorCtor = (
+      window as unknown as {
+        BarcodeDetector?: new (options?: {
+          formats?: string[];
+        }) => {
+          detect: (
+            source: CanvasImageSource,
+          ) => Promise<Array<{ rawValue?: string }>>;
+        };
+      }
+    ).BarcodeDetector;
+
+    if (!BarcodeDetectorCtor) {
+      setWarehouseCameraError(
+        "Le scan caméra automatique n’est pas supporté par ce navigateur. Utilise Zebra, un lecteur USB ou la saisie manuelle.",
+      );
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    let rafId = 0;
+    let stopped = false;
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+        },
+        audio: false,
+      });
+
+      setWarehouseCameraOpen(true);
+
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 50);
+      });
+
+      const video = document.getElementById(
+        "warehouse-scanner-video",
+      ) as HTMLVideoElement | null;
+
+      if (!video) {
+        throw new Error("Zone caméra introuvable.");
+      }
+
+      video.srcObject = stream;
+      await video.play();
+
+      const detector = new BarcodeDetectorCtor({
+        formats: [
+          "code_128",
+          "code_39",
+          "ean_13",
+          "ean_8",
+          "upc_a",
+          "upc_e",
+          "qr_code",
+          "data_matrix",
+        ],
+      });
+
+      const detectFrame = async () => {
+        if (stopped) return;
+
+        try {
+          if (
+            video.readyState >= 2 &&
+            video.videoWidth > 0 &&
+            video.videoHeight > 0
+          ) {
+            const codes = await detector.detect(video);
+            const rawValue = codes[0]?.rawValue?.trim();
+
+            if (rawValue) {
+              stopped = true;
+              setWarehouseScanCode(rawValue.toUpperCase());
+              setWarehouseScanSource("camera");
+              stream?.getTracks().forEach((track) => track.stop());
+              setWarehouseCameraOpen(false);
+              await submitWarehouseScan(rawValue, "camera");
+              return;
+            }
+          }
+        } catch {
+          // On continue à lire les images tant que la caméra reste ouverte.
+        }
+
+        rafId = window.requestAnimationFrame(() => {
+          void detectFrame();
+        });
+      };
+
+      void detectFrame();
+
+      const stopWhenClosed = window.setInterval(() => {
+        const videoElement = document.getElementById(
+          "warehouse-scanner-video",
+        );
+
+        if (!videoElement) {
+          stopped = true;
+          window.cancelAnimationFrame(rafId);
+          stream?.getTracks().forEach((track) => track.stop());
+          window.clearInterval(stopWhenClosed);
+        }
+      }, 300);
+    } catch (reason) {
+      stopped = true;
+      window.cancelAnimationFrame(rafId);
+      stream?.getTracks().forEach((track) => track.stop());
+      setWarehouseCameraOpen(false);
+      setWarehouseCameraError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible d’ouvrir la caméra.",
+      );
+    }
+  };
+
+  const closeWarehouseScanner = () => {
+    setWarehouseScannerOpen(false);
+    setWarehouseCameraOpen(false);
+    setWarehouseCameraError("");
+    setWarehouseScanResult(null);
+
+    const video = document.getElementById(
+      "warehouse-scanner-video",
+    ) as HTMLVideoElement | null;
+
+    const stream = video?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((track) => track.stop());
+
+    if (video) {
+      video.srcObject = null;
+    }
+  };
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -956,6 +1376,14 @@ export default function DispatchPage() {
         </div>
 
         <div className={styles.headerActions}>
+          <button
+            className={styles.secondaryBtn}
+            onClick={() => void openWarehouseScanner()}
+            type="button"
+          >
+            <ScanLine size={17} />
+            Scanner entrepôt
+          </button>
           <button
             className={styles.secondaryBtn}
             onClick={() => void loadGlobalHistory()}
@@ -1353,6 +1781,509 @@ export default function DispatchPage() {
         </footer>
       </section>
 
+
+
+      {warehouseScannerOpen && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={closeWarehouseScanner}
+        >
+          <section
+            className={styles.operationsModal}
+            onMouseDown={(event) => event.stopPropagation()}
+            style={{ maxWidth: 1180 }}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <span className={styles.eyebrow}>
+                  <ScanLine size={16} /> Scanner entrepôt
+                </span>
+                <h2>Traçabilité des colis</h2>
+                <p>
+                  Entrée, stockage et sortie entrepôt avec utilisateur,
+                  date, appareil et GPS lorsque disponible.
+                </p>
+              </div>
+              <button
+                className={styles.iconBtn}
+                onClick={closeWarehouseScanner}
+                type="button"
+                aria-label="Fermer le scanner"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(300px, 0.9fr) minmax(0, 1.4fr)",
+                gap: 18,
+                alignItems: "start",
+              }}
+            >
+              <div
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 16,
+                  padding: 18,
+                  background: "#fff",
+                }}
+              >
+                <div className={styles.sectionTitleRow}>
+                  <h3>Nouveau scan</h3>
+                  <span>Entrepôt</span>
+                </div>
+
+                <label style={{ display: "grid", gap: 7, marginBottom: 14 }}>
+                  Étape du colis
+                  <select
+                    value={warehouseScanType}
+                    onChange={(event) =>
+                      setWarehouseScanType(
+                        event.target.value as WarehouseScanType,
+                      )
+                    }
+                  >
+                    {WAREHOUSE_SCAN_TYPES.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <small style={{ color: "#6b7280" }}>
+                    {
+                      WAREHOUSE_SCAN_TYPES.find(
+                        (item) => item.value === warehouseScanType,
+                      )?.description
+                    }
+                  </small>
+                </label>
+
+                <label style={{ display: "grid", gap: 7, marginBottom: 14 }}>
+                  Type de lecteur
+                  <select
+                    value={
+                      warehouseScanSource === "camera"
+                        ? "barcode_scanner"
+                        : warehouseScanSource
+                    }
+                    onChange={(event) =>
+                      setWarehouseScanSource(
+                        event.target.value as WarehouseScanSource,
+                      )
+                    }
+                  >
+                    {WAREHOUSE_SCAN_SOURCES.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={{ display: "grid", gap: 7, marginBottom: 14 }}>
+                  Code du colis / commande
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 8,
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={warehouseScanCode}
+                      onChange={(event) =>
+                        setWarehouseScanCode(event.target.value)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void submitWarehouseScan();
+                        }
+                      }}
+                      placeholder="Scanne le code-barres..."
+                      autoComplete="off"
+                      style={{
+                        minWidth: 0,
+                        fontFamily: "monospace",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={() => void startWarehouseCamera()}
+                      disabled={warehouseScanLoading}
+                      title="Scanner avec la caméra"
+                    >
+                      <Camera size={17} />
+                    </button>
+                  </div>
+                </label>
+
+                <label style={{ display: "grid", gap: 7, marginBottom: 14 }}>
+                  Note
+                  <textarea
+                    value={warehouseScanNotes}
+                    onChange={(event) =>
+                      setWarehouseScanNotes(event.target.value)
+                    }
+                    rows={3}
+                    placeholder="Note optionnelle..."
+                  />
+                </label>
+
+                {warehouseCameraError && (
+                  <div
+                    style={{
+                      padding: "10px 12px",
+                      border: "1px solid #fecaca",
+                      borderRadius: 10,
+                      marginBottom: 12,
+                      background: "#fff7f7",
+                      fontSize: 13,
+                    }}
+                  >
+                    {warehouseCameraError}
+                  </div>
+                )}
+
+                {warehouseCameraOpen && (
+                  <div
+                    style={{
+                      marginBottom: 14,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      background: "#111",
+                    }}
+                  >
+                    <video
+                      id="warehouse-scanner-video"
+                      playsInline
+                      muted
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        minHeight: 220,
+                        objectFit: "cover",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const video = document.getElementById(
+                          "warehouse-scanner-video",
+                        ) as HTMLVideoElement | null;
+                        const stream =
+                          video?.srcObject as MediaStream | null;
+                        stream
+                          ?.getTracks()
+                          .forEach((track) => track.stop());
+                        if (video) video.srcObject = null;
+                        setWarehouseCameraOpen(false);
+                      }}
+                      style={{
+                        width: "100%",
+                        padding: 10,
+                        border: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Fermer la caméra
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  className={styles.saveOperationBtn}
+                  onClick={() => void submitWarehouseScan()}
+                  disabled={
+                    warehouseScanLoading ||
+                    !warehouseScanCode.trim()
+                  }
+                  type="button"
+                >
+                  {warehouseScanLoading ? (
+                    <Loader2 size={17} className={styles.spin} />
+                  ) : (
+                    <ScanLine size={17} />
+                  )}
+                  Enregistrer le scan
+                </button>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginTop: 10,
+                    color: "#6b7280",
+                    fontSize: 12,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <Keyboard size={14} /> USB / Zebra
+                  </span>
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <MapPin size={14} /> GPS au scan
+                  </span>
+                </div>
+
+                {warehouseScanResult && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: 14,
+                      borderRadius: 12,
+                      border: `1px solid ${
+                        warehouseScanResult.rejected
+                          ? "#fecaca"
+                          : warehouseScanResult.duplicate
+                            ? "#fde68a"
+                            : "#bbf7d0"
+                      }`,
+                      background: warehouseScanResult.rejected
+                        ? "#fff7f7"
+                        : warehouseScanResult.duplicate
+                          ? "#fffbeb"
+                          : "#f0fdf4",
+                    }}
+                  >
+                    <strong>
+                      {warehouseScanResult.rejected
+                        ? "Scan refusé"
+                        : warehouseScanResult.duplicate
+                          ? "Doublon"
+                          : "Scan accepté"}
+                    </strong>
+                    <div style={{ marginTop: 5 }}>
+                      {warehouseScanResult.message || "—"}
+                    </div>
+                    {warehouseScanResult.event_id && (
+                      <small>
+                        Événement #{warehouseScanResult.event_id}
+                      </small>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  background: "#fff",
+                }}
+              >
+                <div
+                  style={{
+                    padding: 16,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  <div>
+                    <strong>Historique des scans</strong>
+                    <div style={{ color: "#6b7280", fontSize: 13 }}>
+                      50 derniers événements entrepôt
+                    </div>
+                  </div>
+                  <button
+                    className={styles.refreshBtn}
+                    onClick={() => void loadWarehouseScanHistory()}
+                    disabled={warehouseScanHistoryLoading}
+                    type="button"
+                  >
+                    <RefreshCw
+                      size={16}
+                      className={
+                        warehouseScanHistoryLoading ? styles.spin : ""
+                      }
+                    />
+                    Actualiser
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: "62vh",
+                    overflow: "auto",
+                  }}
+                >
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead
+                      style={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                        background: "#fafafa",
+                      }}
+                    >
+                      <tr>
+                        <th style={{ padding: 11, textAlign: "left" }}>
+                          Heure
+                        </th>
+                        <th style={{ padding: 11, textAlign: "left" }}>
+                          Commande / colis
+                        </th>
+                        <th style={{ padding: 11, textAlign: "left" }}>
+                          Étape
+                        </th>
+                        <th style={{ padding: 11, textAlign: "left" }}>
+                          Résultat
+                        </th>
+                        <th style={{ padding: 11, textAlign: "left" }}>
+                          Par
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {warehouseScanHistoryLoading &&
+                      warehouseScanHistory.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            style={{
+                              padding: 28,
+                              textAlign: "center",
+                            }}
+                          >
+                            <Loader2
+                              size={22}
+                              className={styles.spin}
+                            />{" "}
+                            Chargement...
+                          </td>
+                        </tr>
+                      ) : warehouseScanHistory.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            style={{
+                              padding: 30,
+                              textAlign: "center",
+                              color: "#6b7280",
+                            }}
+                          >
+                            Aucun scan entrepôt.
+                          </td>
+                        </tr>
+                      ) : (
+                        warehouseScanHistory.map((scan) => {
+                          const actor =
+                            [
+                              scan.scanned_by_first_name,
+                              scan.scanned_by_last_name,
+                            ]
+                              .filter(Boolean)
+                              .join(" ")
+                              .trim() ||
+                            (scan.scanned_by_user_id
+                              ? `Utilisateur #${scan.scanned_by_user_id}`
+                              : "Système");
+
+                          return (
+                            <tr
+                              key={scan.id}
+                              style={{
+                                borderTop: "1px solid #e5e7eb",
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: 11,
+                                  whiteSpace: "nowrap",
+                                  fontSize: 12,
+                                }}
+                              >
+                                {historyDate(scan.scanned_at)}
+                              </td>
+                              <td style={{ padding: 11 }}>
+                                <strong>
+                                  {scan.order_number ||
+                                    `Commande #${scan.order_id}`}
+                                </strong>
+                                <div
+                                  style={{
+                                    color: "#6b7280",
+                                    fontSize: 12,
+                                    marginTop: 3,
+                                  }}
+                                >
+                                  {scan.barcode ||
+                                    scan.scanned_code ||
+                                    `Colis #${scan.package_id}`}
+                                </div>
+                              </td>
+                              <td style={{ padding: 11 }}>
+                                {operationTypeLabel(scan.scan_type)}
+                                {scan.warehouse_name && (
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      color: "#6b7280",
+                                      marginTop: 3,
+                                    }}
+                                  >
+                                    {scan.warehouse_name}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: 11 }}>
+                                <strong>
+                                  {scan.scan_status === "accepted"
+                                    ? "Accepté"
+                                    : scan.scan_status === "duplicate"
+                                      ? "Doublon"
+                                      : "Refusé"}
+                                </strong>
+                                {scan.notes && (
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      color: "#6b7280",
+                                      marginTop: 3,
+                                      maxWidth: 220,
+                                    }}
+                                  >
+                                    {scan.notes}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: 11 }}>
+                                {actor}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {historyOpen && (
         <div

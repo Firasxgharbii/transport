@@ -43,6 +43,13 @@ const API_URL =
 
 const ITEMS_PER_PAGE = 6;
 
+/*
+ * Évite qu’un navigateur ou un appareil très bavard envoie
+ * une rafale de positions au backend. La sécurité réelle reste
+ * également contrôlée côté serveur.
+ */
+const GPS_SEND_INTERVAL_MS = 5000;
+
 /* ============================================================
    TYPES
 ============================================================ */
@@ -407,6 +414,12 @@ export default function DriverDashboardPage() {
   const watchIdRef =
     useRef<number | null>(null);
 
+  const gpsRequestInFlightRef =
+    useRef(false);
+
+  const lastGpsSendAtRef =
+    useRef(0);
+
   const [user, setUser] =
     useState<ConnectedUser | null>(null);
 
@@ -445,47 +458,6 @@ export default function DriverDashboardPage() {
 
   const [historyRange, setHistoryRange] =
     useState<HistoryRange>("12m");
-
-  /* ==========================================================
-     AUTH
-  ========================================================== */
-
-  useEffect(() => {
-    const token =
-      getToken();
-
-    const storedUser =
-      localStorage.getItem(
-        "glory_user",
-      );
-
-    if (!token || !storedUser) {
-      router.replace("/login");
-      return;
-    }
-
-    try {
-      const parsedUser =
-        JSON.parse(
-          storedUser,
-        ) as ConnectedUser;
-
-      if (
-        parsedUser.role !==
-        "driver"
-      ) {
-        router.replace(
-          "/dashboard",
-        );
-
-        return;
-      }
-
-      setUser(parsedUser);
-    } catch {
-      router.replace("/login");
-    }
-  }, [router]);
 
   /* ==========================================================
      API
@@ -565,6 +537,99 @@ export default function DriverDashboardPage() {
       },
       [],
     );
+
+  /* ==========================================================
+     AUTH — IDENTITÉ VÉRIFIÉE PAR LE BACKEND
+
+     IMPORTANT :
+     - le rôle stocké dans localStorage/sessionStorage n'est jamais
+       utilisé comme preuve d'autorisation ;
+     - le JWT est envoyé à /api/auth/me ;
+     - seul le backend décide de l'identité et du rôle réels.
+  ========================================================== */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const verifySession =
+      async () => {
+        const token =
+          getToken();
+
+        if (!token) {
+          router.replace(
+            "/login",
+          );
+
+          return;
+        }
+
+        try {
+          const result =
+            await apiFetch<any>(
+              "/api/auth/me",
+            );
+
+          if (cancelled) {
+            return;
+          }
+
+          const verifiedUser =
+            result?.user ||
+            result?.data ||
+            null;
+
+          if (
+            !verifiedUser ||
+            verifiedUser.role !==
+              "driver"
+          ) {
+            router.replace(
+              "/dashboard",
+            );
+
+            return;
+          }
+
+          setUser(
+            verifiedUser as ConnectedUser,
+          );
+        } catch (reason) {
+          if (cancelled) {
+            return;
+          }
+
+          console.error(
+            "Vérification de session impossible :",
+            reason,
+          );
+
+          /*
+           * apiFetch gère déjà les 401 et supprime la session.
+           * Pour toute autre erreur d'authentification, on évite
+           * d'afficher des données chauffeur sans identité vérifiée.
+           */
+          setUser(null);
+
+          setLoading(false);
+
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Impossible de vérifier votre session.",
+          );
+        }
+      };
+
+    void verifySession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiFetch,
+    router,
+  ]);
 
   /* ==========================================================
      LOAD DATA
@@ -745,32 +810,126 @@ export default function DriverDashboardPage() {
       ) => {
         if (!driver) return;
 
+        const latitude =
+          Number(coords.latitude);
+
+        const longitude =
+          Number(coords.longitude);
+
+        /*
+         * Validation locale défensive.
+         * Le backend refait obligatoirement les mêmes contrôles.
+         */
+        if (
+          !Number.isFinite(
+            latitude,
+          ) ||
+          !Number.isFinite(
+            longitude,
+          ) ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          console.error(
+            "Coordonnées GPS locales invalides.",
+          );
+
+          return;
+        }
+
         const gpsPosition: Position =
           {
-            latitude:
-              coords.latitude,
+            latitude,
 
-            longitude:
-              coords.longitude,
+            longitude,
 
             accuracy:
-              coords.accuracy ??
-              null,
+              Number.isFinite(
+                Number(
+                  coords.accuracy,
+                ),
+              )
+                ? Number(
+                    coords.accuracy,
+                  )
+                : null,
 
             speed:
-              coords.speed ??
-              null,
+              coords.speed !==
+                null &&
+              Number.isFinite(
+                Number(
+                  coords.speed,
+                ),
+              )
+                ? Math.max(
+                    0,
+                    Number(
+                      coords.speed,
+                    ),
+                  )
+                : null,
 
             heading:
-              coords.heading ??
-              null,
+              coords.heading !==
+                null &&
+              Number.isFinite(
+                Number(
+                  coords.heading,
+                ),
+              )
+                ? Math.min(
+                    360,
+                    Math.max(
+                      0,
+                      Number(
+                        coords.heading,
+                      ),
+                    ),
+                  )
+                : null,
           };
 
         setPosition(
           gpsPosition,
         );
 
+        const now =
+          Date.now();
+
+        /*
+         * Empêche :
+         * - les requêtes GPS concurrentes ;
+         * - les rafales de watchPosition ;
+         * - une charge inutile sur l'API et MySQL.
+         */
+        if (
+          gpsRequestInFlightRef.current ||
+          now -
+            lastGpsSendAtRef.current <
+            GPS_SEND_INTERVAL_MS
+        ) {
+          return;
+        }
+
+        gpsRequestInFlightRef.current =
+          true;
+
+        lastGpsSendAtRef.current =
+          now;
+
         try {
+          /*
+           * SÉCURITÉ :
+           *
+           * On n'envoie volontairement PLUS driver_id.
+           * Le trackingController sécurisé détermine le chauffeur
+           * avec le JWT -> users.id -> drivers.user_id.
+           *
+           * Le navigateur ne choisit donc jamais son identité chauffeur.
+           */
           await apiFetch(
             "/api/tracking/location",
             {
@@ -779,9 +938,6 @@ export default function DriverDashboardPage() {
 
               body:
                 JSON.stringify({
-                  driver_id:
-                    driver.id,
-
                   ...gpsPosition,
                 }),
             },
@@ -791,6 +947,9 @@ export default function DriverDashboardPage() {
             "Erreur GPS backend:",
             reason,
           );
+        } finally {
+          gpsRequestInFlightRef.current =
+            false;
         }
       },
       [
@@ -928,10 +1087,7 @@ export default function DriverDashboardPage() {
           if (
             !navigator.permissions
           ) {
-            setGpsState(
-              "permission",
-            );
-
+            startGps();
             return;
           }
 
@@ -952,9 +1108,13 @@ export default function DriverDashboardPage() {
             permission.state ===
             "prompt"
           ) {
-            setGpsState(
-              "permission",
-            );
+            /*
+             * Le navigateur affiche sa demande système
+             * automatiquement à la première utilisation.
+             * Après autorisation, les ouvertures suivantes
+             * démarrent le suivi sans bouton supplémentaire.
+             */
+            startGps();
           } else {
             setGpsState(
               "denied",
@@ -980,9 +1140,7 @@ export default function DriverDashboardPage() {
               }
             };
         } catch {
-          setGpsState(
-            "permission",
-          );
+          startGps();
         }
       };
 
@@ -1011,6 +1169,27 @@ export default function DriverDashboardPage() {
   ========================================================== */
 
   function logout() {
+    if (
+      typeof navigator !==
+        "undefined" &&
+      navigator.geolocation &&
+      watchIdRef.current !==
+        null
+    ) {
+      navigator.geolocation.clearWatch(
+        watchIdRef.current,
+      );
+
+      watchIdRef.current =
+        null;
+    }
+
+    gpsRequestInFlightRef.current =
+      false;
+
+    lastGpsSendAtRef.current =
+      0;
+
     localStorage.removeItem(
       "glory_token",
     );

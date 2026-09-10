@@ -1,5 +1,32 @@
 const db = require("../config/db");
 
+// Défense en profondeur : le modèle valide les identifiants numériques
+// avant de les transmettre aux requêtes SQL. L’autorisation reste assurée
+// par les controllers et middleware.
+function normalizePositiveId(value, fieldName) {
+  const raw = String(value ?? "").trim();
+
+  if (!/^[1-9]\d*$/.test(raw)) {
+    throw new Error(`${fieldName} invalide.`);
+  }
+
+  const id = Number(raw);
+
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new Error(`${fieldName} invalide.`);
+  }
+
+  return id;
+}
+
+function normalizeOptionalPositiveId(value, fieldName) {
+  if (value === null || value === undefined || value === "") {
+    return value;
+  }
+
+  return normalizePositiveId(value, fieldName);
+}
+
 const OrderModel = {
   /* =====================================================
      RÉCUPÉRER TOUTES LES COMMANDES
@@ -77,6 +104,7 @@ const OrderModel = {
   ===================================================== */
 
   async getOrderById(id) {
+    id = normalizePositiveId(id, "orderId");
     const [rows] = await db.query(
       `
         SELECT
@@ -298,6 +326,7 @@ const OrderModel = {
   ===================================================== */
 
   async updateOrder(id, data) {
+    id = normalizePositiveId(id, "orderId");
     const allowedFields = [
       "client_id",
       "driver_id",
@@ -373,6 +402,7 @@ const OrderModel = {
   ===================================================== */
 
   async deleteOrder(id) {
+    id = normalizePositiveId(id, "orderId");
     const [result] = await db.query(
       `
         DELETE FROM orders
@@ -389,6 +419,8 @@ const OrderModel = {
   ===================================================== */
 
   async assignDriver(orderId, driverId) {
+    orderId = normalizePositiveId(orderId, "orderId");
+    driverId = normalizeOptionalPositiveId(driverId, "driverId");
     const [result] = await db.query(
       `
         UPDATE orders
@@ -416,6 +448,8 @@ const OrderModel = {
   ===================================================== */
 
   async assignVehicle(orderId, vehicleId) {
+    orderId = normalizePositiveId(orderId, "orderId");
+    vehicleId = normalizeOptionalPositiveId(vehicleId, "vehicleId");
     const [result] = await db.query(
       `
         UPDATE orders
@@ -435,6 +469,7 @@ const OrderModel = {
   ===================================================== */
 
   async updateStatus(orderId, status) {
+    orderId = normalizePositiveId(orderId, "orderId");
     const [result] = await db.query(
       `
         UPDATE orders
@@ -459,6 +494,11 @@ const OrderModel = {
     userId,
     comment
   ) {
+    orderId = normalizePositiveId(orderId, "orderId");
+    if (userId !== null && userId !== undefined && userId !== "") {
+      userId = normalizePositiveId(userId, "userId");
+    }
+
     const [result] = await db.query(
       `
         INSERT INTO order_status_history (
@@ -481,6 +521,7 @@ const OrderModel = {
   },
 
   async getOrderTimeline(orderId) {
+    orderId = normalizePositiveId(orderId, "orderId");
     const [rows] = await db.query(
       `
         SELECT
@@ -509,6 +550,7 @@ const OrderModel = {
   ===================================================== */
 
   async getOrderStops(orderId) {
+    orderId = normalizePositiveId(orderId, "orderId");
     const [rows] = await db.query(
       `
         SELECT *
@@ -523,6 +565,7 @@ const OrderModel = {
   },
 
   async getOrderStopById(stopId) {
+    stopId = normalizePositiveId(stopId, "stopId");
     const [rows] = await db.query(
       `
         SELECT *
@@ -537,6 +580,7 @@ const OrderModel = {
   },
 
   async createOrderStop(orderId, data) {
+    orderId = normalizePositiveId(orderId, "orderId");
     const {
       stop_order,
       stop_type,
@@ -633,6 +677,7 @@ const OrderModel = {
   },
 
   async updateOrderStop(stopId, data) {
+    stopId = normalizePositiveId(stopId, "stopId");
     const allowedFields = [
       "stop_order",
       "stop_type",
@@ -701,6 +746,7 @@ const OrderModel = {
   },
 
   async deleteOrderStop(stopId) {
+    stopId = normalizePositiveId(stopId, "stopId");
     const [result] = await db.query(
       `
         DELETE FROM order_stops
@@ -717,6 +763,7 @@ const OrderModel = {
   ===================================================== */
 
   async getDriverOrders(driverId) {
+    driverId = normalizePositiveId(driverId, "driverId");
     const [rows] = await db.query(
       `
         SELECT
@@ -778,6 +825,7 @@ const OrderModel = {
   ===================================================== */
 
   async getDeliveryProofs(orderId) {
+    orderId = normalizePositiveId(orderId, "orderId");
     const [rows] = await db.query(
       `
         SELECT
@@ -831,6 +879,8 @@ const OrderModel = {
   ===================================================== */
 
   async createDeliveryProof(data) {
+    const normalizedOrderId = normalizePositiveId(data?.order_id, "order_id");
+    const normalizedDriverId = normalizePositiveId(data?.driver_id, "driver_id");
     const {
       order_id,
       driver_id,
@@ -974,8 +1024,8 @@ const OrderModel = {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [
-        order_id,
-        driver_id,
+        normalizedOrderId,
+        normalizedDriverId,
 
         finalFirstName || "",
         finalLastName || "",

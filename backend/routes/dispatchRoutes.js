@@ -1,6 +1,7 @@
 const express = require("express");
 
 const authMiddleware = require("../middleware/authMiddleware");
+
 const roleMiddleware = require("../middleware/roleMiddleware");
 
 const {
@@ -12,6 +13,8 @@ const {
   createOrderOperation,
   updateOrderOperation,
   deleteOrderOperation,
+  getWarehouseScanHistory,
+  scanWarehousePackage,
 } = require("../controllers/dispatchController");
 
 const router = express.Router();
@@ -40,6 +43,25 @@ router.patch(
   "/reorder",
   roleMiddleware("super_admin", "dispatcher"),
   reorderOrders,
+);
+
+/* =====================================================
+   SCANNER ENTREPÔT / DISPATCH
+   IMPORTANT :
+   - routes réservées à super_admin et dispatcher
+   - scanned_by_user_id est récupéré côté contrôleur depuis le JWT
+===================================================== */
+
+router.get(
+  "/warehouse/scans",
+  roleMiddleware("super_admin", "dispatcher"),
+  getWarehouseScanHistory,
+);
+
+router.post(
+  "/warehouse/scan",
+  roleMiddleware("super_admin", "dispatcher"),
+  scanWarehousePackage,
 );
 
 router.get(

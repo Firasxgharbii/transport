@@ -15,24 +15,6 @@ const roleMiddleware = require(
 );
 
 /* =========================================================
-   IMPORTANT — ROUTES SCANNER
-
-   Les anciennes routes suivantes ont été retirées
-   temporairement car les fonctions correspondantes
-   n'existent pas actuellement dans driverController.js :
-
-   - driverController.getCurrentDriverOperations
-   - driverController.getCurrentDriverScanHistory
-   - driverController.scanPackage
-
-   Elles faisaient planter complètement le backend avec :
-   TypeError: argument handler must be a function
-
-   On les réactivera lorsque les fonctions scanner seront
-   ajoutées proprement dans driverController.js.
-========================================================= */
-
-/* =========================================================
    RÉCUPÉRER LE CHAUFFEUR CONNECTÉ
 
    GET /api/drivers/me
@@ -43,6 +25,48 @@ router.get(
   authMiddleware,
   roleMiddleware("driver"),
   driverController.getCurrentDriver
+);
+
+/* =========================================================
+   RÉCUPÉRER LES OPÉRATIONS DU CHAUFFEUR CONNECTÉ
+
+   GET /api/drivers/me/operations
+========================================================= */
+
+router.get(
+  "/me/operations",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.getCurrentDriverOperations
+);
+
+/* =========================================================
+   RÉCUPÉRER L'HISTORIQUE DES SCANS DU CHAUFFEUR CONNECTÉ
+
+   GET /api/drivers/me/scans
+
+   Optionnel :
+   GET /api/drivers/me/scans?limit=50
+========================================================= */
+
+router.get(
+  "/me/scans",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.getCurrentDriverScanHistory
+);
+
+/* =========================================================
+   SCANNER UN COLIS / UNE COMMANDE
+
+   POST /api/drivers/me/scan
+========================================================= */
+
+router.post(
+  "/me/scan",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.scanPackage
 );
 
 /* =========================================================

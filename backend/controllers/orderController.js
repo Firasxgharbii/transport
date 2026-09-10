@@ -1,4 +1,6 @@
 const OrderModel = require("../models/orderModel");
+const DriverModel = require("../models/driverModel");
+const ClientModel = require("../models/clientModel");
 
 const {
   uploadDeliveryProofFiles,
@@ -47,6 +49,42 @@ const ALLOWED_SERVICE_TYPES = [
   "delivery_only",
   "pickup_delivery",
 ];
+
+/*
+ * Parcours chauffeur autorisé.
+ * Les rôles administratifs conservent la capacité opérationnelle
+ * de corriger un statut lorsque nécessaire.
+ */
+const DRIVER_STATUS_TRANSITIONS = {
+  assigned: [
+    "pickup_in_progress",
+    "incident",
+  ],
+
+  pickup_in_progress: [
+    "picked_up",
+    "incident",
+  ],
+
+  picked_up: [
+    "delivery_in_progress",
+    "incident",
+  ],
+
+  delivery_in_progress: [
+    "arrived",
+    "incident",
+  ],
+
+  arrived: [
+    "completed",
+    "incident",
+  ],
+
+  completed: [],
+  cancelled: [],
+  incident: [],
+};
 
 /* ============================================================
    UTILITAIRES
@@ -167,6 +205,144 @@ function getAuthenticatedUserId(req) {
     req.user?.id ||
     req.user?.user_id ||
     null
+  );
+}
+
+function getAuthenticatedRole(req) {
+  return (
+    req.user?.role ||
+    req.user?.role_name ||
+    req.user?.roleName ||
+    null
+  );
+}
+
+function isPrivilegedRole(role) {
+  return (
+    role === "super_admin" ||
+    role === "dispatcher"
+  );
+}
+
+async function getAuthenticatedDriver(req) {
+  const userId =
+    parsePositiveId(
+      getAuthenticatedUserId(req),
+    );
+
+  if (!userId) {
+    return null;
+  }
+
+  return DriverModel.getDriverByUserId(
+    userId,
+  );
+}
+
+async function getAuthenticatedClient(req) {
+  const userId =
+    parsePositiveId(
+      getAuthenticatedUserId(req),
+    );
+
+  if (!userId) {
+    return null;
+  }
+
+  return ClientModel.getClientByUserId(
+    userId,
+  );
+}
+
+/*
+ * Autorisation par ressource.
+ *
+ * Important :
+ * - un rôle seul ne suffit pas ;
+ * - un chauffeur doit être réellement assigné à la commande ;
+ * - un client doit être réellement propriétaire de la commande.
+ */
+async function authorizeOrderAccess(
+  req,
+  order,
+) {
+  const role =
+    getAuthenticatedRole(req);
+
+  if (isPrivilegedRole(role)) {
+    return {
+      authorized: true,
+      role,
+      driver: null,
+      client: null,
+    };
+  }
+
+  if (role === "driver") {
+    const driver =
+      await getAuthenticatedDriver(req);
+
+    const authorized =
+      Boolean(
+        driver &&
+        Number(order?.driver_id) ===
+          Number(driver.id),
+      );
+
+    return {
+      authorized,
+      role,
+      driver,
+      client: null,
+    };
+  }
+
+  if (role === "client") {
+    const client =
+      await getAuthenticatedClient(req);
+
+    const authorized =
+      Boolean(
+        client &&
+        Number(order?.client_id) ===
+          Number(client.id),
+      );
+
+    return {
+      authorized,
+      role,
+      driver: null,
+      client,
+    };
+  }
+
+  return {
+    authorized: false,
+    role,
+    driver: null,
+    client: null,
+  };
+}
+
+function sendOrderNotFound(res) {
+  return res.status(404).json({
+    success: false,
+    message:
+      "Commande introuvable.",
+  });
+}
+
+function isAllowedDriverTransition(
+  currentStatus,
+  nextStatus,
+) {
+  const allowed =
+    DRIVER_STATUS_TRANSITIONS[
+      currentStatus
+    ] || [];
+
+  return allowed.includes(
+    nextStatus,
   );
 }
 
@@ -322,11 +498,22 @@ const getOrderById = async (
       );
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Commande introuvable.",
-      });
+      return sendOrderNotFound(res);
+    }
+
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    /*
+     * 404 volontaire pour les ressources qui ne sont pas
+     * accessibles au chauffeur/client authentifié.
+     * Cela évite d'aider à énumérer les identifiants.
+     */
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
     }
 
     const [
@@ -374,7 +561,6 @@ const getOrderById = async (
       success: false,
       message:
         "Erreur lors de la récupération de la commande.",
-      error: error.message,
     });
   }
 };
@@ -1712,6 +1898,8 @@ const updateOrderStatus = async (
     const {
       status,
       comment,
+      reason,
+      status_reason,
     } = req.body;
 
     if (!orderId) {
@@ -1741,11 +1929,17 @@ const updateOrderStatus = async (
       );
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Commande introuvable.",
-      });
+      return sendOrderNotFound(res);
+    }
+
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
     }
 
     if (
@@ -1758,23 +1952,37 @@ const updateOrderStatus = async (
       });
     }
 
-    /* ----------------------------------------------------------
-       Un chauffeur ne peut pas terminer manuellement une
-       livraison sans preuve complète.
+    /*
+     * Un chauffeur ne peut pas sauter les étapes.
+     * Les corrections opérationnelles restent possibles pour
+     * super_admin / dispatcher.
+     */
+    if (
+      access.role === "driver" &&
+      !isAllowedDriverTransition(
+        order.status,
+        status,
+      )
+    ) {
+      return res.status(409).json({
+        success: false,
+        code:
+          "INVALID_DRIVER_STATUS_TRANSITION",
+        message:
+          "Cette étape n’est pas autorisée dans l’état actuel de la livraison.",
+      });
+    }
 
-       La route POST /:id/proofs crée la preuve et passe ensuite
-       la commande à completed automatiquement.
-    ---------------------------------------------------------- */
-
-    const authenticatedRole =
-      req.user?.role ||
-      req.user?.role_name ||
-      req.user?.roleName ||
-      null;
-
+    /*
+     * Un chauffeur ne peut pas terminer manuellement une
+     * livraison sans preuve complète.
+     *
+     * La route POST /:id/proofs crée la preuve et passe ensuite
+     * la commande à completed automatiquement.
+     */
     if (
       status === "completed" &&
-      authenticatedRole === "driver"
+      access.role === "driver"
     ) {
       const proofs =
         await OrderModel.getDeliveryProofs(
@@ -1813,20 +2021,21 @@ const updateOrderStatus = async (
     if (
       result.affectedRows === 0
     ) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Commande introuvable.",
-      });
+      return sendOrderNotFound(res);
     }
+
+    const auditComment =
+      normalizeOptionalText(
+        comment ||
+        reason ||
+        status_reason,
+      );
 
     await OrderModel.insertStatusHistory(
       orderId,
       status,
       getAuthenticatedUserId(req),
-      normalizeOptionalText(
-        comment,
-      ),
+      auditComment,
     );
 
     const updatedOrder =
@@ -1851,7 +2060,6 @@ const updateOrderStatus = async (
       success: false,
       message:
         "Erreur lors de la modification du statut.",
-      error: error.message,
     });
   }
 };
@@ -1865,17 +2073,47 @@ const getDriverOrders = async (
   res,
 ) => {
   try {
-    const driverId =
+    const requestedDriverId =
       parsePositiveId(
         req.params.driverId,
       );
 
-    if (!driverId) {
+    if (!requestedDriverId) {
       return res.status(400).json({
         success: false,
         message:
           "Identifiant du chauffeur invalide.",
       });
+    }
+
+    const role =
+      getAuthenticatedRole(req);
+
+    let driverId =
+      requestedDriverId;
+
+    if (role === "driver") {
+      const authenticatedDriver =
+        await getAuthenticatedDriver(req);
+
+      if (
+        !authenticatedDriver ||
+        Number(
+          authenticatedDriver.id,
+        ) !==
+          Number(
+            requestedDriverId,
+          )
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Chauffeur introuvable.",
+        });
+      }
+
+      driverId =
+        authenticatedDriver.id;
     }
 
     const orders =
@@ -1899,7 +2137,6 @@ const getDriverOrders = async (
       success: false,
       message:
         "Erreur lors de la récupération des commandes du chauffeur.",
-      error: error.message,
     });
   }
 };
@@ -1930,11 +2167,17 @@ const getOrderStops = async (
       );
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Commande introuvable.",
-      });
+      return sendOrderNotFound(res);
+    }
+
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
     }
 
     const stops =
@@ -1958,7 +2201,6 @@ const getOrderStops = async (
       success: false,
       message:
         "Erreur lors de la récupération des arrêts.",
-      error: error.message,
     });
   }
 };
@@ -2200,6 +2442,46 @@ const updateOrderStop = async (
       });
     }
 
+    const stopOrderId =
+      parsePositiveId(
+        existingStop.order_id,
+      );
+
+    if (!stopOrderId) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Arrêt introuvable.",
+      });
+    }
+
+    const order =
+      await OrderModel.getOrderById(
+        stopOrderId,
+      );
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Arrêt introuvable.",
+      });
+    }
+
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    if (!access.authorized) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Arrêt introuvable.",
+      });
+    }
+
     if (
       req.body.stop_type &&
       !ALLOWED_STOP_TYPES.includes(
@@ -2312,7 +2594,6 @@ const updateOrderStop = async (
       success: false,
       message:
         "Erreur lors de la modification de l’arrêt.",
-      error: error.message,
     });
   }
 };
@@ -2407,6 +2688,25 @@ const getOrderTimeline = async (
       });
     }
 
+    const order =
+      await OrderModel.getOrderById(
+        orderId,
+      );
+
+    if (!order) {
+      return sendOrderNotFound(res);
+    }
+
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
+    }
+
     const timeline =
       await OrderModel.getOrderTimeline(
         orderId,
@@ -2428,7 +2728,6 @@ const getOrderTimeline = async (
       success: false,
       message:
         "Erreur lors de la récupération de l’historique.",
-      error: error.message,
     });
   }
 };
@@ -2453,6 +2752,25 @@ const getDeliveryProofs = async (
       });
     }
 
+    const order =
+      await OrderModel.getOrderById(
+        orderId,
+      );
+
+    if (!order) {
+      return sendOrderNotFound(res);
+    }
+
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
+    }
+
     const proofs =
       await OrderModel.getDeliveryProofs(
         orderId,
@@ -2474,7 +2792,6 @@ const getDeliveryProofs = async (
       success: false,
       message:
         "Erreur lors de la récupération des preuves de livraison.",
-      error: error.message,
     });
   }
 };
@@ -2505,37 +2822,80 @@ const createDeliveryProof = async (
       );
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "Commande introuvable.",
-      });
+      return sendOrderNotFound(res);
     }
 
-    const driverId =
-      parsePositiveId(
-        req.body?.driver_id ||
-          order.driver_id,
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
       );
 
-    if (!driverId) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Aucun chauffeur valide n’est associé à cette commande.",
-      });
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
     }
 
-    if (
-      order.driver_id &&
-      Number(order.driver_id) !==
-        Number(driverId)
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Ce chauffeur n’est pas assigné à cette commande.",
-      });
+    /*
+     * Pour un chauffeur, l'identité ne vient JAMAIS de req.body.
+     * Elle est dérivée du JWT -> users.id -> drivers.user_id.
+     */
+    let driverId = null;
+
+    if (access.role === "driver") {
+      driverId =
+        parsePositiveId(
+          access.driver?.id,
+        );
+
+      if (
+        !driverId ||
+        Number(order.driver_id) !==
+          Number(driverId)
+      ) {
+        return sendOrderNotFound(res);
+      }
+
+      /*
+       * La preuve finale ne peut être créée que lorsque
+       * le chauffeur a réellement atteint l'étape "arrived".
+       */
+      if (
+        order.status !== "arrived"
+      ) {
+        return res.status(409).json({
+          success: false,
+          code:
+            "DELIVERY_NOT_ARRIVED",
+          message:
+            "La preuve de livraison peut être enregistrée uniquement après avoir confirmé l’arrivée.",
+        });
+      }
+    } else {
+      driverId =
+        parsePositiveId(
+          req.body?.driver_id ||
+          order.driver_id,
+        );
+
+      if (!driverId) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Aucun chauffeur valide n’est associé à cette commande.",
+        });
+      }
+
+      if (
+        order.driver_id &&
+        Number(order.driver_id) !==
+          Number(driverId)
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Ce chauffeur n’est pas assigné à cette commande.",
+        });
+      }
     }
 
     const photoFile =
@@ -2565,11 +2925,6 @@ const createDeliveryProof = async (
       normalizeOptionalText(
         req.body?.notes,
       );
-
-    /* ----------------------------------------------------------
-       NOUVEAU FORMAT : multipart/form-data
-       photo + signature + nom du destinataire
-    ---------------------------------------------------------- */
 
     const isNewDeliveryProof =
       Boolean(
@@ -2636,10 +2991,6 @@ const createDeliveryProof = async (
 
           notes,
         });
-
-      /* --------------------------------------------------------
-         Une preuve complète termine automatiquement la commande.
-      -------------------------------------------------------- */
 
       if (
         order.status !== "completed"
@@ -2710,10 +3061,18 @@ const createDeliveryProof = async (
       });
     }
 
-    /* ----------------------------------------------------------
-       COMPATIBILITÉ AVEC L’ANCIEN FORMAT JSON
-       proof_type + file_url
-    ---------------------------------------------------------- */
+    /*
+     * L'ancien format JSON accepte des URL fournies par le client.
+     * Pour éviter qu'un chauffeur puisse fabriquer une preuve à partir
+     * d'une URL arbitraire, il est réservé aux rôles opérationnels.
+     */
+    if (access.role === "driver") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Une photo, une signature et le nom du destinataire sont obligatoires.",
+      });
+    }
 
     const allowedProofTypes = [
       "photo",
@@ -2798,7 +3157,6 @@ const createDeliveryProof = async (
       success: false,
       message:
         "Erreur lors de l’enregistrement de la preuve de livraison.",
-      error: error.message,
     });
   }
 };
@@ -2849,9 +3207,13 @@ const getAllDeliveryNotes = async (req, res) => {
 };
 
 // Récupérer un bon de livraison par commande
-const getDeliveryNoteByOrderId = async (req, res) => {
+const getDeliveryNoteByOrderId = async (
+  req,
+  res,
+) => {
   try {
-    const orderId = parsePositiveId(req.params.id);
+    const orderId =
+      parsePositiveId(req.params.id);
 
     if (!orderId) {
       return res.status(400).json({
@@ -2862,21 +3224,39 @@ const getDeliveryNoteByOrderId = async (req, res) => {
     }
 
     const order =
-      await OrderModel.getOrderById(orderId);
+      await OrderModel.getOrderById(
+        orderId,
+      );
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Commande introuvable.",
-      });
+      return sendOrderNotFound(res);
     }
 
-    const [stops, timeline, proofs] =
-      await Promise.all([
-        OrderModel.getOrderStops(orderId),
-        OrderModel.getOrderTimeline(orderId),
-        OrderModel.getDeliveryProofs(orderId),
-      ]);
+    const access =
+      await authorizeOrderAccess(
+        req,
+        order,
+      );
+
+    if (!access.authorized) {
+      return sendOrderNotFound(res);
+    }
+
+    const [
+      stops,
+      timeline,
+      proofs,
+    ] = await Promise.all([
+      OrderModel.getOrderStops(
+        orderId,
+      ),
+      OrderModel.getOrderTimeline(
+        orderId,
+      ),
+      OrderModel.getDeliveryProofs(
+        orderId,
+      ),
+    ]);
 
     const deliveryNote = {
       ...order,
@@ -2893,17 +3273,17 @@ const getDeliveryNoteByOrderId = async (req, res) => {
   } catch (error) {
     console.error(
       "Erreur getDeliveryNoteByOrderId :",
-      error
+      error,
     );
 
     return res.status(500).json({
       success: false,
       message:
         "Erreur lors de la récupération du bon de livraison.",
-      error: error.message,
     });
   }
 };
+
 /* ============================================================
    EXPORTS
 ============================================================ */
