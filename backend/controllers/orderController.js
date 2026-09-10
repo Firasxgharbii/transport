@@ -381,6 +381,46 @@ function normalizeServiceType(
   return null;
 }
 
+
+/*
+ * Compatibilité avec le schéma SQL actuel :
+ * les colonnes orders.pickup_address et orders.delivery_address
+ * sont obligatoires dans la base, alors que l'API accepte aussi
+ * pickup_only et delivery_only.
+ *
+ * Pour un service à une seule adresse opérationnelle, on conserve
+ * l'adresse réelle dans son champ et on la réplique dans l'autre
+ * champ uniquement pour satisfaire la contrainte NOT NULL SQL.
+ * Cela évite les erreurs ER_BAD_NULL_ERROR sans inventer une adresse.
+ */
+function getDatabaseCompatibleAddresses(
+  serviceType,
+  pickupAddress,
+  deliveryAddress,
+) {
+  if (serviceType === "pickup_only") {
+    return {
+      pickup_address: pickupAddress,
+      delivery_address:
+        deliveryAddress || pickupAddress,
+    };
+  }
+
+  if (serviceType === "delivery_only") {
+    return {
+      pickup_address:
+        pickupAddress || deliveryAddress,
+      delivery_address: deliveryAddress,
+    };
+  }
+
+  return {
+    pickup_address: pickupAddress,
+    delivery_address: deliveryAddress,
+  };
+}
+
+
 function buildOrderAuditComment({
   prefix,
   existingOrder,
@@ -709,6 +749,13 @@ const createOrder = async (
       });
     }
 
+    const databaseAddresses =
+      getDatabaseCompatibleAddresses(
+        normalizedServiceType,
+        normalizedPickupAddress,
+        normalizedDeliveryAddress,
+      );
+
     const normalizedPalletsCount =
       pallets_count === undefined ||
       pallets_count === null ||
@@ -831,10 +878,10 @@ const createOrder = async (
         normalizedVehicleId,
 
       pickup_address:
-        normalizedPickupAddress,
+        databaseAddresses.pickup_address,
 
       delivery_address:
-        normalizedDeliveryAddress,
+        databaseAddresses.delivery_address,
 
       pickup_date:
         pickup_date || null,
@@ -1080,6 +1127,18 @@ const createOrder = async (
       });
     }
 
+    if (
+      error.code ===
+      "ER_BAD_NULL_ERROR"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Une donnée obligatoire de la commande est manquante.",
+        error: error.message,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message:
@@ -1296,6 +1355,39 @@ const updateOrder = async (
         message:
           "Les adresses de ramassage et de livraison sont obligatoires pour ce type de commande.",
       });
+    }
+
+    const databaseAddresses =
+      getDatabaseCompatibleAddresses(
+        normalizedServiceType,
+        finalPickupAddress,
+        finalDeliveryAddress,
+      );
+
+    const addressOrServiceTypeChanged =
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "pickup_address",
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "delivery_address",
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "service_type",
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        req.body,
+        "order_type",
+      );
+
+    if (addressOrServiceTypeChanged) {
+      updatedData.pickup_address =
+        databaseAddresses.pickup_address;
+
+      updatedData.delivery_address =
+        databaseAddresses.delivery_address;
     }
 
     const nullableDateFields = [
@@ -1575,6 +1667,18 @@ const updateOrder = async (
         success: false,
         message:
           "Le client, le chauffeur ou le véhicule sélectionné n’existe pas.",
+      });
+    }
+
+    if (
+      error.code ===
+      "ER_BAD_NULL_ERROR"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Une donnée obligatoire de la commande est manquante.",
+        error: error.message,
       });
     }
 
