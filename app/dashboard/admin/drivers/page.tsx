@@ -634,12 +634,18 @@ export default function DriversPage() {
   }, [loadDrivers]);
 
   useEffect(() => {
+    // Évite que le rafraîchissement automatique perturbe
+    // le formulaire pendant l’ajout d’un chauffeur.
+    if (createModalOpen) {
+      return;
+    }
+
     const interval = window.setInterval(() => {
       void loadDrivers();
     }, 5000);
 
     return () => window.clearInterval(interval);
-  }, [loadDrivers]);
+  }, [loadDrivers, createModalOpen]);
 
   /* ==========================================================
      FORMULAIRE
