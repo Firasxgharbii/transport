@@ -30,7 +30,7 @@ import styles from "./scanner.module.css";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 type ScanSource =
   | "camera"
@@ -122,6 +122,9 @@ export default function DriverScannerPage() {
   const detectorRef = useRef<BarcodeDetectorInstance | null>(null);
   const lastDetectedRef = useRef<string>("");
   const lastDetectedAtRef = useRef<number>(0);
+  const scanInputRef = useRef<HTMLInputElement | null>(null);
+  const lastHardwareKeyAtRef = useRef<number>(0);
+  const hardwareBurstRef = useRef(0);
 
   const [manualCode, setManualCode] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
@@ -134,6 +137,59 @@ export default function DriverScannerPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [lastCode, setLastCode] = useState("");
+
+  const isZebraDevice = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+
+    return /zebra|tc7\d|tc5\d|tc2\d|mc\d+/i.test(
+      navigator.userAgent,
+    );
+  }, []);
+
+  const focusScanInput = useCallback(() => {
+    window.setTimeout(() => {
+      scanInputRef.current?.focus();
+      scanInputRef.current?.select();
+    }, 80);
+  }, []);
+
+  const getFreshPosition = useCallback(async (): Promise<Position | null> => {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.geolocation
+    ) {
+      return null;
+    }
+
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (gps) => {
+          const freshPosition = {
+            latitude: gps.coords.latitude,
+            longitude: gps.coords.longitude,
+            accuracy: gps.coords.accuracy ?? null,
+          };
+
+          setPosition(freshPosition);
+          setPositionMessage(
+            gps.coords.accuracy
+              ? `GPS prêt · précision ±${Math.round(gps.coords.accuracy)} m`
+              : "GPS prêt",
+          );
+
+          resolve(freshPosition);
+        },
+        () => {
+          resolve(null);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 6500,
+          maximumAge: 0,
+        },
+      );
+    });
+  }, []);
 
   const resultTone = useMemo(() => {
     if (!result) return "";
@@ -183,6 +239,10 @@ export default function DriverScannerPage() {
       setLastCode(scannedCode);
 
       try {
+        const freshPosition =
+          (await getFreshPosition()) ||
+          position;
+
         const response = await fetch(
           `${API_URL}/api/drivers/me/scan`,
           {
@@ -196,10 +256,12 @@ export default function DriverScannerPage() {
               scanned_code: scannedCode,
               scan_type: "auto",
               scan_source: source,
-              latitude: position?.latitude ?? null,
-              longitude: position?.longitude ?? null,
-              accuracy: position?.accuracy ?? null,
-              device_type: "web_driver_scanner",
+              latitude: freshPosition?.latitude ?? null,
+              longitude: freshPosition?.longitude ?? null,
+              accuracy: freshPosition?.accuracy ?? null,
+              device_type: isZebraDevice
+                ? "zebra_tc77"
+                : "web_driver_scanner",
               device_name:
                 typeof navigator !== "undefined"
                   ? navigator.userAgent.slice(0, 140)
@@ -233,6 +295,8 @@ export default function DriverScannerPage() {
         if (response.ok) {
           setManualCode("");
         }
+
+        focusScanInput();
       } catch (error) {
         console.error(error);
         setResult({
@@ -245,7 +309,14 @@ export default function DriverScannerPage() {
         setSubmitting(false);
       }
     },
-    [position, router, submitting],
+    [
+      focusScanInput,
+      getFreshPosition,
+      isZebraDevice,
+      position,
+      router,
+      submitting,
+    ],
   );
 
   const scanFrame = useCallback(async () => {
@@ -389,6 +460,10 @@ export default function DriverScannerPage() {
   }, []);
 
   useEffect(() => {
+    focusScanInput();
+  }, [focusScanInput]);
+
+  useEffect(() => {
     return () => {
       stopCamera();
     };
@@ -505,13 +580,24 @@ export default function DriverScannerPage() {
           </div>
 
           <p className={styles.helperText}>
-            Vous pouvez taper le numéro de commande ou utiliser plus tard le Zebra TC77 comme scanner clavier.
+            Le Zebra TC77/DataWedge peut scanner directement dans ce champ. Le système distingue un scan matériel d'une saisie manuelle et garde le champ prêt pour le prochain colis.
           </p>
 
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void submitCode(manualCode, "manual");
+
+              const recentHardwareBurst =
+                Date.now() - lastHardwareKeyAtRef.current < 500 &&
+                hardwareBurstRef.current >= 4;
+
+              const source: ScanSource =
+                isZebraDevice || recentHardwareBurst
+                  ? "zebra"
+                  : "manual";
+
+              hardwareBurstRef.current = 0;
+              void submitCode(manualCode, source);
             }}
             className={styles.manualForm}
           >
@@ -522,15 +608,37 @@ export default function DriverScannerPage() {
             <div className={styles.inputWrap}>
               <ScanLine size={19} />
               <input
+                ref={scanInputRef}
                 id="scan-code"
                 type="text"
+                inputMode="text"
                 autoComplete="off"
                 autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
                 placeholder="GLY-2026-000125-P01"
                 value={manualCode}
                 onChange={(event) =>
                   setManualCode(event.target.value.toUpperCase())
                 }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    return;
+                  }
+
+                  const now = Date.now();
+
+                  if (
+                    now - lastHardwareKeyAtRef.current <= 80
+                  ) {
+                    hardwareBurstRef.current += 1;
+                  } else {
+                    hardwareBurstRef.current = 1;
+                  }
+
+                  lastHardwareKeyAtRef.current = now;
+                }}
               />
             </div>
 
@@ -554,9 +662,13 @@ export default function DriverScannerPage() {
           <div className={styles.deviceInfo}>
             <Smartphone size={18} />
             <div>
-              <strong>Téléphone aujourd'hui, Zebra demain</strong>
+              <strong>
+                {isZebraDevice
+                  ? "Zebra TC77 détecté"
+                  : "Scanner matériel compatible"}
+              </strong>
               <span>
-                Le backend et les codes restent exactement les mêmes.
+                DataWedge doit utiliser la Sortie de touches. Après le scan, la touche Entrée valide immédiatement le colis.
               </span>
             </div>
           </div>
