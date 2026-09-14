@@ -1503,14 +1503,54 @@ const DriverModel = {
       ------------------------------------------------- */
 
       if (!packageRow) {
+        /*
+         * Compatibilité avec les références Glory imprimées.
+         *
+         * Cas normal :
+         *   GLY-2026-000031 == orders.order_number
+         *
+         * Cas de secours :
+         *   certaines anciennes commandes peuvent avoir un
+         *   order_number formaté différemment alors que la
+         *   référence imprimée conserve l'ID de commande dans
+         *   les 6 derniers chiffres.
+         *
+         * Exemple :
+         *   GLY-2026-000031 -> order id 31
+         *
+         * Le fallback par ID ne s'applique QUE si le code
+         * respecte exactement le format GLY-YYYY-NNNNNN.
+         */
+        const referenceMatch =
+          /^GLY-\d{4}-(\d{6})$/.exec(cleanCode);
+
+        const referenceOrderId =
+          referenceMatch
+            ? Number(referenceMatch[1])
+            : null;
+
         const [orderRows] = await connection.query(
           `
             SELECT id, order_number
             FROM orders
-            WHERE UPPER(order_number) = ?
+            WHERE UPPER(TRIM(order_number)) = ?
+               OR (
+                 ? IS NOT NULL
+                 AND id = ?
+               )
+            ORDER BY
+              CASE
+                WHEN UPPER(TRIM(order_number)) = ? THEN 0
+                ELSE 1
+              END ASC
             LIMIT 1
           `,
-          [cleanCode]
+          [
+            cleanCode,
+            referenceOrderId,
+            referenceOrderId,
+            cleanCode,
+          ]
         );
 
         const order = orderRows[0] || null;
