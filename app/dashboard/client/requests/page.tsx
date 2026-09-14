@@ -10,6 +10,7 @@ type DateChoice = "today" | "tomorrow" | "custom";
 
 export default function RequestsPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     pickupAddress: "",
@@ -93,43 +94,95 @@ export default function RequestsPage() {
   }
 
   async function handleConfirmOrder() {
+    if (submitting) return;
+
     try {
-      /*
-        IMPORTANT :
-        On branchera ensuite ce formulaire sur ton API réelle.
+      setSubmitting(true);
 
-        Exemple futur :
+      const token = localStorage.getItem("glory_token");
+      if (!token) {
+        alert("Votre session a expiré. Veuillez vous reconnecter.");
+        window.location.href = "/login";
+        return;
+      }
 
-        const token = localStorage.getItem("glory_token");
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/orders`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              ...
-            }),
-          }
+      const pickupDate =
+        form.dateChoice === "custom"
+          ? form.customDate
+          : (() => {
+              const date = new Date();
+              if (form.dateChoice === "tomorrow") {
+                date.setDate(date.getDate() + 1);
+              }
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              return `${year}-${month}-${day}`;
+            })();
+
+      const response = await fetch(`${apiUrl}/api/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          delivery_address: form.deliveryAddress.trim(),
+          delivery_unit: form.deliveryUnit.trim() || null,
+          destination_type: form.addressType,
+          company_name:
+            form.addressType === "commercial"
+              ? form.companyName.trim() || null
+              : null,
+          contact_name: form.contactName.trim() || null,
+          contact_phone: form.contactPhone.trim() || null,
+          contact_extension: form.contactExtension.trim() || null,
+          package_type: form.packageType,
+          quantity: Number(form.quantity),
+          weight: Number(form.weight),
+          weight_unit: form.weightUnit,
+          length: form.length ? Number(form.length) : null,
+          width: form.width ? Number(form.width) : null,
+          height: form.height ? Number(form.height) : null,
+          dimension_unit: form.dimensionUnit,
+          pickup_date: pickupDate,
+          notes: form.notes.trim() || null,
+          signature_required: form.signatureRequired,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.message ||
+            "Impossible de créer la commande."
         );
-      */
+      }
 
-      const temporaryReference =
-        "GLY-" +
-        new Date().getFullYear() +
-        "-" +
-        String(Math.floor(Math.random() * 999999)).padStart(6, "0");
+      const order = payload?.order || payload?.data;
+      const reference = order?.order_number;
 
-      setCreatedReference(temporaryReference);
+      if (!reference) {
+        throw new Error(
+          "La commande a été créée, mais la référence est introuvable."
+        );
+      }
+
+      setCreatedReference(reference);
       setStep(3);
-
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
-      alert("Impossible de créer la commande.");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Impossible de créer la commande."
+      );
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -651,6 +704,7 @@ export default function RequestsPage() {
 
               <button
                 onClick={handleConfirmOrder}
+                disabled={submitting}
                 style={primaryButtonStyle}
               >
                 Confirmer la commande
