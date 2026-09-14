@@ -50,6 +50,42 @@ const ALLOWED_SERVICE_TYPES = [
   "pickup_delivery",
 ];
 
+
+const ALLOWED_DESTINATION_TYPES = ["residential", "commercial"];
+const ALLOWED_PACKAGE_TYPES = ["box", "pallet"];
+const ALLOWED_WEIGHT_UNITS = ["lb", "kg"];
+const ALLOWED_DIMENSION_UNITS = ["in", "cm"];
+
+function normalizeBoolean(value, defaultValue = false) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "oui", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "non", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function normalizeLimitedText(value, maxLength) {
+  const text = normalizeOptionalText(value);
+  if (!text) return null;
+  return text.slice(0, maxLength);
+}
+
+function buildClientPickupAddress(client) {
+  return [client?.address, client?.city, client?.province, client?.postal_code]
+    .map((part) => normalizeOptionalText(part))
+    .filter(Boolean)
+    .join(", ");
+}
+
+function isIsoDate(value) {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return false;
+  const parsed = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(parsed.getTime());
+}
+
 /*
  * Parcours chauffeur autorisé.
  * Les rôles administratifs conservent la capacité opérationnelle
@@ -516,92 +552,60 @@ const getAllOrders = async (
    RÉCUPÉRER UNE COMMANDE PAR ID
 ============================================================ */
 
+const getMyOrders = async (req, res) => {
+  try {
+    const role = getAuthenticatedRole(req);
+    if (role !== "client") {
+      return res.status(403).json({ success: false, message: "Accès réservé aux clients." });
+    }
+
+    const client = await getAuthenticatedClient(req);
+    if (!client) {
+      return res.status(403).json({ success: false, message: "Profil client introuvable." });
+    }
+
+    const orders = await OrderModel.getClientOrders(client.id);
+    return res.status(200).json({ success: true, count: orders.length, data: orders, orders });
+  } catch (error) {
+    console.error("Erreur getMyOrders :", error);
+    return res.status(500).json({ success: false, message: "Erreur lors de la récupération de vos commandes." });
+  }
+};
+
 const getOrderById = async (
   req,
   res,
 ) => {
   try {
-    const orderId =
-      parsePositiveId(req.params.id);
+    const orderId = parsePositiveId(req.params.id);
 
     if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Identifiant de commande invalide.",
-      });
+      return res.status(400).json({ success: false, message: "Identifiant de commande invalide." });
     }
 
-    const order =
-      await OrderModel.getOrderById(
-        orderId,
-      );
+    const order = await OrderModel.getOrderById(orderId);
+    if (!order) return sendOrderNotFound(res);
 
-    if (!order) {
-      return sendOrderNotFound(res);
-    }
+    const access = await authorizeOrderAccess(req, order);
+    if (!access.authorized) return sendOrderNotFound(res);
 
-    const access =
-      await authorizeOrderAccess(
-        req,
-        order,
-      );
-
-    /*
-     * 404 volontaire pour les ressources qui ne sont pas
-     * accessibles au chauffeur/client authentifié.
-     * Cela évite d'aider à énumérer les identifiants.
-     */
-    if (!access.authorized) {
-      return sendOrderNotFound(res);
-    }
-
-    const [
-      stops,
-      timeline,
-      proofs,
-    ] = await Promise.all([
-      OrderModel.getOrderStops(
-        orderId,
-      ),
-
-      OrderModel.getOrderTimeline(
-        orderId,
-      ),
-
-      OrderModel.getDeliveryProofs(
-        orderId,
-      ),
+    const [stops, timeline, proofs, packages] = await Promise.all([
+      OrderModel.getOrderStops(orderId),
+      OrderModel.getOrderTimeline(orderId),
+      OrderModel.getDeliveryProofs(orderId),
+      OrderModel.getOrderPackages(orderId),
     ]);
+
+    const fullOrder = { ...order, stops, timeline, proofs, packages };
 
     return res.status(200).json({
       success: true,
-
-      data: {
-        ...order,
-        stops,
-        timeline,
-        proofs,
-      },
-
-      order: {
-        ...order,
-        stops,
-        timeline,
-        proofs,
-      },
+      data: fullOrder,
+      order: fullOrder,
     });
   } catch (error) {
-    console.error(
-      "Erreur getOrderById :",
-      error,
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Erreur lors de la récupération de la commande.",
-    });
+    console.error("Erreur getOrderById :", error);
+    return res.status(500).json({ success: false, message: "Erreur lors de la récupération de la commande." });
   }
 };
 
@@ -609,542 +613,282 @@ const getOrderById = async (
    CRÉER UNE COMMANDE
 ============================================================ */
 
-const createOrder = async (
-  req,
-  res,
-) => {
+const createOrder = async (req, res) => {
+  let createdOrderId = null;
+
   try {
-    const {
-      client_id,
-      driver_id,
-      vehicle_id,
+    const role = getAuthenticatedRole(req);
+    const privileged = isPrivilegedRole(role);
 
-      pickup_address,
-      delivery_address,
-
-      pickup_date,
-      pickup_time,
-
-      delivery_date,
-      delivery_time,
-
-      pallets_count,
-
-      description,
-      notes,
-
-      subtotal,
-      taxes,
-      total_amount,
-
-      estimated_distance,
-      estimated_duration,
-
-      priority,
-      onfleet_task_id,
-
-      status,
-      stops,
-      service_type,
-      order_type,
-    } = req.body;
-
-    const clientId =
-      parsePositiveId(client_id);
-
-    if (!clientId) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Le client est obligatoire et doit être valide.",
-      });
+    if (!privileged && role !== "client") {
+      return res.status(403).json({ success: false, message: "Vous n’êtes pas autorisé à créer une commande." });
     }
 
-    const normalizedDriverId =
-      normalizeNullableId(driver_id);
+    let client = null;
+    let clientId = null;
+    let pickupAddress = null;
 
-    if (
-      driver_id &&
-      !normalizedDriverId
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Identifiant du chauffeur invalide.",
-      });
+    if (role === "client") {
+      client = await getAuthenticatedClient(req);
+      if (!client) {
+        return res.status(403).json({ success: false, message: "Profil client introuvable." });
+      }
+
+      clientId = Number(client.id);
+      pickupAddress = buildClientPickupAddress(client);
+
+      if (!pickupAddress || !client.address || !client.city || !client.province || !client.postal_code) {
+        return res.status(400).json({
+          success: false,
+          code: "CLIENT_ADDRESS_INCOMPLETE",
+          message: "Complétez l’adresse, la ville, la province et le code postal de votre profil avant de créer une commande.",
+        });
+      }
+    } else {
+      clientId = parsePositiveId(req.body.client_id);
+      if (!clientId) {
+        return res.status(400).json({ success: false, message: "Le client est obligatoire et doit être valide." });
+      }
+      pickupAddress = normalizeLimitedText(req.body.pickup_address, 500);
     }
 
-    const normalizedVehicleId =
-      normalizeNullableId(vehicle_id);
-
-    if (
-      vehicle_id &&
-      !normalizedVehicleId
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Identifiant du véhicule invalide.",
-      });
+    const deliveryAddress = normalizeLimitedText(req.body.delivery_address, 500);
+    if (!deliveryAddress) {
+      return res.status(400).json({ success: false, message: "L’adresse de livraison est obligatoire." });
     }
 
-    const normalizedPickupAddress =
-      normalizeOptionalText(
-        pickup_address,
-      );
-
-    const normalizedDeliveryAddress =
-      normalizeOptionalText(
-        delivery_address,
-      );
-
-    const normalizedServiceType =
-      normalizeServiceType(
-        service_type || order_type,
-        normalizedPickupAddress,
-        normalizedDeliveryAddress,
-      );
-
-    if (!normalizedServiceType) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Le type de commande est invalide. Utilisez pickup_only, delivery_only ou pickup_delivery.",
-      });
+    const destinationType = String(req.body.destination_type || "residential").trim().toLowerCase();
+    if (!ALLOWED_DESTINATION_TYPES.includes(destinationType)) {
+      return res.status(400).json({ success: false, message: "Type d’adresse de destination invalide." });
     }
 
-    if (
-      normalizedServiceType === "pickup_only" &&
-      !normalizedPickupAddress
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "L’adresse de ramassage est obligatoire pour une commande de ramassage seulement.",
-      });
+    const packageType = String(req.body.package_type || "box").trim().toLowerCase();
+    if (!ALLOWED_PACKAGE_TYPES.includes(packageType)) {
+      return res.status(400).json({ success: false, message: "Type de colis invalide." });
     }
 
-    if (
-      normalizedServiceType === "delivery_only" &&
-      !normalizedDeliveryAddress
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "L’adresse de livraison est obligatoire pour une commande de livraison seulement.",
-      });
+    const quantity = Number(req.body.quantity ?? req.body.package_quantity ?? 1);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+      return res.status(400).json({ success: false, message: "La quantité doit être comprise entre 1 et 100." });
     }
 
-    if (
-      normalizedServiceType === "pickup_delivery" &&
-      (
-        !normalizedPickupAddress ||
-        !normalizedDeliveryAddress
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Les adresses de ramassage et de livraison sont obligatoires pour ce type de commande.",
-      });
+    const weight = normalizeNullableNumber(req.body.weight);
+    if (weight === null || weight <= 0 || weight > 100000) {
+      return res.status(400).json({ success: false, message: "Le poids doit être supérieur à zéro." });
     }
 
-    const databaseAddresses =
-      getDatabaseCompatibleAddresses(
-        normalizedServiceType,
-        normalizedPickupAddress,
-        normalizedDeliveryAddress,
-      );
-
-    const normalizedPalletsCount =
-      pallets_count === undefined ||
-      pallets_count === null ||
-      pallets_count === ""
-        ? 0
-        : Number(pallets_count);
-
-    if (
-      !Number.isInteger(
-        normalizedPalletsCount,
-      ) ||
-      normalizedPalletsCount < 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Le nombre de palettes doit être un entier positif ou égal à zéro.",
-      });
+    const weightUnit = String(req.body.weight_unit || "lb").trim().toLowerCase();
+    if (!ALLOWED_WEIGHT_UNITS.includes(weightUnit)) {
+      return res.status(400).json({ success: false, message: "Unité de poids invalide." });
     }
 
-    const normalizedPriority =
-      priority || "normal";
-
-    if (
-      !ALLOWED_PRIORITIES.includes(
-        normalizedPriority,
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Priorité de commande invalide.",
-      });
+    const dimensionUnit = String(req.body.dimension_unit || "in").trim().toLowerCase();
+    if (!ALLOWED_DIMENSION_UNITS.includes(dimensionUnit)) {
+      return res.status(400).json({ success: false, message: "Unité de dimensions invalide." });
     }
 
-    const normalizedStatus =
-      status ||
-      (normalizedDriverId
-        ? "assigned"
-        : "pending");
-
-    if (
-      !ALLOWED_ORDER_STATUSES.includes(
-        normalizedStatus,
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Statut de commande invalide.",
-      });
+    const dimensions = {};
+    for (const field of ["length", "width", "height"]) {
+      const value = normalizeNullableNumber(req.body[field]);
+      if (value !== null && (value <= 0 || value > 10000)) {
+        return res.status(400).json({ success: false, message: `La dimension ${field} est invalide.` });
+      }
+      dimensions[field] = value;
     }
 
-    const amounts =
-      calculateOrderAmounts({
-        subtotal,
-        taxes,
-        total_amount,
-      });
-
-    if (!amounts) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Les montants financiers sont invalides.",
-      });
+    const pickupDate = normalizeOptionalText(req.body.pickup_date);
+    const deliveryDate = normalizeOptionalText(req.body.delivery_date);
+    if (!isIsoDate(pickupDate) || !isIsoDate(deliveryDate)) {
+      return res.status(400).json({ success: false, message: "Format de date invalide. Utilisez AAAA-MM-JJ." });
     }
 
-    const normalizedDistance =
-      normalizeNullableNumber(
-        estimated_distance,
-      );
+    const signatureRequired = normalizeBoolean(req.body.signature_required, false);
+    const companyName = destinationType === "commercial" ? normalizeLimitedText(req.body.company_name, 150) : null;
+    const contactName = normalizeLimitedText(req.body.contact_name, 150);
+    const contactPhone = normalizeLimitedText(req.body.contact_phone, 30);
+    const contactExtension = normalizeLimitedText(req.body.contact_extension, 20);
+    const deliveryUnit = normalizeLimitedText(req.body.delivery_unit, 50);
+    const notes = normalizeLimitedText(req.body.notes, 2000);
+    const description = normalizeLimitedText(req.body.description, 500);
 
-    if (
-      normalizedDistance !== null &&
-      normalizedDistance < 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "La distance estimée ne peut pas être négative.",
+    let driverId = null;
+    let vehicleId = null;
+    let priority = "normal";
+    let status = "pending";
+    let subtotal = 0;
+    let taxes = 0;
+    let totalAmount = 0;
+
+    if (privileged) {
+      driverId = normalizeNullableId(req.body.driver_id);
+      vehicleId = normalizeNullableId(req.body.vehicle_id);
+      priority = ALLOWED_PRIORITIES.includes(req.body.priority) ? req.body.priority : "normal";
+      status = ALLOWED_ORDER_STATUSES.includes(req.body.status)
+        ? req.body.status
+        : (driverId ? "assigned" : "pending");
+
+      const amounts = calculateOrderAmounts({
+        subtotal: req.body.subtotal,
+        taxes: req.body.taxes,
+        total_amount: req.body.total_amount,
       });
+      if (!amounts) {
+        return res.status(400).json({ success: false, message: "Les montants financiers sont invalides." });
+      }
+      subtotal = amounts.subtotal;
+      taxes = amounts.taxes;
+      totalAmount = amounts.total_amount;
     }
 
-    const normalizedDuration =
-      normalizeNullableNumber(
-        estimated_duration,
-      );
-
-    if (
-      normalizedDuration !== null &&
-      (
-        !Number.isInteger(
-          normalizedDuration,
-        ) ||
-        normalizedDuration < 0
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "La durée estimée doit être exprimée en minutes.",
-      });
-    }
-
-    const orderNumber =
-      await OrderModel.generateOrderNumber();
+    const palletsCount = packageType === "pallet" ? quantity : 0;
+    const orderNumber = await OrderModel.generateOrderNumber();
 
     const orderData = {
-      order_number:
-        orderNumber,
-
-      client_id:
-        clientId,
-
-      driver_id:
-        normalizedDriverId,
-
-      vehicle_id:
-        normalizedVehicleId,
-
-      pickup_address:
-        databaseAddresses.pickup_address,
-
-      delivery_address:
-        databaseAddresses.delivery_address,
-
-      pickup_date:
-        pickup_date || null,
-
-      pickup_time:
-        pickup_time || null,
-
-      delivery_date:
-        delivery_date || null,
-
-      delivery_time:
-        delivery_time || null,
-
-      pallets_count:
-        normalizedPalletsCount,
-
-      description:
-        normalizeOptionalText(
-          description,
-        ),
-
-      notes:
-        normalizeOptionalText(
-          notes,
-        ),
-
-      subtotal:
-        amounts.subtotal,
-
-      taxes:
-        amounts.taxes,
-
-      total_amount:
-        amounts.total_amount,
-
-      estimated_distance:
-        normalizedDistance,
-
-      estimated_duration:
-        normalizedDuration,
-
-      priority:
-        normalizedPriority,
-
-      onfleet_task_id:
-        normalizeOptionalText(
-          onfleet_task_id,
-        ),
-
-      status:
-        normalizedStatus,
+      order_number: orderNumber,
+      client_id: clientId,
+      driver_id: driverId,
+      pickup_driver_id: privileged ? normalizeNullableId(req.body.pickup_driver_id) : null,
+      delivery_driver_id: privileged ? normalizeNullableId(req.body.delivery_driver_id) : null,
+      vehicle_id: vehicleId,
+      pickup_address: pickupAddress,
+      delivery_address: deliveryAddress,
+      destination_type: destinationType,
+      company_name: companyName,
+      contact_name: contactName,
+      contact_phone: contactPhone,
+      contact_extension: contactExtension,
+      delivery_unit: deliveryUnit,
+      signature_required: signatureRequired,
+      pickup_date: pickupDate,
+      pickup_time: normalizeOptionalText(req.body.pickup_time),
+      delivery_date: deliveryDate,
+      delivery_time: normalizeOptionalText(req.body.delivery_time),
+      pallets_count: palletsCount,
+      description,
+      notes,
+      subtotal,
+      taxes,
+      total_amount: totalAmount,
+      estimated_distance: privileged ? normalizeNullableNumber(req.body.estimated_distance) : null,
+      estimated_duration: privileged ? normalizeNullableNumber(req.body.estimated_duration) : null,
+      priority,
+      route_position: privileged ? normalizeNullableNumber(req.body.route_position) : null,
+      onfleet_task_id: privileged ? normalizeOptionalText(req.body.onfleet_task_id) : null,
+      status,
     };
 
-    const orderId =
-      await OrderModel.createOrder(
-        orderData,
-      );
+    createdOrderId = await OrderModel.createOrder(orderData);
 
-    /*
-     * Ajoute les arrêts supplémentaires.
-     * Les adresses principales restent aussi
-     * dans pickup_address et delivery_address.
-     */
-    if (
-      Array.isArray(stops) &&
-      stops.length > 0
-    ) {
-      for (
-        let index = 0;
-        index < stops.length;
-        index += 1
-      ) {
-        const stop =
-          stops[index];
+    // Deux arrêts standards : ramassage + livraison.
+    if (role === "client") {
+      await OrderModel.createOrderStop(createdOrderId, {
+        stop_order: 1,
+        stop_type: "pickup",
+        customer_name: [client.first_name, client.last_name].filter(Boolean).join(" ") || null,
+        company_name: client.company_name || null,
+        contact_name: [client.first_name, client.last_name].filter(Boolean).join(" ") || null,
+        phone: client.phone || null,
+        email: client.email || null,
+        address: client.address,
+        city: client.city,
+        province: client.province,
+        postal_code: client.postal_code,
+        status: "pending",
+        notes: null,
+      });
 
-        const stopAddress =
-          normalizeOptionalText(
-            stop.address,
-          );
-
-        if (!stopAddress) {
-          continue;
-        }
-
-        const stopType =
-          ALLOWED_STOP_TYPES.includes(
-            stop.stop_type,
-          )
-            ? stop.stop_type
-            : "delivery";
-
-        await OrderModel.createOrderStop(
-          orderId,
-          {
-            stop_order:
-              Number.isInteger(
-                Number(
-                  stop.stop_order,
-                ),
-              )
-                ? Number(
-                    stop.stop_order,
-                  )
-                : index + 1,
-
-            stop_type:
-              stopType,
-
-            customer_name:
-              normalizeOptionalText(
-                stop.customer_name,
-              ),
-
-            company_name:
-              normalizeOptionalText(
-                stop.company_name,
-              ),
-
-            contact_name:
-              normalizeOptionalText(
-                stop.contact_name,
-              ),
-
-            phone:
-              normalizeOptionalText(
-                stop.phone,
-              ),
-
-            email:
-              normalizeOptionalText(
-                stop.email,
-              ),
-
-            address:
-              stopAddress,
-
-            city:
-              normalizeOptionalText(
-                stop.city,
-              ),
-
-            province:
-              normalizeOptionalText(
-                stop.province,
-              ),
-
-            postal_code:
-              normalizeOptionalText(
-                stop.postal_code,
-              ),
-
-            latitude:
-              normalizeNullableNumber(
-                stop.latitude,
-              ),
-
-            longitude:
-              normalizeNullableNumber(
-                stop.longitude,
-              ),
-
-            scheduled_start:
-              stop.scheduled_start ||
-              null,
-
-            scheduled_end:
-              stop.scheduled_end ||
-              null,
-
-            status:
-              ALLOWED_STOP_STATUSES.includes(
-                stop.status,
-              )
-                ? stop.status
-                : "pending",
-
-            notes:
-              normalizeOptionalText(
-                stop.notes,
-              ),
-          },
-        );
+      await OrderModel.createOrderStop(createdOrderId, {
+        stop_order: 2,
+        stop_type: "delivery",
+        customer_name: contactName,
+        company_name: companyName,
+        contact_name: contactName,
+        phone: contactPhone,
+        email: null,
+        address: deliveryAddress,
+        city: normalizeLimitedText(req.body.delivery_city, 100),
+        province: normalizeLimitedText(req.body.delivery_province, 100),
+        postal_code: normalizeLimitedText(req.body.delivery_postal_code, 20),
+        latitude: normalizeNullableNumber(req.body.delivery_latitude),
+        longitude: normalizeNullableNumber(req.body.delivery_longitude),
+        status: "pending",
+        notes: deliveryUnit ? `Unité / suite : ${deliveryUnit}` : null,
+      });
+    } else if (Array.isArray(req.body.stops)) {
+      for (let index = 0; index < req.body.stops.length; index += 1) {
+        const stop = req.body.stops[index] || {};
+        const stopAddress = normalizeLimitedText(stop.address, 500);
+        if (!stopAddress) continue;
+        await OrderModel.createOrderStop(createdOrderId, {
+          ...stop,
+          stop_order: Number.isInteger(Number(stop.stop_order)) ? Number(stop.stop_order) : index + 1,
+          stop_type: ALLOWED_STOP_TYPES.includes(stop.stop_type) ? stop.stop_type : "delivery",
+          address: stopAddress,
+          status: ALLOWED_STOP_STATUSES.includes(stop.status) ? stop.status : "pending",
+        });
       }
     }
 
+    for (let i = 1; i <= quantity; i += 1) {
+      const barcode = quantity === 1
+        ? orderNumber
+        : `${orderNumber}-P${String(i).padStart(3, "0")}`;
+
+      await OrderModel.createOrderPackage(createdOrderId, {
+        barcode,
+        package_number: i,
+        package_type: packageType,
+        description,
+        weight,
+        weight_unit: weightUnit,
+        length: dimensions.length,
+        width: dimensions.width,
+        height: dimensions.height,
+        dimension_unit: dimensionUnit,
+        current_status: "created",
+      });
+    }
+
     await OrderModel.insertStatusHistory(
-      orderId,
-      normalizedStatus,
+      createdOrderId,
+      status,
       getAuthenticatedUserId(req),
-      `Commande créée · type ${normalizedServiceType}`,
+      role === "client" ? "Commande créée par le client" : "Commande créée par l’équipe opérationnelle",
     );
 
-    const createdOrder =
-      await OrderModel.getOrderById(
-        orderId,
-      );
-
-    const createdStops =
-      await OrderModel.getOrderStops(
-        orderId,
-      );
+    const [createdOrder, createdStops, packages] = await Promise.all([
+      OrderModel.getOrderById(createdOrderId),
+      OrderModel.getOrderStops(createdOrderId),
+      OrderModel.getOrderPackages(createdOrderId),
+    ]);
 
     return res.status(201).json({
       success: true,
-      message:
-        "Commande créée avec succès.",
-
-      data: {
-        ...createdOrder,
-        stops: createdStops,
-      },
-
-      order: {
-        ...createdOrder,
-        stops: createdStops,
-      },
+      message: "Commande créée avec succès.",
+      data: { ...createdOrder, stops: createdStops, packages },
+      order: { ...createdOrder, stops: createdStops, packages },
     });
   } catch (error) {
-    console.error(
-      "Erreur createOrder :",
-      error,
-    );
+    console.error("Erreur createOrder :", error);
 
-    if (
-      error.code ===
-      "ER_DUP_ENTRY"
-    ) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Le numéro de commande ou la position d’un arrêt existe déjà.",
-      });
+    // Nettoyage compensatoire si une sous-création échoue.
+    if (createdOrderId) {
+      try { await OrderModel.deleteOrder(createdOrderId); } catch (cleanupError) {
+        console.error("Erreur nettoyage commande incomplète :", cleanupError);
+      }
     }
 
-    if (
-      error.code ===
-      "ER_NO_REFERENCED_ROW_2"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Le client, le chauffeur, le véhicule ou une autre donnée liée n’existe pas.",
-      });
+    if (error.code === "ER_DUP_ENTRY") {
+      return res.status(409).json({ success: false, message: "Une référence ou un code colis existe déjà. Réessayez." });
+    }
+    if (error.code === "ER_NO_REFERENCED_ROW_2") {
+      return res.status(400).json({ success: false, message: "Une donnée liée à la commande n’existe pas." });
+    }
+    if (error.code === "ER_BAD_NULL_ERROR") {
+      return res.status(400).json({ success: false, message: "Une donnée obligatoire de la commande est manquante." });
     }
 
-    if (
-      error.code ===
-      "ER_BAD_NULL_ERROR"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Une donnée obligatoire de la commande est manquante.",
-        error: error.message,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Erreur lors de la création de la commande.",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: "Erreur lors de la création de la commande." });
   }
 };
 
@@ -1261,6 +1005,11 @@ const updateOrder = async (
     const textFields = [
       "pickup_address",
       "delivery_address",
+      "company_name",
+      "contact_name",
+      "contact_phone",
+      "contact_extension",
+      "delivery_unit",
       "description",
       "notes",
       "onfleet_task_id",
@@ -1437,6 +1186,18 @@ const updateOrder = async (
 
       updatedData.pallets_count =
         palletsCount;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "destination_type")) {
+      const destinationType = String(req.body.destination_type || "").trim().toLowerCase();
+      if (!ALLOWED_DESTINATION_TYPES.includes(destinationType)) {
+        return res.status(400).json({ success: false, message: "Type d’adresse de destination invalide." });
+      }
+      updatedData.destination_type = destinationType;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "signature_required")) {
+      updatedData.signature_required = normalizeBoolean(req.body.signature_required, false) ? 1 : 0;
     }
 
     if (
@@ -2093,17 +1854,12 @@ const updateOrderStatus = async (
           orderId,
         );
 
-      const hasCompleteProof =
-        proofs.some((proof) =>
-          Boolean(
-            proof.signature_url &&
-            proof.photo_url &&
-            (
-              proof.receiver_first_name ||
-              proof.receiver_last_name
-            )
-          )
-        );
+      const signatureRequired = Boolean(Number(order.signature_required));
+      const hasCompleteProof = proofs.some((proof) =>
+        signatureRequired
+          ? Boolean(proof.signature_url)
+          : Boolean(proof.photo_url)
+      );
 
       if (!hasCompleteProof) {
         return res.status(409).json({
@@ -2111,7 +1867,9 @@ const updateOrderStatus = async (
           code:
             "DELIVERY_PROOF_REQUIRED",
           message:
-            "La photo, la signature et le nom du destinataire sont obligatoires avant de terminer la livraison.",
+            signatureRequired
+              ? "Une signature est obligatoire avant de terminer la livraison."
+              : "Une photo est obligatoire avant de terminer la livraison.",
         });
       }
     }
@@ -2904,364 +2662,135 @@ const getDeliveryProofs = async (
    CRÉER UNE PREUVE DE LIVRAISON
 ============================================================ */
 
-const createDeliveryProof = async (
-  req,
-  res,
-) => {
+const createDeliveryProof = async (req, res) => {
   try {
-    const orderId =
-      parsePositiveId(req.params.id);
-
+    const orderId = parsePositiveId(req.params.id);
     if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Identifiant de commande invalide.",
-      });
+      return res.status(400).json({ success: false, message: "Identifiant de commande invalide." });
     }
 
-    const order =
-      await OrderModel.getOrderById(
-        orderId,
-      );
+    const order = await OrderModel.getOrderById(orderId);
+    if (!order) return sendOrderNotFound(res);
 
-    if (!order) {
-      return sendOrderNotFound(res);
-    }
+    const access = await authorizeOrderAccess(req, order);
+    if (!access.authorized) return sendOrderNotFound(res);
 
-    const access =
-      await authorizeOrderAccess(
-        req,
-        order,
-      );
-
-    if (!access.authorized) {
-      return sendOrderNotFound(res);
-    }
-
-    /*
-     * Pour un chauffeur, l'identité ne vient JAMAIS de req.body.
-     * Elle est dérivée du JWT -> users.id -> drivers.user_id.
-     */
     let driverId = null;
+    if (access.role === "driver") {
+      driverId = parsePositiveId(access.driver?.id);
+    } else {
+      driverId = parsePositiveId(req.body?.driver_id || order.delivery_driver_id || order.driver_id);
+    }
+
+    if (!driverId) {
+      return res.status(400).json({ success: false, message: "Chauffeur de livraison introuvable." });
+    }
+
+    const photoFile = req.files?.photo?.[0] || null;
+    const signatureFile = req.files?.signature?.[0] || null;
+    const receiverFirstName = normalizeLimitedText(req.body?.receiver_first_name, 100) || "";
+    const receiverLastName = normalizeLimitedText(req.body?.receiver_last_name, 100) || "";
+    const notes = normalizeLimitedText(req.body?.notes, 2000);
+    const signatureRequired = Boolean(Number(order.signature_required));
 
     if (access.role === "driver") {
-      driverId =
-        parsePositiveId(
-          access.driver?.id,
-        );
-
-      if (
-        !driverId ||
-        Number(order.driver_id) !==
-          Number(driverId)
-      ) {
-        return sendOrderNotFound(res);
-      }
-
-      /*
-       * La preuve finale ne peut être créée que lorsque
-       * le chauffeur a réellement atteint l'étape "arrived".
-       */
-      if (
-        order.status !== "arrived"
-      ) {
-        return res.status(409).json({
-          success: false,
-          code:
-            "DELIVERY_NOT_ARRIVED",
-          message:
-            "La preuve de livraison peut être enregistrée uniquement après avoir confirmé l’arrivée.",
-        });
-      }
-    } else {
-      driverId =
-        parsePositiveId(
-          req.body?.driver_id ||
-          order.driver_id,
-        );
-
-      if (!driverId) {
+      if (signatureRequired && !signatureFile) {
         return res.status(400).json({
           success: false,
-          message:
-            "Aucun chauffeur valide n’est associé à cette commande.",
+          code: "SIGNATURE_REQUIRED",
+          message: "Une signature est obligatoire pour cette livraison.",
         });
       }
 
-      if (
-        order.driver_id &&
-        Number(order.driver_id) !==
-          Number(driverId)
-      ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Ce chauffeur n’est pas assigné à cette commande.",
-        });
-      }
-    }
-
-    const photoFile =
-      req.files?.photo?.[0] ||
-      null;
-
-    const signatureFile =
-      req.files?.signature?.[0] ||
-      null;
-
-    const receiverFirstName =
-      normalizeOptionalText(
-        req.body?.receiver_first_name,
-      );
-
-    const receiverLastName =
-      normalizeOptionalText(
-        req.body?.receiver_last_name,
-      );
-
-    const recipientName =
-      normalizeOptionalText(
-        req.body?.recipient_name,
-      );
-
-    const notes =
-      normalizeOptionalText(
-        req.body?.notes,
-      );
-
-    const isNewDeliveryProof =
-      Boolean(
-        photoFile ||
-        signatureFile ||
-        receiverFirstName ||
-        receiverLastName,
-      );
-
-    if (isNewDeliveryProof) {
-      if (
-        !receiverFirstName &&
-        !receiverLastName
-      ) {
+      if (!signatureRequired && !photoFile) {
         return res.status(400).json({
           success: false,
-          message:
-            "Le prénom ou le nom du destinataire est obligatoire.",
+          code: "PHOTO_REQUIRED",
+          message: "Une photo est obligatoire pour cette livraison.",
         });
       }
 
-      if (!photoFile) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "La photo de livraison est obligatoire.",
-        });
+      const uploadedFiles = await uploadDeliveryProofFiles({
+        photo: photoFile,
+        signature: signatureFile,
+        orderId,
+      });
+
+      const signatureUrl = uploadedFiles?.signature?.url || uploadedFiles?.signature_url || null;
+      const photoUrl = uploadedFiles?.photo?.url || uploadedFiles?.photo_url || null;
+
+      if (signatureRequired && !signatureUrl) {
+        return res.status(500).json({ success: false, message: "La signature n’a pas pu être enregistrée." });
+      }
+      if (!signatureRequired && !photoUrl) {
+        return res.status(500).json({ success: false, message: "La photo n’a pas pu être enregistrée." });
       }
 
-      if (!signatureFile) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "La signature du destinataire est obligatoire.",
-        });
-      }
+      const proofId = await OrderModel.createDeliveryProof({
+        order_id: orderId,
+        driver_id: driverId,
+        receiver_first_name: receiverFirstName,
+        receiver_last_name: receiverLastName,
+        signature_url: signatureUrl,
+        photo_url: photoUrl,
+        notes,
+      });
 
-      const uploadedFiles =
-        await uploadDeliveryProofFiles({
-          photo: photoFile,
-          signature: signatureFile,
-          orderId,
-        });
-
-      const proofId =
-        await OrderModel.createDeliveryProof({
-          order_id:
-            orderId,
-
-          driver_id:
-            driverId,
-
-          receiver_first_name:
-            receiverFirstName,
-
-          receiver_last_name:
-            receiverLastName,
-
-          signature_url:
-            uploadedFiles.signature.url,
-
-          photo_url:
-            uploadedFiles.photo.url,
-
-          notes,
-        });
-
-      if (
-        order.status !== "completed"
-      ) {
-        await OrderModel.updateStatus(
-          orderId,
-          "completed",
-        );
-
+      if (order.status !== "completed") {
+        await OrderModel.updateStatus(orderId, "completed");
         await OrderModel.insertStatusHistory(
           orderId,
           "completed",
           getAuthenticatedUserId(req),
-          "Livraison terminée avec photo et signature du destinataire",
+          signatureRequired
+            ? "Livraison terminée avec signature"
+            : "Livraison terminée avec photo",
         );
       }
 
-      const [
-        updatedOrder,
-        proofs,
-        timeline,
-      ] = await Promise.all([
-        OrderModel.getOrderById(
-          orderId,
-        ),
-
-        OrderModel.getDeliveryProofs(
-          orderId,
-        ),
-
-        OrderModel.getOrderTimeline(
-          orderId,
-        ),
+      const [updatedOrder, proofs, timeline] = await Promise.all([
+        OrderModel.getOrderById(orderId),
+        OrderModel.getDeliveryProofs(orderId),
+        OrderModel.getOrderTimeline(orderId),
       ]);
 
-      const createdProof =
-        proofs.find(
-          (proof) =>
-            Number(proof.id) ===
-            Number(proofId),
-        ) ||
-        proofs[0] ||
-        null;
-
+      const createdProof = proofs.find((proof) => Number(proof.id) === Number(proofId)) || proofs[0] || null;
       return res.status(201).json({
         success: true,
-        message:
-          "Livraison terminée et preuve enregistrée avec succès.",
-
-        proof_id:
-          proofId,
-
-        proof:
-          createdProof,
-
-        order:
-          updatedOrder,
-
+        message: "Preuve de livraison enregistrée avec succès.",
+        proof_id: proofId,
+        proof: createdProof,
+        order: updatedOrder,
         timeline,
-
-        data: {
-          proof:
-            createdProof,
-          order:
-            updatedOrder,
-          timeline,
-        },
+        data: { proof: createdProof, order: updatedOrder, timeline },
       });
     }
 
-    /*
-     * L'ancien format JSON accepte des URL fournies par le client.
-     * Pour éviter qu'un chauffeur puisse fabriquer une preuve à partir
-     * d'une URL arbitraire, il est réservé aux rôles opérationnels.
-     */
-    if (access.role === "driver") {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Une photo, une signature et le nom du destinataire sont obligatoires.",
-      });
+    // Compatibilité admin/dispatcher : URLs directes uniquement pour les rôles privilégiés.
+    const signatureUrl = normalizeLimitedText(req.body?.signature_url || (req.body?.proof_type === "signature" ? req.body?.file_url : null), 2000);
+    const photoUrl = normalizeLimitedText(req.body?.photo_url || (["photo", "image", "delivery_photo"].includes(req.body?.proof_type) ? req.body?.file_url : null), 2000);
+
+    if (signatureRequired && !signatureUrl) {
+      return res.status(400).json({ success: false, message: "Une signature est obligatoire pour cette livraison." });
+    }
+    if (!signatureRequired && !photoUrl) {
+      return res.status(400).json({ success: false, message: "Une photo est obligatoire pour cette livraison." });
     }
 
-    const allowedProofTypes = [
-      "photo",
-      "signature",
-      "code",
-      "document",
-    ];
-
-    const proofType =
-      normalizeOptionalText(
-        req.body?.proof_type,
-      );
-
-    if (
-      !proofType ||
-      !allowedProofTypes.includes(
-        proofType,
-      )
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Type de preuve invalide.",
-      });
-    }
-
-    const fileUrl =
-      normalizeOptionalText(
-        req.body?.file_url,
-      );
-
-    if (
-      ["photo", "signature"].includes(
-        proofType,
-      ) &&
-      !fileUrl
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "L’URL du fichier est obligatoire pour cette preuve.",
-      });
-    }
-
-    const proofId =
-      await OrderModel.createDeliveryProof({
-        ...req.body,
-
-        order_id:
-          orderId,
-
-        driver_id:
-          driverId,
-
-        proof_type:
-          proofType,
-
-        file_url:
-          fileUrl,
-
-        recipient_name:
-          recipientName,
-
-        notes,
-      });
-
-    return res.status(201).json({
-      success: true,
-      message:
-        "Preuve de livraison enregistrée.",
-      data: {
-        id: proofId,
-      },
+    const proofId = await OrderModel.createDeliveryProof({
+      order_id: orderId,
+      driver_id: driverId,
+      receiver_first_name: receiverFirstName,
+      receiver_last_name: receiverLastName,
+      signature_url: signatureUrl,
+      photo_url: photoUrl,
+      notes,
     });
+
+    return res.status(201).json({ success: true, message: "Preuve enregistrée.", proof_id: proofId });
   } catch (error) {
-    console.error(
-      "Erreur createDeliveryProof :",
-      error,
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Erreur lors de l’enregistrement de la preuve de livraison.",
-    });
+    console.error("Erreur createDeliveryProof :", error);
+    return res.status(500).json({ success: false, message: "Erreur lors de l’enregistrement de la preuve de livraison." });
   }
 };
 
@@ -3394,6 +2923,7 @@ const getDeliveryNoteByOrderId = async (
 
 module.exports = {
   getAllOrders,
+  getMyOrders,
   getOrderById,
   createOrder,
   updateOrder,
