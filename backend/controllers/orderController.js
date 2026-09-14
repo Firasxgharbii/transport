@@ -3,6 +3,10 @@ const DriverModel = require("../models/driverModel");
 const ClientModel = require("../models/clientModel");
 
 const {
+  notifyAdmin,
+} = require("../services/notificationService");
+
+const {
   uploadDeliveryProofFiles,
 } = require("../services/deliveryService");
 
@@ -861,6 +865,68 @@ const createOrder = async (req, res) => {
       OrderModel.getOrderStops(createdOrderId),
       OrderModel.getOrderPackages(createdOrderId),
     ]);
+
+    /* ========================================================
+       NOTIFICATION SUPER ADMIN / DISPATCH
+
+       Important :
+       - l'échec d'une notification ne doit jamais annuler une
+         commande déjà enregistrée ;
+       - l'identité du client provient du profil authentifié ;
+       - notificationService gère la notification interne, le
+         Socket.IO et l'email lorsque email=true.
+    ======================================================== */
+    if (role === "client") {
+      try {
+        const clientDisplayName =
+          normalizeLimitedText(client?.company_name, 150) ||
+          [client?.first_name, client?.last_name]
+            .map((value) => normalizeOptionalText(value))
+            .filter(Boolean)
+            .join(" ") ||
+          normalizeOptionalText(client?.email) ||
+          `Client #${clientId}`;
+
+        const packageLabel =
+          quantity > 1 ? `${quantity} colis` : "1 colis";
+
+        const destinationLabel =
+          destinationType === "commercial"
+            ? "Commercial"
+            : "Résidentiel";
+
+        const notificationMessage = [
+          `${clientDisplayName} vient de créer ${orderNumber}.`,
+          `${packageLabel} · ${weight} ${weightUnit}.`,
+          `Ramassage : ${pickupAddress}.`,
+          `Livraison : ${deliveryAddress}${deliveryUnit ? `, unité ${deliveryUnit}` : ""}.`,
+          `Destination : ${destinationLabel}.`,
+          pickupDate ? `Date demandée : ${pickupDate}.` : null,
+          signatureRequired
+            ? "Preuve requise : signature."
+            : "Preuve requise : photo.",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        await notifyAdmin({
+          io: req.app.get("io"),
+          type: "order_created_by_client",
+          level: "info",
+          title: `Nouvelle commande ${orderNumber}`,
+          message: notificationMessage,
+          entityType: "order",
+          entityId: createdOrderId,
+          actionUrl: `/dashboard/admin/orders/${createdOrderId}`,
+          email: true,
+        });
+      } catch (notificationError) {
+        console.error(
+          "Erreur notification nouvelle commande → admin :",
+          notificationError,
+        );
+      }
+    }
 
     return res.status(201).json({
       success: true,
