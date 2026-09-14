@@ -1574,6 +1574,39 @@ const DriverModel = {
             à CE chauffeur pour CETTE commande.
       ------------------------------------------------- */
 
+      /*
+       * IMPORTANT :
+       * Le Dispatch peut avoir affecté le chauffeur directement sur orders
+       * alors que certaines order_operations plus anciennes sont encore
+       * sans driver_id.
+       *
+       * On synchronise UNIQUEMENT les opérations sans chauffeur lorsque
+       * la commande appartient réellement au chauffeur authentifié.
+       *
+       * Une opération déjà affectée à un autre chauffeur n'est jamais
+       * réattribuée ici : la sécurité reste donc stricte.
+       */
+      await connection.query(
+        `
+          UPDATE order_operations op
+          INNER JOIN orders o
+            ON o.id = op.order_id
+          SET
+            op.driver_id = o.driver_id,
+            op.vehicle_id = COALESCE(op.vehicle_id, o.vehicle_id),
+            op.status = CASE
+              WHEN op.status = 'pending' THEN 'assigned'
+              ELSE op.status
+            END,
+            op.updated_at = CURRENT_TIMESTAMP
+          WHERE op.order_id = ?
+            AND op.driver_id IS NULL
+            AND o.driver_id = ?
+            AND op.status IN ('pending', 'assigned', 'in_progress')
+        `,
+        [packageRow.order_id, driverId]
+      );
+
       const [operationRows] = await connection.query(
         `
           SELECT
