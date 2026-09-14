@@ -66,6 +66,13 @@ type ScanResult = {
     warehouse_name?: string | null;
     status?: string;
   } | null;
+
+  task?: {
+    id?: number;
+    operation_type?: string;
+    warehouse_name?: string | null;
+    status?: string;
+  } | null;
 };
 
 type BarcodeDetectorInstance = {
@@ -294,6 +301,41 @@ export default function DriverScannerPage() {
 
         if (response.ok) {
           setManualCode("");
+
+          /*
+           * OUVERTURE AUTOMATIQUE DE LA TÂCHE
+           *
+           * Le task/operation id vient du backend après validation :
+           * - chauffeur authentifié,
+           * - commande/colis,
+           * - opération active,
+           * - opération réellement assignée au chauffeur.
+           *
+           * Le frontend ne choisit jamais driver_id.
+           */
+          const taskId =
+            Number(payload.task?.id) ||
+            Number(payload.operation?.id);
+
+          const canOpenTask =
+            Number.isInteger(taskId) &&
+            taskId > 0 &&
+            (
+              payload.scan_status === "accepted" ||
+              payload.scan_status === "duplicate"
+            );
+
+          if (canOpenTask) {
+            stopCamera();
+
+            window.setTimeout(() => {
+              router.push(
+                `/dashboard/driver/tasks/${taskId}`,
+              );
+            }, 450);
+
+            return;
+          }
         }
 
         focusScanInput();
@@ -315,6 +357,7 @@ export default function DriverScannerPage() {
       isZebraDevice,
       position,
       router,
+      stopCamera,
       submitting,
     ],
   );
@@ -485,7 +528,7 @@ export default function DriverScannerPage() {
           <span>GLORY SOLUTIONS</span>
           <h1>Scanner un colis</h1>
           <p>
-            Le système vérifie automatiquement votre opération assignée.
+            Scannez le colis : Glory vérifie votre opération assignée et ouvre automatiquement la bonne tâche.
           </p>
         </div>
       </header>

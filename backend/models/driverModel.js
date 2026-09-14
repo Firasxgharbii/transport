@@ -967,6 +967,329 @@ const DriverModel = {
     return rows;
   },
 
+
+  /* =====================================================
+     RÉCUPÉRER UNE OPÉRATION PRÉCISE DU CHAUFFEUR CONNECTÉ
+
+     GET /api/drivers/me/operations/:operationId
+
+     SÉCURITÉ :
+     - driverId vient du chauffeur authentifié.
+     - operationId est validé.
+     - L'opération doit appartenir au chauffeur connecté.
+     - Aucun driver_id du frontend n'est utilisé comme autorité.
+  ===================================================== */
+
+  async getDriverOperationById(driverId, operationId) {
+    const safeDriverId = Number(driverId);
+    const safeOperationId = Number(operationId);
+
+    if (
+      !Number.isInteger(safeDriverId) ||
+      safeDriverId <= 0
+    ) {
+      const error = new Error(
+        "Identifiant chauffeur invalide."
+      );
+
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (
+      !Number.isInteger(safeOperationId) ||
+      safeOperationId <= 0
+    ) {
+      const error = new Error(
+        "Identifiant de tâche invalide."
+      );
+
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const [rows] = await db.query(
+      `
+        SELECT
+          op.id,
+          op.order_id,
+          op.operation_type,
+          op.driver_id,
+          op.vehicle_id,
+          op.warehouse_name,
+          op.scheduled_date,
+          op.scheduled_time,
+          op.completed_at,
+          op.status,
+          op.route_position,
+          op.notes,
+          op.created_at,
+          op.updated_at,
+
+          o.order_number,
+          o.client_id,
+          o.pickup_address,
+          o.delivery_address,
+          o.pickup_date,
+          o.pickup_time,
+          o.delivery_date,
+          o.delivery_time,
+          o.priority,
+
+          c.first_name AS client_first_name,
+          c.last_name AS client_last_name,
+          c.company_name,
+          c.phone AS client_phone,
+          c.email AS client_email,
+
+          v.make AS vehicle_make,
+          v.model AS vehicle_model,
+          v.year AS vehicle_year,
+          v.plate AS vehicle_plate,
+          v.vehicle_type,
+
+          CONCAT_WS(
+            ' ',
+            v.make,
+            v.model
+          ) AS vehicle_name,
+
+          (
+            SELECT COUNT(*)
+            FROM order_packages p
+            WHERE p.order_id = op.order_id
+          ) AS package_count,
+
+          (
+            SELECT COUNT(DISTINCT se.package_id)
+            FROM scan_events se
+            WHERE se.operation_id = op.id
+              AND se.driver_id = op.driver_id
+              AND se.scan_status = 'accepted'
+              AND se.scan_type =
+                CASE op.operation_type
+                  WHEN 'pickup' THEN 'pickup'
+                  WHEN 'warehouse_in' THEN 'warehouse_in'
+                  WHEN 'warehouse_storage' THEN 'warehouse_storage'
+                  WHEN 'warehouse_out' THEN 'warehouse_out'
+                  WHEN 'delivery' THEN 'delivery'
+                  ELSE op.operation_type
+                END
+          ) AS scanned_packages,
+
+          (
+            SELECT MAX(se.scanned_at)
+            FROM scan_events se
+            WHERE se.operation_id = op.id
+              AND se.driver_id = op.driver_id
+          ) AS last_scan_at
+
+        FROM order_operations op
+
+        INNER JOIN orders o
+          ON o.id = op.order_id
+
+        LEFT JOIN clients c
+          ON c.id = o.client_id
+
+        LEFT JOIN vehicles v
+          ON v.id = op.vehicle_id
+
+        WHERE op.id = ?
+          AND op.driver_id = ?
+          AND op.status <> 'cancelled'
+
+        LIMIT 1
+      `,
+      [
+        safeOperationId,
+        safeDriverId,
+      ]
+    );
+
+    const operation = rows[0] || null;
+
+    if (!operation) {
+      return null;
+    }
+
+    const [packages] = await db.query(
+      `
+        SELECT
+          p.id,
+          p.order_id,
+          p.barcode,
+          p.package_number,
+          p.description,
+          p.package_type,
+          p.weight,
+          p.weight_unit,
+          p.length,
+          p.width,
+          p.height,
+          p.dimension_unit,
+          p.current_status,
+          p.created_at,
+          p.updated_at,
+
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM scan_events se
+              WHERE se.package_id = p.id
+                AND se.operation_id = ?
+                AND se.driver_id = ?
+                AND se.scan_status = 'accepted'
+            )
+            THEN 1
+            ELSE 0
+          END AS scanned,
+
+          (
+            SELECT MAX(se.scanned_at)
+            FROM scan_events se
+            WHERE se.package_id = p.id
+              AND se.operation_id = ?
+              AND se.driver_id = ?
+          ) AS last_scan_at
+
+        FROM order_packages p
+
+        WHERE p.order_id = ?
+
+        ORDER BY
+          p.package_number ASC,
+          p.id ASC
+      `,
+      [
+        safeOperationId,
+        safeDriverId,
+        safeOperationId,
+        safeDriverId,
+        operation.order_id,
+      ]
+    );
+
+    const [scans] = await db.query(
+      `
+        SELECT
+          se.id,
+          se.order_id,
+          se.package_id,
+          se.operation_id,
+          se.driver_id,
+          se.vehicle_id,
+          se.scanned_code,
+          se.scan_type,
+          se.scan_status,
+          se.latitude,
+          se.longitude,
+          se.accuracy,
+          se.device_type,
+          se.device_name,
+          se.scan_source,
+          se.notes,
+          se.scanned_at,
+
+          p.barcode,
+          p.package_number,
+          p.current_status AS package_status
+
+        FROM scan_events se
+
+        LEFT JOIN order_packages p
+          ON p.id = se.package_id
+
+        WHERE se.operation_id = ?
+          AND se.driver_id = ?
+
+        ORDER BY
+          se.scanned_at DESC,
+          se.id DESC
+
+        LIMIT 100
+      `,
+      [
+        safeOperationId,
+        safeDriverId,
+      ]
+    );
+
+    const totalPackages =
+      Number(operation.package_count || 0);
+
+    const scannedPackages =
+      Number(operation.scanned_packages || 0);
+
+    const progressPercentage =
+      totalPackages > 0
+        ? Math.min(
+            100,
+            Math.round(
+              (scannedPackages / totalPackages) * 100
+            )
+          )
+        : 0;
+
+    let taskAddress = null;
+
+    if (operation.operation_type === "pickup") {
+      taskAddress =
+        operation.pickup_address || null;
+    } else if (
+      operation.operation_type === "delivery"
+    ) {
+      taskAddress =
+        operation.delivery_address || null;
+    } else {
+      taskAddress =
+        operation.warehouse_name ||
+        operation.delivery_address ||
+        operation.pickup_address ||
+        null;
+    }
+
+    const taskDate =
+      operation.scheduled_date ||
+      (
+        operation.operation_type === "delivery"
+          ? operation.delivery_date
+          : operation.pickup_date
+      ) ||
+      null;
+
+    const taskTime =
+      operation.scheduled_time ||
+      (
+        operation.operation_type === "delivery"
+          ? operation.delivery_time
+          : operation.pickup_time
+      ) ||
+      null;
+
+    return {
+      ...operation,
+
+      task_address: taskAddress,
+      task_date: taskDate,
+      task_time: taskTime,
+
+      package_count: totalPackages,
+      scanned_packages: scannedPackages,
+
+      remaining_packages: Math.max(
+        0,
+        totalPackages - scannedPackages
+      ),
+
+      progress_percentage:
+        progressPercentage,
+
+      packages,
+      scans,
+    };
+  },
+
   /* =====================================================
      HISTORIQUE DES SCANS DU CHAUFFEUR
   ===================================================== */

@@ -8,19 +8,20 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ExternalLink,
   FileCheck2,
   Loader2,
   MapPin,
   Navigation,
   PackageCheck,
   PenLine,
-  RotateCcw,
-  Upload,
-  ExternalLink,
   Phone,
   RefreshCw,
+  RotateCcw,
+  ScanLine,
   ShieldAlert,
   Truck,
+  Upload,
   User,
   Wifi,
   WifiOff,
@@ -44,45 +45,16 @@ import styles from "./order-details.module.css";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
-/* ============================================================
-   TYPES
-============================================================ */
+const GPS_SEND_INTERVAL_MS = 5000;
 
-type Order = {
+type ConnectedUser = {
   id: number;
-  order_number?: string;
-
-  status?: string;
-  priority?: string;
-
-  client_first_name?: string;
-  client_last_name?: string;
-  company_name?: string;
-
-  client_phone?: string;
-  client_email?: string;
-
-  pickup_address?: string;
-  pickup_date?: string | null;
-  pickup_time?: string | null;
-
-  delivery_address?: string;
-  delivery_date?: string | null;
-  delivery_time?: string | null;
-
-  notes?: string;
-
-  driver_id?: number | null;
-
-  vehicle_make?: string;
-  vehicle_model?: string;
-  vehicle_name?: string;
-  vehicle_plate?: string;
-
-  incident_reason?: string | null;
-  cancellation_reason?: string | null;
+  role: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
 };
 
 type Position = {
@@ -101,15 +73,105 @@ type GpsState =
   | "error"
   | "unsupported";
 
-type NextAction = {
-  status: string;
-  label: string;
-  description: string;
-} | null;
+type PackageItem = {
+  id: number;
+  order_id?: number;
+  barcode?: string;
+  package_number?: number | string;
+  description?: string | null;
+  package_type?: string | null;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  length?: number | string | null;
+  width?: number | string | null;
+  height?: number | string | null;
+  dimension_unit?: string | null;
+  current_status?: string | null;
+  scanned?: number | boolean;
+  scanned_for_operation?: number | boolean;
+  last_scan_at?: string | null;
+};
 
-/* ============================================================
-   HELPERS
-============================================================ */
+type DriverTask = {
+  id: number;
+  order_id: number;
+  operation_type:
+    | "pickup"
+    | "warehouse_in"
+    | "storage"
+    | "warehouse_storage"
+    | "warehouse_out"
+    | "load_vehicle"
+    | "delivery"
+    | "incident"
+    | string;
+
+  status?: string;
+  operation_status?: string;
+
+  driver_id?: number;
+  vehicle_id?: number | null;
+
+  warehouse_name?: string | null;
+
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  completed_at?: string | null;
+  route_position?: number | null;
+  notes?: string | null;
+
+  order_number?: string;
+  priority?: string;
+
+  pickup_address?: string | null;
+  pickup_unit?: string | null;
+  pickup_date?: string | null;
+  pickup_time?: string | null;
+
+  delivery_address?: string | null;
+  delivery_unit?: string | null;
+  delivery_date?: string | null;
+  delivery_time?: string | null;
+
+  destination_type?: string | null;
+  company_name?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_extension?: string | null;
+
+  client_first_name?: string | null;
+  client_last_name?: string | null;
+  client_phone?: string | null;
+  client_email?: string | null;
+
+  vehicle_make?: string | null;
+  vehicle_model?: string | null;
+  vehicle_name?: string | null;
+  vehicle_plate?: string | null;
+
+  signature_required?: boolean | number | null;
+
+  package_count?: number;
+  scanned_packages?: number;
+  remaining_packages?: number;
+  progress_percentage?: number;
+
+  task_address?: string | null;
+  task_date?: string | null;
+  task_time?: string | null;
+
+  packages?: PackageItem[];
+  scans?: unknown[];
+};
+
+type ScanResult = {
+  success?: boolean;
+  duplicate?: boolean;
+  rejected?: boolean;
+  scan_status?: "accepted" | "duplicate" | "rejected";
+  message?: string;
+  operation_completed?: boolean;
+};
 
 function getToken() {
   if (typeof window === "undefined") {
@@ -125,25 +187,76 @@ function getToken() {
   );
 }
 
-function statusLabel(status?: string) {
-  switch (status) {
+function clearSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  [
+    "glory_token",
+    "token",
+    "glory_user",
+  ].forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+}
+
+function normalizeBoolean(value: unknown) {
+  return (
+    value === true ||
+    value === 1 ||
+    value === "1" ||
+    value === "true"
+  );
+}
+
+function operationLabel(value?: string) {
+  switch (value) {
+    case "pickup":
+      return "Ramassage";
+
+    case "warehouse_in":
+      return "Entrée entrepôt";
+
+    case "storage":
+    case "warehouse_storage":
+      return "Entreposage";
+
+    case "warehouse_out":
+      return "Sortie entrepôt";
+
+    case "load_vehicle":
+      return "Chargement véhicule";
+
+    case "delivery":
+      return "Livraison";
+
+    case "incident":
+      return "Incident";
+
+    default:
+      return value || "Tâche";
+  }
+}
+
+function operationEyebrow(value?: string) {
+  return operationLabel(value).toUpperCase();
+}
+
+function statusLabel(value?: string) {
+  switch (value) {
     case "pending":
       return "En attente";
 
     case "assigned":
       return "Assignée";
 
-    case "pickup_in_progress":
-      return "Ramassage en cours";
+    case "accepted":
+      return "Acceptée";
 
-    case "picked_up":
-      return "Ramassée";
-
-    case "delivery_in_progress":
-      return "Livraison en cours";
-
-    case "arrived":
-      return "Arrivé";
+    case "in_progress":
+      return "En cours";
 
     case "completed":
       return "Terminée";
@@ -155,12 +268,12 @@ function statusLabel(status?: string) {
       return "Incident";
 
     default:
-      return status || "En attente";
+      return value || "Assignée";
   }
 }
 
-function statusClass(status?: string) {
-  switch (status) {
+function statusClass(value?: string) {
+  switch (value) {
     case "completed":
       return styles.statusCompleted;
 
@@ -168,10 +281,7 @@ function statusClass(status?: string) {
     case "cancelled":
       return styles.statusIncident;
 
-    case "pickup_in_progress":
-    case "picked_up":
-    case "delivery_in_progress":
-    case "arrived":
+    case "in_progress":
       return styles.statusProgress;
 
     default:
@@ -184,14 +294,17 @@ function formatDate(value?: string | null) {
     return "Non définie";
   }
 
-  const date =
-    new Date(`${value}T12:00:00`);
+  const plainDate =
+    /^\d{4}-\d{2}-\d{2}/.test(value)
+      ? value.slice(0, 10)
+      : value;
 
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
+  const date =
+    /^\d{4}-\d{2}-\d{2}$/.test(plainDate)
+      ? new Date(`${plainDate}T12:00:00`)
+      : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
     return value;
   }
 
@@ -213,14 +326,14 @@ function formatTime(value?: string | null) {
   return value.slice(0, 5);
 }
 
-function clientName(order: Order) {
-  if (order.company_name) {
-    return order.company_name;
+function clientName(task: DriverTask) {
+  if (task.company_name) {
+    return task.company_name;
   }
 
   const name = [
-    order.client_first_name,
-    order.client_last_name,
+    task.client_first_name,
+    task.client_last_name,
   ]
     .filter(Boolean)
     .join(" ");
@@ -228,92 +341,93 @@ function clientName(order: Order) {
   return name || "Client";
 }
 
-function getNextAction(
-  status?: string,
-): NextAction {
-  switch (status) {
-    case "pending":
-    case "assigned":
-      return {
-        status:
-          "pickup_in_progress",
+function getTaskAddress(task: DriverTask) {
+  switch (task.operation_type) {
+    case "pickup":
+      return task.pickup_address || "";
 
-        label:
-          "Commencer le ramassage",
+    case "delivery":
+      return task.delivery_address || "";
 
-        description:
-          "Confirmer que vous partez vers le point de ramassage.",
-      };
-
-    case "pickup_in_progress":
-      return {
-        status:
-          "picked_up",
-
-        label:
-          "Confirmer le ramassage",
-
-        description:
-          "Confirmer que la marchandise est chargée dans le véhicule.",
-      };
-
-    case "picked_up":
-      return {
-        status:
-          "delivery_in_progress",
-
-        label:
-          "Commencer la livraison",
-
-        description:
-          "Confirmer votre départ vers l'adresse de livraison.",
-      };
-
-    case "delivery_in_progress":
-      return {
-        status:
-          "arrived",
-
-        label:
-          "Je suis arrivé",
-
-        description:
-          "Confirmer votre arrivée à destination.",
-      };
-
-    case "arrived":
-      return {
-        status:
-          "completed",
-
-        label:
-          "Terminer la livraison",
-
-        description:
-          "Confirmer que la livraison a été effectuée.",
-      };
+    case "warehouse_in":
+    case "storage":
+    case "warehouse_storage":
+    case "warehouse_out":
+    case "load_vehicle":
+      return (
+        task.warehouse_name ||
+        task.task_address ||
+        ""
+      );
 
     default:
-      return null;
+      return (
+        task.task_address ||
+        task.delivery_address ||
+        task.pickup_address ||
+        ""
+      );
   }
 }
 
-/* ============================================================
-   PAGE
-============================================================ */
+function getTaskDate(task: DriverTask) {
+  return (
+    task.scheduled_date ||
+    task.task_date ||
+    (
+      task.operation_type === "delivery"
+        ? task.delivery_date
+        : task.pickup_date
+    ) ||
+    null
+  );
+}
 
-export default function DriverOrderDetailsPage() {
-  const router =
-    useRouter();
+function getTaskTime(task: DriverTask) {
+  return (
+    task.scheduled_time ||
+    task.task_time ||
+    (
+      task.operation_type === "delivery"
+        ? task.delivery_time
+        : task.pickup_time
+    ) ||
+    null
+  );
+}
 
-  const params =
-    useParams();
+function getPackageNumber(
+  item: PackageItem,
+  index: number,
+) {
+  return (
+    item.package_number ||
+    `P${String(index + 1).padStart(2, "0")}`
+  );
+}
 
-  const orderId =
+function packageIsScanned(item: PackageItem) {
+  return normalizeBoolean(
+    item.scanned_for_operation ??
+      item.scanned,
+  );
+}
+
+export default function DriverTaskDetailsPage() {
+  const router = useRouter();
+  const params = useParams();
+
+  const operationId =
     String(params.id || "");
 
   const watchIdRef =
     useRef<number | null>(null);
+
+  const gpsRequestInFlightRef =
+    useRef(false);
+
+  const lastGpsSendAtRef =
+    useRef(0);
 
   const signatureCanvasRef =
     useRef<HTMLCanvasElement | null>(null);
@@ -323,6 +437,61 @@ export default function DriverOrderDetailsPage() {
 
   const photoInputRef =
     useRef<HTMLInputElement | null>(null);
+
+  const [
+    user,
+    setUser,
+  ] = useState<ConnectedUser | null>(null);
+
+  const [
+    task,
+    setTask,
+  ] = useState<DriverTask | null>(null);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
+
+  const [
+    gpsState,
+    setGpsState,
+  ] = useState<GpsState>("loading");
+
+  const [
+    gpsError,
+    setGpsError,
+  ] = useState("");
+
+  const [
+    position,
+    setPosition,
+  ] = useState<Position | null>(null);
+
+  const [
+    navigationOpen,
+    setNavigationOpen,
+  ] = useState(false);
+
+  const [
+    navigationAddress,
+    setNavigationAddress,
+  ] = useState("");
 
   const [
     proofOpen,
@@ -365,67 +534,6 @@ export default function DriverOrderDetailsPage() {
   ] = useState(false);
 
   const [
-    navigationOpen,
-    setNavigationOpen,
-  ] = useState(false);
-
-  const [
-    navigationAddress,
-    setNavigationAddress,
-  ] = useState("");
-
-  const [
-    order,
-    setOrder,
-  ] = useState<Order | null>(
-    null,
-  );
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
-
-  const [
-    updating,
-    setUpdating,
-  ] = useState(false);
-
-  const [
-    gpsState,
-    setGpsState,
-  ] = useState<GpsState>(
-    "loading",
-  );
-
-  const [
-    gpsError,
-    setGpsError,
-  ] = useState("");
-
-  const [
-    position,
-    setPosition,
-  ] = useState<Position | null>(
-    null,
-  );
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    success,
-    setSuccess,
-  ] = useState("");
-
-  const [
     incidentOpen,
     setIncidentOpen,
   ] = useState(false);
@@ -440,10 +548,6 @@ export default function DriverOrderDetailsPage() {
     setIncidentSaving,
   ] = useState(false);
 
-  /* ==========================================================
-     API
-  ========================================================== */
-
   const apiFetch =
     useCallback(
       async <T,>(
@@ -454,6 +558,8 @@ export default function DriverOrderDetailsPage() {
           getToken();
 
         if (!token) {
+          clearSession();
+
           router.replace(
             "/login",
           );
@@ -500,17 +606,8 @@ export default function DriverOrderDetailsPage() {
           result = {};
         }
 
-        if (
-          response.status ===
-          401
-        ) {
-          localStorage.removeItem(
-            "glory_token",
-          );
-
-          localStorage.removeItem(
-            "glory_user",
-          );
+        if (response.status === 401) {
+          clearSession();
 
           router.replace(
             "/login",
@@ -523,7 +620,7 @@ export default function DriverOrderDetailsPage() {
 
         if (!response.ok) {
           throw new Error(
-            result.message ||
+            result?.message ||
               `Erreur API (${response.status}).`,
           );
         }
@@ -533,44 +630,94 @@ export default function DriverOrderDetailsPage() {
       [router],
     );
 
-  /* ==========================================================
-     LOAD ORDER
-  ========================================================== */
-
-  const loadOrder =
+  const verifySession =
     useCallback(async () => {
+      const result =
+        await apiFetch<any>(
+          "/api/auth/me",
+        );
+
+      const verifiedUser =
+        result?.user ||
+        result?.data ||
+        null;
+
+      if (
+        !verifiedUser ||
+        verifiedUser.role !== "driver"
+      ) {
+        router.replace(
+          "/dashboard",
+        );
+
+        return null;
+      }
+
+      setUser(
+        verifiedUser as ConnectedUser,
+      );
+
+      return verifiedUser as ConnectedUser;
+    }, [
+      apiFetch,
+      router,
+    ]);
+
+  const loadTask =
+    useCallback(async () => {
+      const numericOperationId =
+        Number(operationId);
+
+      if (
+        !Number.isInteger(
+          numericOperationId,
+        ) ||
+        numericOperationId <= 0
+      ) {
+        setTask(null);
+        setError(
+          "Identifiant de tâche invalide.",
+        );
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
       try {
         setError("");
 
         const result =
           await apiFetch<any>(
-            `/api/orders/${orderId}`,
+            `/api/drivers/me/operations/${numericOperationId}`,
           );
 
-        const receivedOrder =
-          result.order ||
-          result.data ||
-          result;
+        const receivedTask =
+          result?.task ||
+          result?.operation ||
+          result?.data ||
+          null;
 
-        if (!receivedOrder) {
+        if (!receivedTask) {
           throw new Error(
-            "Livraison introuvable.",
+            "Tâche introuvable.",
           );
         }
 
-        setOrder(
-          receivedOrder,
+        setTask(
+          receivedTask as DriverTask,
         );
       } catch (reason) {
         console.error(
-          "Erreur loadOrder:",
+          "Erreur loadTask:",
           reason,
         );
+
+        setTask(null);
 
         setError(
           reason instanceof Error
             ? reason.message
-            : "Impossible de charger cette livraison.",
+            : "Impossible de charger cette tâche.",
         );
       } finally {
         setLoading(false);
@@ -578,129 +725,105 @@ export default function DriverOrderDetailsPage() {
       }
     }, [
       apiFetch,
-      orderId,
+      operationId,
     ]);
 
   useEffect(() => {
-    if (!orderId) return;
+    let cancelled = false;
 
-    void loadOrder();
+    const initialize =
+      async () => {
+        try {
+          const verifiedUser =
+            await verifySession();
+
+          if (
+            cancelled ||
+            !verifiedUser
+          ) {
+            return;
+          }
+
+          await loadTask();
+        } catch (reason) {
+          if (cancelled) {
+            return;
+          }
+
+          console.error(reason);
+
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Impossible de charger votre tâche.",
+          );
+
+          setLoading(false);
+        }
+      };
+
+    void initialize();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
-    orderId,
-    loadOrder,
+    verifySession,
+    loadTask,
   ]);
 
-  /* ==========================================================
-     UPDATE STATUS
-  ========================================================== */
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
 
-  const updateStatus =
-    async (
-      newStatus: string,
-      reason?: string,
-    ) => {
-      if (!order) return;
+    const refreshSilently =
+      () => {
+        if (
+          typeof document !== "undefined" &&
+          document.visibilityState !== "visible"
+        ) {
+          return;
+        }
 
-      try {
-        setUpdating(true);
-        setError("");
-        setSuccess("");
+        void loadTask();
+      };
 
-        await apiFetch(
-          `/api/orders/${order.id}/status`,
-          {
-            method: "PATCH",
+    const intervalId =
+      window.setInterval(
+        refreshSilently,
+        10000,
+      );
 
-            body:
-              JSON.stringify({
-                status:
-                  newStatus,
+    window.addEventListener(
+      "focus",
+      refreshSilently,
+    );
 
-                reason:
-                  reason || null,
+    document.addEventListener(
+      "visibilitychange",
+      refreshSilently,
+    );
 
-                status_reason:
-                  reason || null,
-              }),
-          },
-        );
+    return () => {
+      window.clearInterval(
+        intervalId,
+      );
 
-        setOrder(
-          (current) =>
-            current
-              ? {
-                  ...current,
-                  status:
-                    newStatus,
-                }
-              : current,
-        );
+      window.removeEventListener(
+        "focus",
+        refreshSilently,
+      );
 
-        setSuccess(
-          `Statut mis à jour : ${statusLabel(
-            newStatus,
-          )}.`,
-        );
-
-        window.setTimeout(
-          () => {
-            setSuccess("");
-          },
-          3000,
-        );
-      } catch (reason) {
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Impossible de modifier le statut.",
-        );
-      } finally {
-        setUpdating(false);
-      }
+      document.removeEventListener(
+        "visibilitychange",
+        refreshSilently,
+      );
     };
-
-  /* ==========================================================
-     INCIDENT
-  ========================================================== */
-
-  const reportIncident =
-    async () => {
-      const reason =
-        incidentReason.trim();
-
-      if (!reason) {
-        setError(
-          "La raison de l'incident est obligatoire.",
-        );
-
-        return;
-      }
-
-      try {
-        setIncidentSaving(
-          true,
-        );
-
-        await updateStatus(
-          "incident",
-          reason,
-        );
-
-        setIncidentOpen(
-          false,
-        );
-
-        setIncidentReason("");
-      } finally {
-        setIncidentSaving(
-          false,
-        );
-      }
-    };
-
-  /* ==========================================================
-     GPS SEND
-  ========================================================== */
+  }, [
+    user,
+    loadTask,
+  ]);
 
   const sendPosition =
     useCallback(
@@ -708,34 +831,94 @@ export default function DriverOrderDetailsPage() {
         coords:
           GeolocationCoordinates,
       ) => {
-        if (!order) return;
+        if (!task) {
+          return;
+        }
 
-        const gpsPosition: Position =
-          {
-            latitude:
-              coords.latitude,
+        const latitude =
+          Number(coords.latitude);
 
-            longitude:
-              coords.longitude,
+        const longitude =
+          Number(coords.longitude);
 
-            accuracy:
-              coords.accuracy ??
-              null,
+        if (
+          !Number.isFinite(latitude) ||
+          !Number.isFinite(longitude) ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          return;
+        }
 
-            speed:
-              coords.speed ??
-              null,
+        const gpsPosition: Position = {
+          latitude,
+          longitude,
 
-            heading:
-              coords.heading ??
-              null,
-          };
+          accuracy:
+            Number.isFinite(
+              Number(coords.accuracy),
+            )
+              ? Number(
+                  coords.accuracy,
+                )
+              : null,
+
+          speed:
+            coords.speed !== null &&
+            Number.isFinite(
+              Number(coords.speed),
+            )
+              ? Math.max(
+                  0,
+                  Number(coords.speed),
+                )
+              : null,
+
+          heading:
+            coords.heading !== null &&
+            Number.isFinite(
+              Number(coords.heading),
+            )
+              ? Math.min(
+                  360,
+                  Math.max(
+                    0,
+                    Number(coords.heading),
+                  ),
+                )
+              : null,
+        };
 
         setPosition(
           gpsPosition,
         );
 
+        const now =
+          Date.now();
+
+        if (
+          gpsRequestInFlightRef.current ||
+          now -
+            lastGpsSendAtRef.current <
+            GPS_SEND_INTERVAL_MS
+        ) {
+          return;
+        }
+
+        gpsRequestInFlightRef.current =
+          true;
+
+        lastGpsSendAtRef.current =
+          now;
+
         try {
+          /*
+           * SÉCURITÉ :
+           * aucun driver_id n'est envoyé.
+           * Le backend détermine le chauffeur depuis le JWT.
+           */
           await apiFetch(
             "/api/tracking/location",
             {
@@ -745,12 +928,12 @@ export default function DriverOrderDetailsPage() {
               body:
                 JSON.stringify({
                   order_id:
-                    order.id,
+                    task.order_id,
+
+                  operation_id:
+                    task.id,
 
                   ...gpsPosition,
-
-                  recorded_at:
-                    new Date().toISOString(),
                 }),
             },
           );
@@ -759,17 +942,16 @@ export default function DriverOrderDetailsPage() {
             "Erreur tracking:",
             reason,
           );
+        } finally {
+          gpsRequestInFlightRef.current =
+            false;
         }
       },
       [
-        order,
+        task,
         apiFetch,
       ],
     );
-
-  /* ==========================================================
-     START GPS
-  ========================================================== */
 
   const startGps =
     useCallback(() => {
@@ -855,14 +1037,14 @@ export default function DriverOrderDetailsPage() {
 
       watchIdRef.current =
         watchId;
-    }, [sendPosition]);
-
-  /* ==========================================================
-     AUTO GPS AFTER PERMISSION
-  ========================================================== */
+    }, [
+      sendPosition,
+    ]);
 
   useEffect(() => {
-    if (!order) return;
+    if (!task) {
+      return;
+    }
 
     if (
       typeof navigator ===
@@ -882,10 +1064,7 @@ export default function DriverOrderDetailsPage() {
           if (
             !navigator.permissions
           ) {
-            setGpsState(
-              "permission",
-            );
-
+            startGps();
             return;
           }
 
@@ -906,9 +1085,7 @@ export default function DriverOrderDetailsPage() {
             permission.state ===
             "prompt"
           ) {
-            setGpsState(
-              "permission",
-            );
+            startGps();
           } else {
             setGpsState(
               "denied",
@@ -934,9 +1111,7 @@ export default function DriverOrderDetailsPage() {
               }
             };
         } catch {
-          setGpsState(
-            "permission",
-          );
+          startGps();
         }
       };
 
@@ -956,13 +1131,226 @@ export default function DriverOrderDetailsPage() {
       }
     };
   }, [
-    order,
+    task,
     startGps,
   ]);
 
-  /* ==========================================================
-     PREUVE DE LIVRAISON
-  ========================================================== */
+  const taskStatus =
+    task?.operation_status ||
+    task?.status ||
+    "assigned";
+
+  const packages =
+    useMemo(
+      () =>
+        Array.isArray(
+          task?.packages,
+        )
+          ? task?.packages || []
+          : [],
+      [task?.packages],
+    );
+
+  const packageCount =
+    useMemo(() => {
+      const serverCount =
+        Number(
+          task?.package_count,
+        );
+
+      if (
+        Number.isFinite(
+          serverCount,
+        ) &&
+        serverCount >= 0
+      ) {
+        return serverCount;
+      }
+
+      return packages.length;
+    }, [
+      task?.package_count,
+      packages.length,
+    ]);
+
+  const scannedPackages =
+    useMemo(() => {
+      const serverCount =
+        Number(
+          task?.scanned_packages,
+        );
+
+      if (
+        Number.isFinite(
+          serverCount,
+        ) &&
+        serverCount >= 0
+      ) {
+        return Math.min(
+          serverCount,
+          packageCount,
+        );
+      }
+
+      return packages.filter(
+        packageIsScanned,
+      ).length;
+    }, [
+      task?.scanned_packages,
+      packages,
+      packageCount,
+    ]);
+
+  const progressPercentage =
+    useMemo(() => {
+      if (
+        task?.progress_percentage !==
+          undefined &&
+        Number.isFinite(
+          Number(
+            task.progress_percentage,
+          ),
+        )
+      ) {
+        return Math.max(
+          0,
+          Math.min(
+            100,
+            Number(
+              task.progress_percentage,
+            ),
+          ),
+        );
+      }
+
+      if (packageCount <= 0) {
+        return taskStatus ===
+          "completed"
+          ? 100
+          : 0;
+      }
+
+      return Math.round(
+        (
+          scannedPackages /
+          packageCount
+        ) * 100,
+      );
+    }, [
+      task?.progress_percentage,
+      packageCount,
+      scannedPackages,
+      taskStatus,
+    ]);
+
+  const remainingPackages =
+    Math.max(
+      0,
+      packageCount -
+        scannedPackages,
+    );
+
+  const currentAddress =
+    task
+      ? getTaskAddress(task)
+      : "";
+
+  const currentTaskDate =
+    task
+      ? getTaskDate(task)
+      : null;
+
+  const currentTaskTime =
+    task
+      ? getTaskTime(task)
+      : null;
+
+  const isPickup =
+    task?.operation_type ===
+    "pickup";
+
+  const isDelivery =
+    task?.operation_type ===
+    "delivery";
+
+  const isCompleted =
+    taskStatus ===
+    "completed";
+
+  const isCancelled =
+    taskStatus ===
+    "cancelled";
+
+  const signatureRequired =
+    normalizeBoolean(
+      task?.signature_required,
+    );
+
+  const openNavigation =
+    (
+      address?: string | null,
+    ) => {
+      const cleanedAddress =
+        String(address || "")
+          .trim();
+
+      if (!cleanedAddress) {
+        return;
+      }
+
+      setNavigationAddress(
+        cleanedAddress,
+      );
+
+      setNavigationOpen(
+        true,
+      );
+    };
+
+  const launchNavigation =
+    (
+      provider:
+        | "google"
+        | "waze"
+        | "apple",
+    ) => {
+      if (!navigationAddress) {
+        return;
+      }
+
+      const destination =
+        encodeURIComponent(
+          navigationAddress,
+        );
+
+      const urls = {
+        google:
+          `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+
+        waze:
+          `https://waze.com/ul?q=${destination}&navigate=yes`,
+
+        apple:
+          `https://maps.apple.com/?daddr=${destination}&dirflg=d`,
+      };
+
+      window.open(
+        urls[provider],
+        "_blank",
+        "noopener,noreferrer",
+      );
+
+      setNavigationOpen(
+        false,
+      );
+    };
+
+  const openScanner =
+    () => {
+      router.push(
+        "/dashboard/driver/scanner",
+      );
+    };
 
   const resetProofForm =
     useCallback(() => {
@@ -1001,7 +1389,9 @@ export default function DriverOrderDetailsPage() {
         }
       }
 
-      if (photoInputRef.current) {
+      if (
+        photoInputRef.current
+      ) {
         photoInputRef.current.value =
           "";
       }
@@ -1009,10 +1399,20 @@ export default function DriverOrderDetailsPage() {
 
   const openProofModal =
     useCallback(() => {
+      if (!isDelivery) {
+        setError(
+          "La preuve de livraison est disponible uniquement pour une tâche de livraison.",
+        );
+
+        return;
+      }
+
       setError("");
       setSuccess("");
       setProofOpen(true);
-    }, []);
+    }, [
+      isDelivery,
+    ]);
 
   const closeProofModal =
     useCallback(() => {
@@ -1021,7 +1421,9 @@ export default function DriverOrderDetailsPage() {
       }
 
       setProofOpen(false);
-    }, [proofSaving]);
+    }, [
+      proofSaving,
+    ]);
 
   useEffect(() => {
     if (!proofOpen) {
@@ -1035,61 +1437,64 @@ export default function DriverOrderDetailsPage() {
       return;
     }
 
-    const setupCanvas = () => {
-      const rect =
-        canvas.getBoundingClientRect();
+    const setupCanvas =
+      () => {
+        const rect =
+          canvas.getBoundingClientRect();
 
-      const ratio =
-        Math.max(
-          window.devicePixelRatio ||
+        const ratio =
+          Math.max(
+            window.devicePixelRatio ||
+              1,
             1,
-          1,
+          );
+
+        canvas.width =
+          Math.max(
+            Math.round(
+              rect.width *
+                ratio,
+            ),
+            1,
+          );
+
+        canvas.height =
+          Math.max(
+            Math.round(
+              rect.height *
+                ratio,
+            ),
+            1,
+          );
+
+        const context =
+          canvas.getContext("2d");
+
+        if (!context) {
+          return;
+        }
+
+        context.setTransform(
+          ratio,
+          0,
+          0,
+          ratio,
+          0,
+          0,
         );
 
-      canvas.width =
-        Math.max(
-          Math.round(
-            rect.width * ratio,
-          ),
-          1,
-        );
+        context.lineCap =
+          "round";
 
-      canvas.height =
-        Math.max(
-          Math.round(
-            rect.height * ratio,
-          ),
-          1,
-        );
+        context.lineJoin =
+          "round";
 
-      const context =
-        canvas.getContext("2d");
+        context.lineWidth =
+          2.4;
 
-      if (!context) {
-        return;
-      }
-
-      context.setTransform(
-        ratio,
-        0,
-        0,
-        ratio,
-        0,
-        0,
-      );
-
-      context.lineCap =
-        "round";
-
-      context.lineJoin =
-        "round";
-
-      context.lineWidth =
-        2.4;
-
-      context.strokeStyle =
-        "#20212a";
-    };
+        context.strokeStyle =
+          "#20212a";
+      };
 
     const frame =
       window.requestAnimationFrame(
@@ -1111,17 +1516,23 @@ export default function DriverOrderDetailsPage() {
         setupCanvas,
       );
     };
-  }, [proofOpen]);
+  }, [
+    proofOpen,
+  ]);
 
   useEffect(() => {
     return () => {
-      if (proofPhotoPreview) {
+      if (
+        proofPhotoPreview
+      ) {
         URL.revokeObjectURL(
           proofPhotoPreview,
         );
       }
     };
-  }, [proofPhotoPreview]);
+  }, [
+    proofPhotoPreview,
+  ]);
 
   const getCanvasPoint =
     (
@@ -1158,7 +1569,9 @@ export default function DriverOrderDetailsPage() {
         signatureCanvasRef.current;
 
       const point =
-        getCanvasPoint(event);
+        getCanvasPoint(
+          event,
+        );
 
       if (
         !canvas ||
@@ -1206,7 +1619,9 @@ export default function DriverOrderDetailsPage() {
         signatureCanvasRef.current;
 
       const point =
-        getCanvasPoint(event);
+        getCanvasPoint(
+          event,
+        );
 
       if (
         !canvas ||
@@ -1231,7 +1646,9 @@ export default function DriverOrderDetailsPage() {
 
       context.stroke();
 
-      setSignatureReady(true);
+      setSignatureReady(
+        true,
+      );
     };
 
   const endSignature =
@@ -1279,7 +1696,9 @@ export default function DriverOrderDetailsPage() {
         canvas.height,
       );
 
-      setSignatureReady(false);
+      setSignatureReady(
+        false,
+      );
     };
 
   const canvasToBlob =
@@ -1371,7 +1790,10 @@ export default function DriverOrderDetailsPage() {
 
   const submitDeliveryProof =
     async () => {
-      if (!order) {
+      if (
+        !task ||
+        !isDelivery
+      ) {
         return;
       }
 
@@ -1385,6 +1807,7 @@ export default function DriverOrderDetailsPage() {
         setError(
           "Le prénom du destinataire est obligatoire.",
         );
+
         return;
       }
 
@@ -1392,20 +1815,34 @@ export default function DriverOrderDetailsPage() {
         setError(
           "Le nom du destinataire est obligatoire.",
         );
+
         return;
       }
 
-      if (!proofPhoto) {
+      /*
+       * RÈGLE POD GLORY :
+       * - signature_required = true  -> signature obligatoire
+       * - signature_required = false -> photo obligatoire
+       */
+      if (
+        signatureRequired &&
+        !signatureReady
+      ) {
         setError(
-          "La photo de livraison est obligatoire.",
+          "La signature du destinataire est obligatoire pour cette livraison.",
         );
+
         return;
       }
 
-      if (!signatureReady) {
+      if (
+        !signatureRequired &&
+        !proofPhoto
+      ) {
         setError(
-          "La signature du destinataire est obligatoire.",
+          "La photo de livraison est obligatoire pour cette livraison.",
         );
+
         return;
       }
 
@@ -1416,31 +1853,7 @@ export default function DriverOrderDetailsPage() {
         setError(
           "Le GPS doit être actif avant de confirmer la livraison.",
         );
-        return;
-      }
 
-      const driverId =
-        Number(order.driver_id);
-
-      if (
-        !Number.isInteger(
-          driverId,
-        ) ||
-        driverId <= 0
-      ) {
-        setError(
-          "Aucun chauffeur valide n'est associé à cette commande.",
-        );
-        return;
-      }
-
-      const canvas =
-        signatureCanvasRef.current;
-
-      if (!canvas) {
-        setError(
-          "Impossible de récupérer la signature.",
-        );
         return;
       }
 
@@ -1449,23 +1862,17 @@ export default function DriverOrderDetailsPage() {
         setError("");
         setSuccess("");
 
-        const signatureBlob =
-          await canvasToBlob(
-            canvas,
-          );
-
-        if (!signatureBlob) {
-          throw new Error(
-            "Impossible de préparer la signature.",
-          );
-        }
-
         const formData =
           new FormData();
 
+        /*
+         * SÉCURITÉ :
+         * aucun driver_id n'est transmis.
+         * Le backend doit l'obtenir depuis le JWT.
+         */
         formData.append(
-          "driver_id",
-          String(driverId),
+          "operation_id",
+          String(task.id),
         );
 
         formData.append(
@@ -1509,23 +1916,51 @@ export default function DriverOrderDetailsPage() {
           );
         }
 
-        formData.append(
-          "photo",
-          proofPhoto,
-          proofPhoto.name ||
-            `delivery-${order.id}.jpg`,
-        );
+        if (proofPhoto) {
+          formData.append(
+            "photo",
+            proofPhoto,
+            proofPhoto.name ||
+              `delivery-${task.order_id}.jpg`,
+          );
+        }
 
-        formData.append(
-          "signature",
-          signatureBlob,
-          `signature-${order.id}.png`,
-        );
+        if (
+          signatureRequired
+        ) {
+          const canvas =
+            signatureCanvasRef.current;
+
+          if (!canvas) {
+            throw new Error(
+              "Impossible de récupérer la signature.",
+            );
+          }
+
+          const signatureBlob =
+            await canvasToBlob(
+              canvas,
+            );
+
+          if (!signatureBlob) {
+            throw new Error(
+              "Impossible de préparer la signature.",
+            );
+          }
+
+          formData.append(
+            "signature",
+            signatureBlob,
+            `signature-${task.order_id}.png`,
+          );
+        }
 
         const token =
           getToken();
 
         if (!token) {
+          clearSession();
+
           router.replace(
             "/login",
           );
@@ -1537,9 +1972,10 @@ export default function DriverOrderDetailsPage() {
 
         const response =
           await fetch(
-            `${API_URL}/api/orders/${order.id}/proofs`,
+            `${API_URL}/api/orders/${task.order_id}/proofs`,
             {
-              method: "POST",
+              method:
+                "POST",
 
               headers: {
                 Accept:
@@ -1567,15 +2003,10 @@ export default function DriverOrderDetailsPage() {
         }
 
         if (
-          response.status === 401
+          response.status ===
+          401
         ) {
-          localStorage.removeItem(
-            "glory_token",
-          );
-
-          sessionStorage.removeItem(
-            "glory_token",
-          );
+          clearSession();
 
           router.replace(
             "/login",
@@ -1588,35 +2019,20 @@ export default function DriverOrderDetailsPage() {
 
         if (!response.ok) {
           throw new Error(
-            result.message ||
+            result?.message ||
               `Erreur API (${response.status}).`,
           );
         }
 
         setProofOpen(false);
+
         resetProofForm();
 
         setSuccess(
-          "Preuve enregistrée. La livraison est maintenant terminée.",
+          "Preuve de livraison enregistrée avec succès.",
         );
 
-        setOrder(
-          (current) =>
-            current
-              ? {
-                  ...current,
-                  status:
-                    result.order
-                      ?.status ||
-                    result.data
-                      ?.order
-                      ?.status ||
-                    "completed",
-                }
-              : current,
-        );
-
-        await loadOrder();
+        await loadTask();
 
         window.setTimeout(
           () => {
@@ -1640,75 +2056,137 @@ export default function DriverOrderDetailsPage() {
       }
     };
 
-  /* ==========================================================
-     NAVIGATION
-  ========================================================== */
-
-  const openNavigation =
-    (
-      address?: string,
-    ) => {
-      if (!address) return;
-
-      setNavigationAddress(
-        address,
-      );
-
-      setNavigationOpen(
-        true,
-      );
-    };
-
-  const launchNavigation =
-    (
-      provider:
-        | "google"
-        | "waze"
-        | "apple",
-    ) => {
-      if (!navigationAddress) {
+  const reportIncident =
+    async () => {
+      if (!task) {
         return;
       }
 
-      const destination =
-        encodeURIComponent(
-          navigationAddress,
+      const reason =
+        incidentReason.trim();
+
+      if (!reason) {
+        setError(
+          "La raison de l'incident est obligatoire.",
         );
 
-      const urls = {
-        google:
-          `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+        return;
+      }
 
-        waze:
-          `https://waze.com/ul?q=${destination}&navigate=yes`,
+      const scanCode =
+        packages.find(
+          (item) =>
+            Boolean(
+              item.barcode,
+            ),
+        )?.barcode ||
+        task.order_number ||
+        "";
 
-        apple:
-          `https://maps.apple.com/?daddr=${destination}&dirflg=d`,
-      };
+      if (!scanCode) {
+        setError(
+          "Aucun code de colis ou numéro de commande n'est disponible pour enregistrer l'incident.",
+        );
 
-      window.open(
-        urls[provider],
-        "_blank",
-        "noopener,noreferrer",
-      );
+        return;
+      }
 
-      setNavigationOpen(
-        false,
-      );
+      try {
+        setIncidentSaving(
+          true,
+        );
+
+        setError("");
+        setSuccess("");
+
+        const result =
+          await apiFetch<ScanResult>(
+            "/api/drivers/me/scan",
+            {
+              method:
+                "POST",
+
+              body:
+                JSON.stringify({
+                  scanned_code:
+                    scanCode,
+
+                  scan_type:
+                    "incident",
+
+                  scan_source:
+                    "manual",
+
+                  notes:
+                    reason,
+
+                  latitude:
+                    position?.latitude ??
+                    null,
+
+                  longitude:
+                    position?.longitude ??
+                    null,
+
+                  accuracy:
+                    position?.accuracy ??
+                    null,
+
+                  device_type:
+                    "driver_task",
+
+                  device_name:
+                    typeof navigator !==
+                    "undefined"
+                      ? navigator.userAgent.slice(
+                          0,
+                          140,
+                        )
+                      : null,
+                }),
+            },
+          );
+
+        if (
+          result.success ===
+          false
+        ) {
+          throw new Error(
+            result.message ||
+              "Impossible d'enregistrer l'incident.",
+          );
+        }
+
+        setIncidentOpen(
+          false,
+        );
+
+        setIncidentReason("");
+
+        setSuccess(
+          "Incident enregistré et transmis à Glory Solutions.",
+        );
+
+        await loadTask();
+
+        window.setTimeout(
+          () => {
+            setSuccess("");
+          },
+          4500,
+        );
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Impossible d'enregistrer l'incident.",
+        );
+      } finally {
+        setIncidentSaving(
+          false,
+        );
+      }
     };
-
-  const nextAction =
-    useMemo(
-      () =>
-        getNextAction(
-          order?.status,
-        ),
-      [order?.status],
-    );
-
-  /* ==========================================================
-     LOADING
-  ========================================================== */
 
   if (loading) {
     return (
@@ -1731,7 +2209,7 @@ export default function DriverOrderDetailsPage() {
         </div>
 
         <h1>
-          Chargement de la livraison
+          Chargement de la tâche
         </h1>
 
         <p>
@@ -1741,7 +2219,7 @@ export default function DriverOrderDetailsPage() {
     );
   }
 
-  if (!order) {
+  if (!task) {
     return (
       <main
         className={
@@ -1753,12 +2231,12 @@ export default function DriverOrderDetailsPage() {
         />
 
         <h1>
-          Livraison introuvable
+          Tâche introuvable
         </h1>
 
         <p>
           {error ||
-            "Cette livraison n'existe pas."}
+            "Cette tâche n'existe pas ou ne vous est pas assignée."}
         </p>
 
         <button
@@ -1782,18 +2260,12 @@ export default function DriverOrderDetailsPage() {
     );
   }
 
-  /* ==========================================================
-     UI
-  ========================================================== */
-
   return (
     <main
       className={
         styles.page
       }
     >
-      {/* TOPBAR */}
-
       <header
         className={
           styles.header
@@ -1809,6 +2281,7 @@ export default function DriverOrderDetailsPage() {
               "/dashboard/driver",
             )
           }
+          aria-label="Retour"
         >
           <ArrowLeft
             size={19}
@@ -1821,16 +2294,22 @@ export default function DriverOrderDetailsPage() {
           }
         >
           <span>
-            GLORY SOLUTIONS
+            GLORY SOLUTIONS ·{" "}
+            {operationEyebrow(
+              task.operation_type,
+            )}
           </span>
 
           <h1>
-            {order.order_number ||
-              `Commande #${order.id}`}
+            {task.order_number ||
+              `Commande #${task.order_id}`}
           </h1>
 
           <p>
-            Gestion de la livraison
+            Tâche #{task.id}
+            {task.route_position
+              ? ` · Position ${task.route_position}`
+              : ""}
           </p>
         </div>
 
@@ -1847,8 +2326,9 @@ export default function DriverOrderDetailsPage() {
               true,
             );
 
-            void loadOrder();
+            void loadTask();
           }}
+          aria-label="Actualiser"
         >
           <RefreshCw
             size={18}
@@ -1860,8 +2340,6 @@ export default function DriverOrderDetailsPage() {
           />
         </button>
       </header>
-
-      {/* STATUS HERO */}
 
       <section
         className={
@@ -1878,9 +2356,19 @@ export default function DriverOrderDetailsPage() {
               styles.statusHeroIcon
             }
           >
-            <Truck
-              size={25}
-            />
+            {isPickup ? (
+              <PackageCheck
+                size={25}
+              />
+            ) : isDelivery ? (
+              <Truck
+                size={25}
+              />
+            ) : (
+              <Navigation
+                size={25}
+              />
+            )}
           </div>
 
           <div>
@@ -1889,18 +2377,20 @@ export default function DriverOrderDetailsPage() {
                 styles.heroLabel
               }
             >
-              LIVRAISON EN COURS
+              {operationEyebrow(
+                task.operation_type,
+              )}
             </span>
 
             <h2>
               {statusLabel(
-                order.status,
+                taskStatus,
               )}
             </h2>
 
             <p>
               {clientName(
-                order,
+                task,
               )}
             </p>
           </div>
@@ -1908,16 +2398,14 @@ export default function DriverOrderDetailsPage() {
 
         <span
           className={`${styles.statusBadge} ${statusClass(
-            order.status,
+            taskStatus,
           )}`}
         >
           {statusLabel(
-            order.status,
+            taskStatus,
           )}
         </span>
       </section>
-
-      {/* GPS */}
 
       <section
         className={`${styles.gpsCard} ${
@@ -1973,7 +2461,7 @@ export default function DriverOrderDetailsPage() {
         </div>
 
         {gpsState ===
-          "active" ? (
+        "active" ? (
           <div
             className={
               styles.gpsLive
@@ -1985,8 +2473,7 @@ export default function DriverOrderDetailsPage() {
 
             EN DIRECT
           </div>
-        ) : gpsState ===
-          "permission" ? (
+        ) : (
           <button
             type="button"
             className={
@@ -1998,10 +2485,8 @@ export default function DriverOrderDetailsPage() {
           >
             Activer
           </button>
-        ) : null}
+        )}
       </section>
-
-      {/* MESSAGES */}
 
       {success && (
         <div
@@ -2031,8 +2516,6 @@ export default function DriverOrderDetailsPage() {
         </div>
       )}
 
-      {/* PROGRESS */}
-
       <section
         className={
           styles.progressCard
@@ -2045,109 +2528,52 @@ export default function DriverOrderDetailsPage() {
         >
           <div>
             <span>
-              PROGRESSION
+              PROGRESSION COLIS
             </span>
 
             <h2>
-              Étapes de livraison
+              {scannedPackages} /{" "}
+              {packageCount} colis scannés
             </h2>
           </div>
+
+          <strong>
+            {progressPercentage}%
+          </strong>
         </div>
 
         <div
           className={
-            styles.progressSteps
+            styles.progressBar
           }
         >
-          {[
-            [
-              "assigned",
-              "Assignée",
-            ],
+          <span
+            style={{
+              width:
+                `${progressPercentage}%`,
+            }}
+          />
+        </div>
 
-            [
-              "pickup_in_progress",
-              "Ramassage",
-            ],
+        <div
+          className={
+            styles.progressSummary
+          }
+        >
+          <span>
+            {remainingPackages} restant
+            {remainingPackages > 1
+              ? "s"
+              : ""}
+          </span>
 
-            [
-              "picked_up",
-              "Ramassée",
-            ],
-
-            [
-              "delivery_in_progress",
-              "En livraison",
-            ],
-
-            [
-              "arrived",
-              "Arrivé",
-            ],
-
-            [
-              "completed",
-              "Terminée",
-            ],
-          ].map(
-            (
-              [
-                value,
-                label,
-              ],
-              index,
-            ) => {
-              const orderFlow = [
-                "assigned",
-                "pickup_in_progress",
-                "picked_up",
-                "delivery_in_progress",
-                "arrived",
-                "completed",
-              ];
-
-              const currentIndex =
-                orderFlow.indexOf(
-                  order.status ||
-                    "assigned",
-                );
-
-              const active =
-                index <=
-                currentIndex;
-
-              return (
-                <div
-                  key={
-                    value
-                  }
-                  className={`${styles.progressStep} ${
-                    active
-                      ? styles.progressStepActive
-                      : ""
-                  }`}
-                >
-                  <span>
-                    {active ? (
-                      <CheckCircle2
-                        size={15}
-                      />
-                    ) : (
-                      index + 1
-                    )}
-                  </span>
-
-                  <small>
-                    {label}
-                  </small>
-                </div>
-              );
-            },
-          )}
+          <span>
+            {statusLabel(
+              taskStatus,
+            )}
+          </span>
         </div>
       </section>
-
-      {/* GRID */}
 
       <section
         className={
@@ -2159,111 +2585,6 @@ export default function DriverOrderDetailsPage() {
             styles.mainColumn
           }
         >
-          {/* PICKUP */}
-
-          <section
-            className={
-              styles.card
-            }
-          >
-            <div
-              className={
-                styles.locationHeader
-              }
-            >
-              <div
-                className={
-                  styles.locationIcon
-                }
-              >
-                <PackageCheck
-                  size={19}
-                />
-              </div>
-
-              <div>
-                <span>
-                  RAMASSAGE
-                </span>
-
-                <h2>
-                  Point de départ
-                </h2>
-              </div>
-            </div>
-
-            <div
-              className={
-                styles.address
-              }
-            >
-              <MapPin
-                size={17}
-              />
-
-              <strong>
-                {order.pickup_address ||
-                  "Adresse non disponible"}
-              </strong>
-            </div>
-
-            <div
-              className={
-                styles.dateGrid
-              }
-            >
-              <div>
-                <CalendarDays
-                  size={15}
-                />
-
-                <span>
-                  {formatDate(
-                    order.pickup_date,
-                  )}
-                </span>
-              </div>
-
-              <div>
-                <Clock3
-                  size={15}
-                />
-
-                <span>
-                  {formatTime(
-                    order.pickup_time,
-                  )}
-                </span>
-              </div>
-            </div>
-
-            {order.pickup_address && (
-              <button
-                type="button"
-                className={
-                  styles.navigationButton
-                }
-                onClick={() =>
-                  openNavigation(
-                    order.pickup_address,
-                  )
-                }
-              >
-                <Navigation
-                  size={17}
-                />
-
-                Navigation vers le ramassage
-
-                <ChevronRight
-                  size={16}
-                />
-              </button>
-            )}
-          </section>
-
-          {/* DELIVERY */}
-
           <section
             className={
               styles.card
@@ -2286,11 +2607,13 @@ export default function DriverOrderDetailsPage() {
 
               <div>
                 <span>
-                  LIVRAISON
+                  {operationEyebrow(
+                    task.operation_type,
+                  )}
                 </span>
 
                 <h2>
-                  Destination
+                  Destination de la tâche
                 </h2>
               </div>
             </div>
@@ -2305,7 +2628,7 @@ export default function DriverOrderDetailsPage() {
               />
 
               <strong>
-                {order.delivery_address ||
+                {currentAddress ||
                   "Adresse non disponible"}
               </strong>
             </div>
@@ -2322,7 +2645,7 @@ export default function DriverOrderDetailsPage() {
 
                 <span>
                   {formatDate(
-                    order.delivery_date,
+                    currentTaskDate,
                   )}
                 </span>
               </div>
@@ -2334,13 +2657,13 @@ export default function DriverOrderDetailsPage() {
 
                 <span>
                   {formatTime(
-                    order.delivery_time,
+                    currentTaskTime,
                   )}
                 </span>
               </div>
             </div>
 
-            {order.delivery_address && (
+            {currentAddress && (
               <button
                 type="button"
                 className={
@@ -2348,7 +2671,7 @@ export default function DriverOrderDetailsPage() {
                 }
                 onClick={() =>
                   openNavigation(
-                    order.delivery_address,
+                    currentAddress,
                   )
                 }
               >
@@ -2356,7 +2679,7 @@ export default function DriverOrderDetailsPage() {
                   size={17}
                 />
 
-                Navigation vers le client
+                Ouvrir la navigation
 
                 <ChevronRight
                   size={16}
@@ -2365,9 +2688,141 @@ export default function DriverOrderDetailsPage() {
             )}
           </section>
 
-          {/* NOTES */}
+          <section
+            className={
+              styles.card
+            }
+          >
+            <div
+              className={
+                styles.sectionTitle
+              }
+            >
+              <PackageCheck
+                size={18}
+              />
 
-          {order.notes && (
+              <h2>
+                Colis de la tâche
+              </h2>
+            </div>
+
+            {packages.length ===
+            0 ? (
+              <p
+                className={
+                  styles.helperText
+                }
+              >
+                Aucun détail de colis disponible.
+              </p>
+            ) : (
+              <div
+                className={
+                  styles.packageList
+                }
+              >
+                {packages.map(
+                  (
+                    item,
+                    index,
+                  ) => {
+                    const scanned =
+                      packageIsScanned(
+                        item,
+                      );
+
+                    return (
+                      <article
+                        key={
+                          item.id
+                        }
+                        className={`${styles.packageItem} ${
+                          scanned
+                            ? styles.packageScanned
+                            : ""
+                        }`}
+                      >
+                        <div
+                          className={
+                            styles.packageIcon
+                          }
+                        >
+                          {scanned ? (
+                            <CheckCircle2
+                              size={18}
+                            />
+                          ) : (
+                            <PackageCheck
+                              size={18}
+                            />
+                          )}
+                        </div>
+
+                        <div
+                          className={
+                            styles.packageContent
+                          }
+                        >
+                          <span>
+                            Colis{" "}
+                            {getPackageNumber(
+                              item,
+                              index,
+                            )}
+                          </span>
+
+                          <strong>
+                            {item.barcode ||
+                              "Code non disponible"}
+                          </strong>
+
+                          <small>
+                            {item.package_type ||
+                              "Colis"}
+                            {item.weight
+                              ? ` · ${item.weight} ${item.weight_unit || ""}`
+                              : ""}
+                          </small>
+                        </div>
+
+                        <span
+                          className={
+                            styles.packageStatus
+                          }
+                        >
+                          {scanned
+                            ? "Scanné"
+                            : "À scanner"}
+                        </span>
+                      </article>
+                    );
+                  },
+                )}
+              </div>
+            )}
+
+            {!isCompleted &&
+              !isCancelled && (
+                <button
+                  type="button"
+                  className={
+                    styles.primaryButton
+                  }
+                  onClick={
+                    openScanner
+                  }
+                >
+                  <ScanLine
+                    size={18}
+                  />
+
+                  Scanner les colis
+                </button>
+              )}
+          </section>
+
+          {task.notes && (
             <section
               className={
                 styles.card
@@ -2392,21 +2847,17 @@ export default function DriverOrderDetailsPage() {
                   styles.notes
                 }
               >
-                {order.notes}
+                {task.notes}
               </p>
             </section>
           )}
         </div>
-
-        {/* SIDEBAR */}
 
         <aside
           className={
             styles.sideColumn
           }
         >
-          {/* CLIENT */}
-
           <section
             className={
               styles.card
@@ -2437,22 +2888,48 @@ export default function DriverOrderDetailsPage() {
 
               <strong>
                 {clientName(
-                  order,
+                  task,
                 )}
               </strong>
 
-              {order.client_email && (
+              {task.client_email && (
                 <small>
-                  {
-                    order.client_email
-                  }
+                  {task.client_email}
                 </small>
               )}
             </div>
 
-            {order.client_phone && (
+            {(task.contact_name ||
+              task.contact_phone) && (
+              <div
+                className={
+                  styles.contactBlock
+                }
+              >
+                {task.contact_name && (
+                  <strong>
+                    {task.contact_name}
+                  </strong>
+                )}
+
+                {task.contact_phone && (
+                  <span>
+                    {task.contact_phone}
+                    {task.contact_extension
+                      ? ` poste ${task.contact_extension}`
+                      : ""}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {(task.contact_phone ||
+              task.client_phone) && (
               <a
-                href={`tel:${order.client_phone}`}
+                href={`tel:${
+                  task.contact_phone ||
+                  task.client_phone
+                }`}
                 className={
                   styles.phoneButton
                 }
@@ -2461,12 +2938,10 @@ export default function DriverOrderDetailsPage() {
                   size={16}
                 />
 
-                Appeler le client
+                Appeler le contact
               </a>
             )}
           </section>
-
-          {/* VEHICLE */}
 
           <section
             className={
@@ -2509,87 +2984,84 @@ export default function DriverOrderDetailsPage() {
 
                 <strong>
                   {[
-                    order.vehicle_name,
-                    order.vehicle_make,
-                    order.vehicle_model,
+                    task.vehicle_name,
+                    task.vehicle_make,
+                    task.vehicle_model,
                   ]
                     .filter(
                       Boolean,
                     )
-                    .join(
-                      " ",
-                    ) ||
+                    .join(" ") ||
                     "Aucun véhicule"}
                 </strong>
 
                 <small>
-                  {order.vehicle_plate ||
+                  {task.vehicle_plate ||
                     "Plaque non disponible"}
                 </small>
               </div>
             </div>
           </section>
 
-          {/* PROOF */}
-
-          <section
-            className={
-              styles.card
-            }
-          >
-            <div
+          {isDelivery && (
+            <section
               className={
-                styles.sectionTitle
+                styles.card
               }
             >
-              <FileCheck2
-                size={18}
-              />
+              <div
+                className={
+                  styles.sectionTitle
+                }
+              >
+                <FileCheck2
+                  size={18}
+                />
 
-              <h2>
-                Preuve de livraison
-              </h2>
-            </div>
+                <h2>
+                  Preuve de livraison
+                </h2>
+              </div>
 
-            <p
-              className={
-                styles.helperText
-              }
-            >
-              La livraison finale exige une photo, la signature du destinataire et son nom.
-            </p>
+              <p
+                className={
+                  styles.helperText
+                }
+              >
+                {signatureRequired
+                  ? "Cette livraison exige la signature du destinataire."
+                  : "Cette livraison exige une photo comme preuve."}
+              </p>
 
-            <button
-              type="button"
-              className={
-                styles.secondaryButton
-              }
-              disabled={
-                order.status ===
-                  "completed" ||
-                proofSaving
-              }
-              onClick={
-                openProofModal
-              }
-            >
-              <Camera
-                size={17}
-              />
+              <button
+                type="button"
+                className={
+                  styles.secondaryButton
+                }
+                onClick={
+                  openProofModal
+                }
+                disabled={
+                  proofSaving
+                }
+              >
+                {signatureRequired ? (
+                  <PenLine
+                    size={17}
+                  />
+                ) : (
+                  <Camera
+                    size={17}
+                  />
+                )}
 
-              {order.status ===
-              "completed"
-                ? "Preuve enregistrée"
-                : "Ajouter la preuve"}
-            </button>
-          </section>
+                Ajouter la preuve
+              </button>
+            </section>
+          )}
 
-          {/* INCIDENT */}
-
-          {order.status !==
-            "completed" &&
-            order.status !==
-              "cancelled" && (
+          {!isCompleted &&
+            !isCancelled && (
               <section
                 className={
                   styles.incidentCard
@@ -2606,7 +3078,7 @@ export default function DriverOrderDetailsPage() {
 
                   <div>
                     <strong>
-                      Problème pendant la livraison ?
+                      Problème pendant la tâche ?
                     </strong>
 
                     <span>
@@ -2630,76 +3102,79 @@ export default function DriverOrderDetailsPage() {
         </aside>
       </section>
 
-      {/* NEXT ACTION */}
-
-      {nextAction && (
-        <section
-          className={
-            styles.actionCard
-          }
-        >
-          <div>
-            <span>
-              PROCHAINE ÉTAPE
-            </span>
-
-            <h2>
-              {nextAction.label}
-            </h2>
-
-            <p>
-              {nextAction.description}
-            </p>
-          </div>
-
-          <button
-            type="button"
+      {!isCompleted &&
+        !isCancelled && (
+          <section
             className={
-              styles.primaryButton
+              styles.actionCard
             }
-            disabled={
-              updating
-            }
-            onClick={() => {
-              if (
-                nextAction.status ===
-                "completed"
-              ) {
-                openProofModal();
-                return;
-              }
-
-              void updateStatus(
-                nextAction.status,
-              );
-            }}
           >
-            {updating ? (
-              <>
-                <Loader2
-                  size={18}
-                  className={
-                    styles.spinner
-                  }
-                />
+            <div>
+              <span>
+                ACTION PRINCIPALE
+              </span>
 
-                Mise à jour...
-              </>
-            ) : (
-              <>
-                <CheckCircle2
-                  size={18}
-                />
+              <h2>
+                {remainingPackages > 0
+                  ? "Scanner les colis de cette tâche"
+                  : isDelivery
+                    ? "Ajouter la preuve de livraison"
+                    : "Tâche scannée"}
+              </h2>
 
-                {nextAction.label}
-              </>
-            )}
-          </button>
-        </section>
-      )}
+              <p>
+                {remainingPackages > 0
+                  ? `${remainingPackages} colis restent à scanner.`
+                  : isDelivery
+                    ? "Tous les colis sont scannés. Enregistrez la preuve de livraison."
+                    : "Tous les colis ont été scannés pour cette opération."}
+              </p>
+            </div>
 
-      {order.status ===
-        "completed" && (
+            <button
+              type="button"
+              className={
+                styles.primaryButton
+              }
+              onClick={
+                remainingPackages > 0
+                  ? openScanner
+                  : isDelivery
+                    ? openProofModal
+                    : () =>
+                        void loadTask()
+              }
+            >
+              {remainingPackages > 0 ? (
+                <>
+                  <ScanLine
+                    size={18}
+                  />
+
+                  Scanner
+                </>
+              ) : isDelivery ? (
+                <>
+                  <FileCheck2
+                    size={18}
+                  />
+
+                  Ajouter la preuve
+                </>
+              ) : (
+                <>
+                  <RefreshCw
+                    size={18}
+                  />
+
+                  Actualiser
+                </>
+              )}
+            </button>
+          </section>
+        )}
+
+      {isCompleted && (
         <section
           className={
             styles.completedCard
@@ -2711,17 +3186,15 @@ export default function DriverOrderDetailsPage() {
 
           <div>
             <strong>
-              Livraison terminée
+              Tâche terminée
             </strong>
 
             <p>
-              Cette livraison a été complétée avec succès.
+              Cette opération a été complétée avec succès.
             </p>
           </div>
         </section>
       )}
-
-      {/* NAVIGATION MODAL */}
 
       {navigationOpen && (
         <div
@@ -2754,7 +3227,9 @@ export default function DriverOrderDetailsPage() {
               }
               aria-label="Fermer"
             >
-              <X size={18} />
+              <X
+                size={18}
+              />
             </button>
 
             <div
@@ -2788,8 +3263,12 @@ export default function DriverOrderDetailsPage() {
                   )
                 }
               >
-                <MapPin size={18} />
+                <MapPin
+                  size={18}
+                />
+
                 Google Maps
+
                 <ExternalLink
                   size={15}
                 />
@@ -2806,7 +3285,9 @@ export default function DriverOrderDetailsPage() {
                 <Navigation
                   size={18}
                 />
+
                 Waze
+
                 <ExternalLink
                   size={15}
                 />
@@ -2820,8 +3301,12 @@ export default function DriverOrderDetailsPage() {
                   )
                 }
               >
-                <MapPin size={18} />
+                <MapPin
+                  size={18}
+                />
+
                 Apple Maps
+
                 <ExternalLink
                   size={15}
                 />
@@ -2830,8 +3315,6 @@ export default function DriverOrderDetailsPage() {
           </div>
         </div>
       )}
-
-      {/* PREUVE DE LIVRAISON MODAL */}
 
       {proofOpen && (
         <div
@@ -2863,7 +3346,9 @@ export default function DriverOrderDetailsPage() {
               }
               aria-label="Fermer"
             >
-              <X size={18} />
+              <X
+                size={18}
+              />
             </button>
 
             <div
@@ -2891,7 +3376,9 @@ export default function DriverOrderDetailsPage() {
                 </h2>
 
                 <p>
-                  Photo, identité du destinataire et signature obligatoires.
+                  {signatureRequired
+                    ? "Signature obligatoire pour cette livraison."
+                    : "Photo obligatoire pour cette livraison."}
                 </p>
               </div>
             </div>
@@ -2928,7 +3415,7 @@ export default function DriverOrderDetailsPage() {
                             )} m`
                           : ""
                       }`
-                    : "Activez la géolocalisation avant de terminer."}
+                    : "Activez la géolocalisation avant de confirmer."}
                 </span>
               </div>
             </div>
@@ -2950,8 +3437,7 @@ export default function DriverOrderDetailsPage() {
                   }
                   onChange={(event) =>
                     setReceiverFirstName(
-                      event.target
-                        .value,
+                      event.target.value,
                     )
                   }
                   placeholder="Prénom"
@@ -2974,8 +3460,7 @@ export default function DriverOrderDetailsPage() {
                   }
                   onChange={(event) =>
                     setReceiverLastName(
-                      event.target
-                        .value,
+                      event.target.value,
                     )
                   }
                   placeholder="Nom"
@@ -2987,66 +3472,87 @@ export default function DriverOrderDetailsPage() {
               </label>
             </div>
 
-            <div
-              className={
-                styles.proofSection
-              }
-            >
+            {!signatureRequired && (
               <div
                 className={
-                  styles.proofSectionHeader
+                  styles.proofSection
                 }
               >
-                <div>
-                  <Camera
-                    size={18}
-                  />
-
-                  <strong>
-                    Photo de livraison *
-                  </strong>
-                </div>
-
-                {proofPhoto && (
-                  <span>
-                    Photo prête
-                  </span>
-                )}
-              </div>
-
-              <input
-                ref={
-                  photoInputRef
-                }
-                className={
-                  styles.hiddenFileInput
-                }
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={
-                  handlePhotoChange
-                }
-                disabled={
-                  proofSaving
-                }
-              />
-
-              {proofPhotoPreview ? (
                 <div
                   className={
-                    styles.photoPreview
+                    styles.proofSectionHeader
                   }
                 >
-                  <img
-                    src={
-                      proofPhotoPreview
-                    }
-                    alt="Aperçu de la preuve de livraison"
-                  />
+                  <div>
+                    <Camera
+                      size={18}
+                    />
 
+                    <strong>
+                      Photo de livraison *
+                    </strong>
+                  </div>
+
+                  {proofPhoto && (
+                    <span>
+                      Photo prête
+                    </span>
+                  )}
+                </div>
+
+                <input
+                  ref={
+                    photoInputRef
+                  }
+                  className={
+                    styles.hiddenFileInput
+                  }
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={
+                    handlePhotoChange
+                  }
+                  disabled={
+                    proofSaving
+                  }
+                />
+
+                {proofPhotoPreview ? (
+                  <div
+                    className={
+                      styles.photoPreview
+                    }
+                  >
+                    <img
+                      src={
+                        proofPhotoPreview
+                      }
+                      alt="Aperçu de la preuve de livraison"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        photoInputRef.current?.click()
+                      }
+                      disabled={
+                        proofSaving
+                      }
+                    >
+                      <Camera
+                        size={16}
+                      />
+
+                      Reprendre
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
+                    className={
+                      styles.photoCaptureButton
+                    }
                     onClick={() =>
                       photoInputRef.current?.click()
                     }
@@ -3055,123 +3561,107 @@ export default function DriverOrderDetailsPage() {
                     }
                   >
                     <Camera
-                      size={16}
+                      size={24}
                     />
-                    Reprendre
+
+                    <strong>
+                      Prendre une photo
+                    </strong>
+
+                    <span>
+                      Utilisez la caméra arrière du téléphone.
+                    </span>
                   </button>
+                )}
+              </div>
+            )}
+
+            {signatureRequired && (
+              <div
+                className={
+                  styles.proofSection
+                }
+              >
+                <div
+                  className={
+                    styles.proofSectionHeader
+                  }
+                >
+                  <div>
+                    <PenLine
+                      size={18}
+                    />
+
+                    <strong>
+                      Signature du destinataire *
+                    </strong>
+                  </div>
+
+                  {signatureReady && (
+                    <span>
+                      Signature prête
+                    </span>
+                  )}
                 </div>
-              ) : (
+
+                <div
+                  className={
+                    styles.signatureBox
+                  }
+                >
+                  <canvas
+                    ref={
+                      signatureCanvasRef
+                    }
+                    onPointerDown={
+                      startSignature
+                    }
+                    onPointerMove={
+                      drawSignature
+                    }
+                    onPointerUp={
+                      endSignature
+                    }
+                    onPointerCancel={
+                      endSignature
+                    }
+                    onPointerLeave={
+                      endSignature
+                    }
+                  />
+
+                  {!signatureReady && (
+                    <div
+                      className={
+                        styles.signaturePlaceholder
+                      }
+                    >
+                      Signez ici avec le doigt
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   className={
-                    styles.photoCaptureButton
+                    styles.clearSignatureButton
                   }
-                  onClick={() =>
-                    photoInputRef.current?.click()
+                  onClick={
+                    clearSignature
                   }
                   disabled={
-                    proofSaving
+                    proofSaving ||
+                    !signatureReady
                   }
                 >
-                  <Camera
-                    size={24}
+                  <RotateCcw
+                    size={15}
                   />
 
-                  <strong>
-                    Prendre une photo
-                  </strong>
-
-                  <span>
-                    Utilisez la caméra arrière du téléphone.
-                  </span>
+                  Effacer la signature
                 </button>
-              )}
-            </div>
-
-            <div
-              className={
-                styles.proofSection
-              }
-            >
-              <div
-                className={
-                  styles.proofSectionHeader
-                }
-              >
-                <div>
-                  <PenLine
-                    size={18}
-                  />
-
-                  <strong>
-                    Signature du destinataire *
-                  </strong>
-                </div>
-
-                {signatureReady && (
-                  <span>
-                    Signature prête
-                  </span>
-                )}
               </div>
-
-              <div
-                className={
-                  styles.signatureBox
-                }
-              >
-                <canvas
-                  ref={
-                    signatureCanvasRef
-                  }
-                  onPointerDown={
-                    startSignature
-                  }
-                  onPointerMove={
-                    drawSignature
-                  }
-                  onPointerUp={
-                    endSignature
-                  }
-                  onPointerCancel={
-                    endSignature
-                  }
-                  onPointerLeave={
-                    endSignature
-                  }
-                />
-
-                {!signatureReady && (
-                  <div
-                    className={
-                      styles.signaturePlaceholder
-                    }
-                  >
-                    Signez ici avec le doigt
-                  </div>
-                )}
-              </div>
-
-              <button
-                type="button"
-                className={
-                  styles.clearSignatureButton
-                }
-                onClick={
-                  clearSignature
-                }
-                disabled={
-                  proofSaving ||
-                  !signatureReady
-                }
-              >
-                <RotateCcw
-                  size={15}
-                />
-
-                Effacer la signature
-              </button>
-            </div>
+            )}
 
             <label
               className={
@@ -3188,8 +3678,7 @@ export default function DriverOrderDetailsPage() {
                 }
                 onChange={(event) =>
                   setProofNotes(
-                    event.target
-                      .value,
+                    event.target.value,
                   )
                 }
                 rows={3}
@@ -3257,8 +3746,6 @@ export default function DriverOrderDetailsPage() {
         </div>
       )}
 
-      {/* INCIDENT MODAL */}
-
       {incidentOpen && (
         <div
           className={
@@ -3274,9 +3761,7 @@ export default function DriverOrderDetailsPage() {
             className={
               styles.modal
             }
-            onClick={(
-              event,
-            ) =>
+            onClick={(event) =>
               event.stopPropagation()
             }
           >
@@ -3290,6 +3775,7 @@ export default function DriverOrderDetailsPage() {
                   false,
                 )
               }
+              aria-label="Fermer"
             >
               <X
                 size={18}
@@ -3318,15 +3804,13 @@ export default function DriverOrderDetailsPage() {
               value={
                 incidentReason
               }
-              onChange={(
-                event,
-              ) =>
+              onChange={(event) =>
                 setIncidentReason(
-                  event.target
-                    .value,
+                  event.target.value,
                 )
               }
               rows={5}
+              maxLength={1000}
               placeholder="Ex. client absent, accès impossible, colis endommagé..."
             />
 

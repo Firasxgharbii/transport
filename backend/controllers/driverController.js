@@ -1310,6 +1310,124 @@ exports.getCurrentDriverOperations = async (req, res) => {
   }
 };
 
+
+/* =====================================================
+   GET CURRENT DRIVER OPERATION BY ID
+   GET /api/drivers/me/operations/:operationId
+
+   SÉCURITÉ :
+   - L'utilisateur vient de req.user.
+   - Le chauffeur est retrouvé depuis user_id.
+   - operationId est validé.
+   - Le modèle exige que l'opération appartienne
+     au chauffeur connecté.
+===================================================== */
+
+exports.getCurrentDriverOperation = async (
+  req,
+  res,
+) => {
+  try {
+    const userId = Number(
+      req.user?.id ||
+        req.user?.user_id,
+    );
+
+    if (
+      !Number.isInteger(userId) ||
+      userId <= 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Utilisateur non authentifié.",
+      });
+    }
+
+    const operationId = Number(
+      req.params?.operationId,
+    );
+
+    if (
+      !Number.isInteger(operationId) ||
+      operationId <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Identifiant de tâche invalide.",
+      });
+    }
+
+    const driver =
+      await DriverModel.getDriverByUserId(
+        userId,
+      );
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Aucun profil chauffeur associé à cet utilisateur.",
+      });
+    }
+
+    const operation =
+      await DriverModel.getDriverOperationById(
+        driver.id,
+        operationId,
+      );
+
+    if (!operation) {
+      /*
+       * On renvoie 404 plutôt que 403.
+       *
+       * Cela évite de révéler au chauffeur
+       * qu'une opération existe mais appartient
+       * à un autre chauffeur.
+       */
+      return res.status(404).json({
+        success: false,
+        message:
+          "Tâche introuvable.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        "Tâche chauffeur récupérée avec succès.",
+      operation,
+      task: operation,
+      data: operation,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur getCurrentDriverOperation :",
+      error,
+    );
+
+    const statusCode = Number(
+      error?.statusCode,
+    );
+
+    return res
+      .status(
+        Number.isInteger(statusCode) &&
+          statusCode >= 400 &&
+          statusCode <= 599
+          ? statusCode
+          : 500,
+      )
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Impossible de récupérer la tâche chauffeur.",
+      });
+  }
+};
+
 /* =====================================================
    GET CURRENT DRIVER SCAN HISTORY
    GET /api/drivers/me/scans

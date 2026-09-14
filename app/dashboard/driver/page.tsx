@@ -80,6 +80,10 @@ type Driver = {
 };
 
 type DriverOrder = {
+  operation_id?: number;
+  operation_type?: string;
+  operation_status?: string;
+  order_id?: number;
   id: number;
 
   order_number?: string;
@@ -221,6 +225,23 @@ function statusClass(value?: string) {
 
     default:
       return styles.statusAssigned;
+  }
+}
+
+function operationTypeLabel(value?: string) {
+  switch (value) {
+    case "pickup":
+      return "RAMASSAGE";
+    case "delivery":
+      return "LIVRAISON";
+    case "warehouse_in":
+      return "ENTRÉE ENTREPÔT";
+    case "warehouse_out":
+      return "SORTIE ENTREPÔT";
+    case "storage":
+      return "ENTREPOSAGE";
+    default:
+      return "TÂCHE";
   }
 }
 
@@ -659,46 +680,118 @@ export default function DriverDashboardPage() {
           currentDriver,
         );
 
-        let receivedOrders:
-          DriverOrder[] = [];
+        /*
+         * MES TÂCHES
+         *
+         * SÉCURITÉ :
+         * Le frontend n'envoie aucun driver_id.
+         * Le backend détermine le chauffeur depuis le JWT et ne retourne
+         * que les opérations qui lui sont assignées.
+         */
+        const operationsResult =
+          await apiFetch<any>(
+            "/api/drivers/me/operations",
+          );
 
-        try {
-          const result =
-            await apiFetch<any>(
-              `/api/orders/driver/${currentDriver.id}`,
-            );
+        const rawOperations =
+          Array.isArray(operationsResult.operations)
+            ? operationsResult.operations
+            : Array.isArray(operationsResult.data)
+              ? operationsResult.data
+              : [];
 
-          receivedOrders =
-            Array.isArray(
-              result.orders,
-            )
-              ? result.orders
-              : Array.isArray(
-                    result.data,
-                  )
-                ? result.data
-                : [];
-        } catch {
-          /*
-           * Fallback pour conserver la compatibilité
-           * avec ton ancienne route.
-           */
-          const result =
-            await apiFetch<any>(
-              `/api/drivers/${currentDriver.id}/orders`,
-            );
-
-          receivedOrders =
-            Array.isArray(
-              result.orders,
-            )
-              ? result.orders
-              : Array.isArray(
-                    result.data,
-                  )
-                ? result.data
-                : [];
-        }
+        const receivedOrders: DriverOrder[] =
+          rawOperations.map((operation: any) => ({
+            ...operation,
+            id:
+              Number(operation.id) ||
+              Number(operation.operation_id),
+            operation_id:
+              Number(operation.operation_id) ||
+              Number(operation.id),
+            order_id:
+              Number(operation.order_id) ||
+              Number(operation.order?.id) ||
+              undefined,
+            operation_type:
+              operation.operation_type ||
+              operation.type,
+            operation_status:
+              operation.operation_status ||
+              operation.status,
+            status:
+              operation.operation_status ||
+              operation.status,
+            order_number:
+              operation.order_number ||
+              operation.order?.order_number,
+            reference:
+              operation.reference ||
+              operation.order?.reference,
+            pickup_address:
+              operation.pickup_address ||
+              operation.order?.pickup_address,
+            pickup_city:
+              operation.pickup_city ||
+              operation.order?.pickup_city,
+            delivery_address:
+              operation.delivery_address ||
+              operation.order?.delivery_address,
+            delivery_city:
+              operation.delivery_city ||
+              operation.order?.delivery_city,
+            pickup_date:
+              operation.pickup_date ||
+              operation.order?.pickup_date,
+            pickup_time:
+              operation.pickup_time ||
+              operation.order?.pickup_time,
+            delivery_date:
+              operation.delivery_date ||
+              operation.order?.delivery_date,
+            delivery_time:
+              operation.delivery_time ||
+              operation.order?.delivery_time,
+            scheduled_date:
+              operation.scheduled_date ||
+              operation.operation_date ||
+              operation.order?.scheduled_date,
+            scheduled_time:
+              operation.scheduled_time ||
+              operation.operation_time ||
+              operation.order?.scheduled_time,
+            route_position:
+              operation.route_position ??
+              operation.order?.route_position ??
+              null,
+            client_name:
+              operation.client_name ||
+              operation.order?.client_name,
+            company_name:
+              operation.company_name ||
+              operation.order?.company_name,
+            client_first_name:
+              operation.client_first_name ||
+              operation.order?.client_first_name,
+            client_last_name:
+              operation.client_last_name ||
+              operation.order?.client_last_name,
+            vehicle_make:
+              operation.vehicle_make ||
+              operation.order?.vehicle_make,
+            vehicle_model:
+              operation.vehicle_model ||
+              operation.order?.vehicle_model,
+            vehicle_plate:
+              operation.vehicle_plate ||
+              operation.order?.vehicle_plate,
+            stop_count:
+              operation.stop_count ??
+              operation.order?.stop_count,
+            completed_stops:
+              operation.completed_stops ??
+              operation.order?.completed_stops,
+          }));
 
         const dispatchOrdered = [...receivedOrders].sort(
           (a, b) => {
@@ -1659,7 +1752,7 @@ export default function DriverDashboardPage() {
           </h1>
 
           <p>
-            Votre espace de travail pour gérer vos livraisons.
+            Votre espace de travail pour gérer toutes vos tâches assignées.
           </p>
         </div>
 
@@ -1867,7 +1960,7 @@ export default function DriverDashboardPage() {
               size={20}
             />
           }
-          label="Commandes"
+          label="Tâches"
           value={
             yearOrderCount
           }
@@ -1936,12 +2029,12 @@ export default function DriverDashboardPage() {
                 }
               >
                 {activeDelivery.route_position
-                  ? `PROCHAINE LIVRAISON · #${activeDelivery.route_position}`
-                  : "LIVRAISON PRIORITAIRE"}
+                  ? `${operationTypeLabel(activeDelivery.operation_type)} · #${activeDelivery.route_position}`
+                  : operationTypeLabel(activeDelivery.operation_type)}
               </span>
 
               <h2>
-                Votre prochaine opération
+                Votre prochaine tâche
               </h2>
             </div>
 
@@ -2026,11 +2119,11 @@ export default function DriverDashboardPage() {
               }
               onClick={() =>
                 router.push(
-                  `/dashboard/driver/orders/${activeDelivery.id}`,
+                  `/dashboard/driver/tasks/${activeDelivery.operation_id || activeDelivery.id}`,
                 )
               }
             >
-              Ouvrir la livraison
+              Ouvrir la tâche
 
               <ChevronRight
                 size={17}
@@ -2060,15 +2153,15 @@ export default function DriverDashboardPage() {
                 styles.sectionLabel
               }
             >
-              MES LIVRAISONS
+              MES TÂCHES
             </span>
 
             <h2>
-              Historique des commandes
+              Historique des tâches
             </h2>
 
             <p>
-              Consultez vos commandes des 12 derniers mois, séparées par date.
+              Consultez toutes vos tâches assignées des 12 derniers mois, séparées par date.
             </p>
           </div>
 
@@ -2141,7 +2234,7 @@ export default function DriverDashboardPage() {
 
             <input
               type="search"
-              placeholder="Rechercher une commande, une adresse..."
+              placeholder="Rechercher une tâche, une commande, une adresse..."
               value={
                 search
               }
@@ -2296,11 +2389,11 @@ export default function DriverDashboardPage() {
               </div>
 
               <h3>
-                Aucune commande
+                Aucune tâche
               </h3>
 
               <p>
-                Aucune livraison ne correspond à la période et aux filtres sélectionnés.
+                Aucune tâche ne correspond à la période et aux filtres sélectionnés.
               </p>
             </div>
           ) : (
@@ -2408,6 +2501,8 @@ export default function DriverDashboardPage() {
                                   styles.orderNumber
                                 }
                               >
+                                {operationTypeLabel(order.operation_type)}
+                                {" · "}
                                 {order.route_position
                                   ? `#${order.route_position} · `
                                   : ""}
@@ -2580,11 +2675,11 @@ export default function DriverDashboardPage() {
                             }
                             onClick={() =>
                               router.push(
-                                `/dashboard/driver/orders/${order.id}`,
+                                `/dashboard/driver/tasks/${order.operation_id || order.id}`,
                               )
                             }
                           >
-                            Voir la livraison
+                            Ouvrir la tâche
 
                             <ChevronRight
                               size={16}
