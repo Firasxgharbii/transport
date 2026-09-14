@@ -99,6 +99,38 @@ const OrderModel = {
   },
 
   /* =====================================================
+     COMMANDES D’UN CLIENT
+  ===================================================== */
+
+  async getClientOrders(clientId) {
+    clientId = normalizePositiveId(clientId, "clientId");
+
+    const [rows] = await db.query(
+      `
+        SELECT
+          o.*,
+          c.first_name AS client_first_name,
+          c.last_name AS client_last_name,
+          c.company_name AS client_profile_company_name,
+          c.phone AS client_phone,
+          c.email AS client_email,
+          c.address AS client_address,
+          c.city AS client_city,
+          c.province AS client_province,
+          c.postal_code AS client_postal_code,
+          (SELECT COUNT(*) FROM order_packages op WHERE op.order_id = o.id) AS package_count
+        FROM orders o
+        INNER JOIN clients c ON c.id = o.client_id
+        WHERE o.client_id = ?
+        ORDER BY o.created_at DESC, o.id DESC
+      `,
+      [clientId]
+    );
+
+    return rows;
+  },
+
+  /* =====================================================
      RÉCUPÉRER UNE COMMANDE
   ===================================================== */
 
@@ -206,10 +238,20 @@ const OrderModel = {
       order_number,
       client_id,
       driver_id,
+      pickup_driver_id,
+      delivery_driver_id,
       vehicle_id,
 
       pickup_address,
       delivery_address,
+
+      destination_type,
+      company_name,
+      contact_name,
+      contact_phone,
+      contact_extension,
+      delivery_unit,
+      signature_required,
 
       pickup_date,
       pickup_time,
@@ -230,10 +272,36 @@ const OrderModel = {
       estimated_duration,
 
       priority,
+      route_position,
       onfleet_task_id,
 
       status,
     } = data;
+
+    const normalizedClientId = normalizePositiveId(
+      client_id,
+      "client_id"
+    );
+
+    const normalizedDriverId = normalizeOptionalPositiveId(
+      driver_id,
+      "driver_id"
+    );
+
+    const normalizedPickupDriverId = normalizeOptionalPositiveId(
+      pickup_driver_id,
+      "pickup_driver_id"
+    );
+
+    const normalizedDeliveryDriverId = normalizeOptionalPositiveId(
+      delivery_driver_id,
+      "delivery_driver_id"
+    );
+
+    const normalizedVehicleId = normalizeOptionalPositiveId(
+      vehicle_id,
+      "vehicle_id"
+    );
 
     const [result] = await db.query(
       `
@@ -241,10 +309,20 @@ const OrderModel = {
           order_number,
           client_id,
           driver_id,
+          pickup_driver_id,
+          delivery_driver_id,
           vehicle_id,
 
           pickup_address,
           delivery_address,
+
+          destination_type,
+          company_name,
+          contact_name,
+          contact_phone,
+          contact_extension,
+          delivery_unit,
+          signature_required,
 
           pickup_date,
           pickup_time,
@@ -265,31 +343,43 @@ const OrderModel = {
           estimated_duration,
 
           priority,
+          route_position,
           onfleet_task_id,
 
           status
         )
         VALUES (
-          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
           ?, ?,
+          ?, ?, ?, ?, ?, ?, ?,
           ?, ?,
           ?, ?,
           ?,
           ?, ?,
           ?, ?, ?,
           ?, ?,
-          ?, ?,
+          ?, ?, ?,
           ?
         )
       `,
       [
         order_number,
-        client_id,
-        driver_id || null,
-        vehicle_id || null,
+        normalizedClientId,
+        normalizedDriverId ?? null,
+        normalizedPickupDriverId ?? null,
+        normalizedDeliveryDriverId ?? null,
+        normalizedVehicleId ?? null,
 
         pickup_address,
         delivery_address,
+
+        destination_type || "residential",
+        company_name || null,
+        contact_name || null,
+        contact_phone || null,
+        contact_extension || null,
+        delivery_unit || null,
+        signature_required ? 1 : 0,
 
         pickup_date || null,
         pickup_time || null,
@@ -310,6 +400,7 @@ const OrderModel = {
         estimated_duration || null,
 
         priority || "normal",
+        route_position || null,
         onfleet_task_id || null,
 
         status || "pending",
@@ -328,10 +419,20 @@ const OrderModel = {
     const allowedFields = [
       "client_id",
       "driver_id",
+      "pickup_driver_id",
+      "delivery_driver_id",
       "vehicle_id",
 
       "pickup_address",
       "delivery_address",
+
+      "destination_type",
+      "company_name",
+      "contact_name",
+      "contact_phone",
+      "contact_extension",
+      "delivery_unit",
+      "signature_required",
 
       "pickup_date",
       "pickup_time",
@@ -352,6 +453,7 @@ const OrderModel = {
       "estimated_duration",
 
       "priority",
+      "route_position",
       "onfleet_task_id",
 
       "status",
@@ -751,6 +853,172 @@ const OrderModel = {
         WHERE id = ?
       `,
       [stopId]
+    );
+
+    return result;
+  },
+
+  /* =====================================================
+     COLIS D'UNE COMMANDE
+  ===================================================== */
+
+  async getOrderPackages(orderId) {
+    orderId = normalizePositiveId(orderId, "orderId");
+
+    const [rows] = await db.query(
+      `
+        SELECT
+          id,
+          order_id,
+          barcode,
+          package_number,
+          package_type,
+          description,
+          weight,
+          weight_unit,
+          length,
+          width,
+          height,
+          dimension_unit,
+          current_status,
+          created_at,
+          updated_at
+        FROM order_packages
+        WHERE order_id = ?
+        ORDER BY package_number ASC, id ASC
+      `,
+      [orderId]
+    );
+
+    return rows;
+  },
+
+  async getOrderPackageById(packageId) {
+    packageId = normalizePositiveId(packageId, "packageId");
+
+    const [rows] = await db.query(
+      `
+        SELECT *
+        FROM order_packages
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [packageId]
+    );
+
+    return rows[0] || null;
+  },
+
+  async createOrderPackage(orderId, data) {
+    orderId = normalizePositiveId(orderId, "orderId");
+
+    const {
+      barcode,
+      package_number = 1,
+      package_type = "box",
+      description = null,
+      weight = null,
+      weight_unit = "lb",
+      length = null,
+      width = null,
+      height = null,
+      dimension_unit = "in",
+      current_status = "created",
+    } = data || {};
+
+    const [result] = await db.query(
+      `
+        INSERT INTO order_packages (
+          order_id,
+          barcode,
+          package_number,
+          package_type,
+          description,
+          weight,
+          weight_unit,
+          length,
+          width,
+          height,
+          dimension_unit,
+          current_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        orderId,
+        barcode,
+        package_number,
+        package_type,
+        description || null,
+        weight ?? null,
+        weight_unit || "lb",
+        length ?? null,
+        width ?? null,
+        height ?? null,
+        dimension_unit || "in",
+        current_status || "created",
+      ]
+    );
+
+    return result.insertId;
+  },
+
+  async updateOrderPackage(packageId, data) {
+    packageId = normalizePositiveId(packageId, "packageId");
+
+    const allowedFields = [
+      "barcode",
+      "package_number",
+      "package_type",
+      "description",
+      "weight",
+      "weight_unit",
+      "length",
+      "width",
+      "height",
+      "dimension_unit",
+      "current_status",
+    ];
+
+    const fields = [];
+    const values = [];
+
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(data, field)) {
+        fields.push(`${field} = ?`);
+        values.push(data[field] ?? null);
+      }
+    }
+
+    if (fields.length === 0) {
+      return { affectedRows: 0, changedRows: 0 };
+    }
+
+    values.push(packageId);
+
+    const [result] = await db.query(
+      `
+        UPDATE order_packages
+        SET
+          ${fields.join(", ")},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `,
+      values
+    );
+
+    return result;
+  },
+
+  async deleteOrderPackage(packageId) {
+    packageId = normalizePositiveId(packageId, "packageId");
+
+    const [result] = await db.query(
+      `
+        DELETE FROM order_packages
+        WHERE id = ?
+      `,
+      [packageId]
     );
 
     return result;

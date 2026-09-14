@@ -2,6 +2,7 @@ const express = require("express");
 
 const {
   getAllOrders,
+  getMyOrders,
   getOrderById,
   createOrder,
   updateOrder,
@@ -122,6 +123,18 @@ router.get(
 
 /* ============================================================
 
+   COMMANDES DU CLIENT CONNECTÉ
+
+============================================================ */
+
+router.get(
+  "/my",
+  roleMiddleware("client"),
+  getMyOrders
+);
+
+/* ============================================================
+
    LISTER TOUTES LES COMMANDES
 
 ============================================================ */
@@ -156,7 +169,8 @@ router.post(
 
   roleMiddleware(
     "super_admin",
-    "dispatcher"
+    "dispatcher",
+    "client"
   ),
 
   createOrder
