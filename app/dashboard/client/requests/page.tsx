@@ -129,25 +129,42 @@ export default function RequestsPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          service_type: "pickup_delivery",
+
+          pickup_address: form.pickupAddress.trim(),
+          pickup_unit: form.pickupUnit.trim() || null,
+
           delivery_address: form.deliveryAddress.trim(),
           delivery_unit: form.deliveryUnit.trim() || null,
           destination_type: form.addressType,
+
           company_name:
             form.addressType === "commercial"
               ? form.companyName.trim() || null
               : null,
+
           contact_name: form.contactName.trim() || null,
           contact_phone: form.contactPhone.trim() || null,
           contact_extension: form.contactExtension.trim() || null,
+
           package_type: form.packageType,
           quantity: Number(form.quantity),
           weight: Number(form.weight),
           weight_unit: form.weightUnit,
+
           length: form.length ? Number(form.length) : null,
           width: form.width ? Number(form.width) : null,
           height: form.height ? Number(form.height) : null,
           dimension_unit: form.dimensionUnit,
+
           pickup_date: pickupDate,
+          delivery_date: pickupDate,
+
+          description:
+            form.packageType === "pallet"
+              ? `${form.quantity} palette(s)`
+              : `${form.quantity} colis`,
+
           notes: form.notes.trim() || null,
           signature_required: form.signatureRequired,
         }),
@@ -156,8 +173,18 @@ export default function RequestsPage() {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem("glory_token");
+          alert(
+            "Votre session a expiré. Veuillez vous reconnecter."
+          );
+          window.location.href = "/login";
+          return;
+        }
+
         throw new Error(
           payload?.message ||
+            payload?.error ||
             "Impossible de créer la commande."
         );
       }
