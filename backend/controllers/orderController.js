@@ -630,36 +630,53 @@ const createOrder = async (req, res) => {
 
     let client = null;
     let clientId = null;
-    let pickupAddress = null;
 
     if (role === "client") {
       client = await getAuthenticatedClient(req);
       if (!client) {
         return res.status(403).json({ success: false, message: "Profil client introuvable." });
       }
-
       clientId = Number(client.id);
-      pickupAddress = buildClientPickupAddress(client);
-
-      if (!pickupAddress || !client.address || !client.city || !client.province || !client.postal_code) {
-        return res.status(400).json({
-          success: false,
-          code: "CLIENT_ADDRESS_INCOMPLETE",
-          message: "Complétez l’adresse, la ville, la province et le code postal de votre profil avant de créer une commande.",
-        });
-      }
     } else {
       clientId = parsePositiveId(req.body.client_id);
       if (!clientId) {
         return res.status(400).json({ success: false, message: "Le client est obligatoire et doit être valide." });
       }
-      pickupAddress = normalizeLimitedText(req.body.pickup_address, 500);
     }
 
-    const deliveryAddress = normalizeLimitedText(req.body.delivery_address, 500);
-    if (!deliveryAddress) {
-      return res.status(400).json({ success: false, message: "L’adresse de livraison est obligatoire." });
+    const requestedPickupAddress = role === "client"
+      ? (normalizeLimitedText(req.body.pickup_address, 500) || buildClientPickupAddress(client))
+      : normalizeLimitedText(req.body.pickup_address, 500);
+    const requestedDeliveryAddress = normalizeLimitedText(req.body.delivery_address, 500);
+
+    const serviceType = normalizeServiceType(
+      req.body.service_type || req.body.order_type,
+      requestedPickupAddress,
+      requestedDeliveryAddress,
+    );
+
+    if (!serviceType) {
+      return res.status(400).json({
+        success: false,
+        message: "Le type de commande est invalide ou aucune adresse opérationnelle n’est disponible.",
+      });
     }
+
+    if (serviceType === "pickup_only" && !requestedPickupAddress) {
+      return res.status(400).json({ success: false, message: "Une adresse de ramassage est obligatoire pour ce type de commande." });
+    }
+    if (serviceType === "delivery_only" && !requestedDeliveryAddress) {
+      return res.status(400).json({ success: false, message: "Une adresse de livraison est obligatoire pour ce type de commande." });
+    }
+    if (serviceType === "pickup_delivery" && (!requestedPickupAddress || !requestedDeliveryAddress)) {
+      return res.status(400).json({ success: false, message: "Les adresses de ramassage et de livraison sont obligatoires pour ce type de commande." });
+    }
+
+    const databaseAddresses = getDatabaseCompatibleAddresses(
+      serviceType,
+      requestedPickupAddress,
+      requestedDeliveryAddress,
+    );
 
     const destinationType = String(req.body.destination_type || "residential").trim().toLowerCase();
     if (!ALLOWED_DESTINATION_TYPES.includes(destinationType)) {
@@ -671,7 +688,7 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Type de colis invalide." });
     }
 
-    const quantity = Number(req.body.quantity ?? req.body.package_quantity ?? 1);
+    const quantity = Number(req.body.quantity ?? req.body.package_quantity ?? req.body.pallets_count ?? 1);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
       return res.status(400).json({ success: false, message: "La quantité doit être comprise entre 1 et 100." });
     }
@@ -681,12 +698,12 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Le poids doit être supérieur à zéro." });
     }
 
-    const weightUnit = String(req.body.weight_unit || "lb").trim().toLowerCase();
+    const weightUnit = String(req.body.weight_unit || "kg").trim().toLowerCase();
     if (!ALLOWED_WEIGHT_UNITS.includes(weightUnit)) {
       return res.status(400).json({ success: false, message: "Unité de poids invalide." });
     }
 
-    const dimensionUnit = String(req.body.dimension_unit || "in").trim().toLowerCase();
+    const dimensionUnit = String(req.body.dimension_unit || "cm").trim().toLowerCase();
     if (!ALLOWED_DIMENSION_UNITS.includes(dimensionUnit)) {
       return res.status(400).json({ success: false, message: "Unité de dimensions invalide." });
     }
@@ -700,10 +717,30 @@ const createOrder = async (req, res) => {
       dimensions[field] = value;
     }
 
-    const pickupDate = normalizeOptionalText(req.body.pickup_date);
-    const deliveryDate = normalizeOptionalText(req.body.delivery_date);
-    if (!isIsoDate(pickupDate) || !isIsoDate(deliveryDate)) {
-      return res.status(400).json({ success: false, message: "Format de date invalide. Utilisez AAAA-MM-JJ." });
+    const splitDateTime = (value, explicitTime) => {
+      const normalized = normalizeOptionalText(value);
+      const normalizedTime = normalizeOptionalText(explicitTime);
+      if (!normalized) return { date: null, time: normalizedTime };
+
+      const match = normalized.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2})(?::\d{2})?)?$/);
+      if (!match || !isIsoDate(match[1])) return null;
+      return { date: match[1], time: normalizedTime || match[2] || null };
+    };
+
+    const pickupSchedule = splitDateTime(req.body.pickup_date, req.body.pickup_time);
+    const deliverySchedule = splitDateTime(req.body.delivery_date, req.body.delivery_time);
+    if (!pickupSchedule || !deliverySchedule) {
+      return res.status(400).json({
+        success: false,
+        message: "Format de date invalide. Utilisez AAAA-MM-JJ ou AAAA-MM-JJTHH:MM.",
+      });
+    }
+
+    if ((serviceType === "pickup_only" || serviceType === "pickup_delivery") && !pickupSchedule.date) {
+      return res.status(400).json({ success: false, message: "La date de ramassage est obligatoire." });
+    }
+    if ((serviceType === "delivery_only" || serviceType === "pickup_delivery") && !deliverySchedule.date) {
+      return res.status(400).json({ success: false, message: "La date de livraison est obligatoire." });
     }
 
     const signatureRequired = normalizeBoolean(req.body.signature_required, false);
@@ -714,6 +751,10 @@ const createOrder = async (req, res) => {
     const deliveryUnit = normalizeLimitedText(req.body.delivery_unit, 50);
     const notes = normalizeLimitedText(req.body.notes, 2000);
     const description = normalizeLimitedText(req.body.description, 500);
+
+    if (!description) {
+      return res.status(400).json({ success: false, message: "La description de la marchandise est obligatoire." });
+    }
 
     let driverId = null;
     let vehicleId = null;
@@ -744,7 +785,9 @@ const createOrder = async (req, res) => {
       totalAmount = amounts.total_amount;
     }
 
-    const palletsCount = packageType === "pallet" ? quantity : 0;
+    const palletsCount = packageType === "pallet"
+      ? quantity
+      : Math.max(0, Number.isInteger(Number(req.body.pallets_count)) ? Number(req.body.pallets_count) : 0);
     const orderNumber = await OrderModel.generateOrderNumber();
 
     const orderData = {
@@ -754,8 +797,8 @@ const createOrder = async (req, res) => {
       pickup_driver_id: privileged ? normalizeNullableId(req.body.pickup_driver_id) : null,
       delivery_driver_id: privileged ? normalizeNullableId(req.body.delivery_driver_id) : null,
       vehicle_id: vehicleId,
-      pickup_address: pickupAddress,
-      delivery_address: deliveryAddress,
+      pickup_address: databaseAddresses.pickup_address,
+      delivery_address: databaseAddresses.delivery_address,
       destination_type: destinationType,
       company_name: companyName,
       contact_name: contactName,
@@ -763,10 +806,10 @@ const createOrder = async (req, res) => {
       contact_extension: contactExtension,
       delivery_unit: deliveryUnit,
       signature_required: signatureRequired,
-      pickup_date: pickupDate,
-      pickup_time: normalizeOptionalText(req.body.pickup_time),
-      delivery_date: deliveryDate,
-      delivery_time: normalizeOptionalText(req.body.delivery_time),
+      pickup_date: pickupSchedule.date,
+      pickup_time: pickupSchedule.time,
+      delivery_date: deliverySchedule.date,
+      delivery_time: deliverySchedule.time,
       pallets_count: palletsCount,
       description,
       notes,
@@ -783,49 +826,62 @@ const createOrder = async (req, res) => {
 
     createdOrderId = await OrderModel.createOrder(orderData);
 
-    // Deux arrêts standards : ramassage + livraison.
-    if (role === "client") {
+    const pickupCity = normalizeLimitedText(req.body.pickup_city, 100) || (role === "client" ? normalizeLimitedText(client?.city, 100) : null);
+    const pickupProvince = normalizeLimitedText(req.body.pickup_province, 100) || (role === "client" ? normalizeLimitedText(client?.province, 100) : null);
+    const pickupPostalCode = normalizeLimitedText(req.body.pickup_postal_code, 20) || (role === "client" ? normalizeLimitedText(client?.postal_code, 20) : null);
+    const deliveryCity = normalizeLimitedText(req.body.delivery_city, 100);
+    const deliveryProvince = normalizeLimitedText(req.body.delivery_province, 100);
+    const deliveryPostalCode = normalizeLimitedText(req.body.delivery_postal_code, 20);
+
+    let stopOrder = 1;
+    if (serviceType === "pickup_only" || serviceType === "pickup_delivery") {
       await OrderModel.createOrderStop(createdOrderId, {
-        stop_order: 1,
+        stop_order: stopOrder++,
         stop_type: "pickup",
-        customer_name: [client.first_name, client.last_name].filter(Boolean).join(" ") || null,
-        company_name: client.company_name || null,
-        contact_name: [client.first_name, client.last_name].filter(Boolean).join(" ") || null,
-        phone: client.phone || null,
-        email: client.email || null,
-        address: client.address,
-        city: client.city,
-        province: client.province,
-        postal_code: client.postal_code,
+        customer_name: role === "client" ? [client?.first_name, client?.last_name].filter(Boolean).join(" ") || null : null,
+        company_name: role === "client" ? client?.company_name || null : null,
+        contact_name: role === "client" ? [client?.first_name, client?.last_name].filter(Boolean).join(" ") || null : null,
+        phone: role === "client" ? client?.phone || null : null,
+        email: role === "client" ? client?.email || null : null,
+        address: requestedPickupAddress,
+        city: pickupCity,
+        province: pickupProvince,
+        postal_code: pickupPostalCode,
+        latitude: normalizeNullableNumber(req.body.pickup_latitude),
+        longitude: normalizeNullableNumber(req.body.pickup_longitude),
         status: "pending",
         notes: null,
       });
+    }
 
+    if (serviceType === "delivery_only" || serviceType === "pickup_delivery") {
       await OrderModel.createOrderStop(createdOrderId, {
-        stop_order: 2,
+        stop_order: stopOrder++,
         stop_type: "delivery",
         customer_name: contactName,
         company_name: companyName,
         contact_name: contactName,
         phone: contactPhone,
         email: null,
-        address: deliveryAddress,
-        city: normalizeLimitedText(req.body.delivery_city, 100),
-        province: normalizeLimitedText(req.body.delivery_province, 100),
-        postal_code: normalizeLimitedText(req.body.delivery_postal_code, 20),
+        address: requestedDeliveryAddress,
+        city: deliveryCity,
+        province: deliveryProvince,
+        postal_code: deliveryPostalCode,
         latitude: normalizeNullableNumber(req.body.delivery_latitude),
         longitude: normalizeNullableNumber(req.body.delivery_longitude),
         status: "pending",
         notes: deliveryUnit ? `Unité / suite : ${deliveryUnit}` : null,
       });
-    } else if (Array.isArray(req.body.stops)) {
+    }
+
+    if (privileged && Array.isArray(req.body.stops)) {
       for (let index = 0; index < req.body.stops.length; index += 1) {
         const stop = req.body.stops[index] || {};
         const stopAddress = normalizeLimitedText(stop.address, 500);
         if (!stopAddress) continue;
         await OrderModel.createOrderStop(createdOrderId, {
           ...stop,
-          stop_order: Number.isInteger(Number(stop.stop_order)) ? Number(stop.stop_order) : index + 1,
+          stop_order: stopOrder++,
           stop_type: ALLOWED_STOP_TYPES.includes(stop.stop_type) ? stop.stop_type : "delivery",
           address: stopAddress,
           status: ALLOWED_STOP_STATUSES.includes(stop.status) ? stop.status : "pending",
@@ -857,7 +913,7 @@ const createOrder = async (req, res) => {
       createdOrderId,
       status,
       getAuthenticatedUserId(req),
-      role === "client" ? "Commande créée par le client" : "Commande créée par l’équipe opérationnelle",
+      role === "client" ? "Commande créée par le client" : `Commande créée par l’équipe opérationnelle pour le client #${clientId}`,
     );
 
     const [createdOrder, createdStops, packages] = await Promise.all([
@@ -866,16 +922,6 @@ const createOrder = async (req, res) => {
       OrderModel.getOrderPackages(createdOrderId),
     ]);
 
-    /* ========================================================
-       NOTIFICATION SUPER ADMIN / DISPATCH
-
-       Important :
-       - l'échec d'une notification ne doit jamais annuler une
-         commande déjà enregistrée ;
-       - l'identité du client provient du profil authentifié ;
-       - notificationService gère la notification interne, le
-         Socket.IO et l'email lorsque email=true.
-    ======================================================== */
     if (role === "client") {
       try {
         const clientDisplayName =
@@ -887,27 +933,19 @@ const createOrder = async (req, res) => {
           normalizeOptionalText(client?.email) ||
           `Client #${clientId}`;
 
-        const packageLabel =
-          quantity > 1 ? `${quantity} colis` : "1 colis";
-
-        const destinationLabel =
-          destinationType === "commercial"
-            ? "Commercial"
-            : "Résidentiel";
+        const packageLabel = quantity > 1 ? `${quantity} colis` : "1 colis";
+        const routeLabels = [];
+        if (serviceType === "pickup_only" || serviceType === "pickup_delivery") routeLabels.push(`Ramassage : ${requestedPickupAddress}.`);
+        if (serviceType === "delivery_only" || serviceType === "pickup_delivery") routeLabels.push(`Livraison : ${requestedDeliveryAddress}${deliveryUnit ? `, unité ${deliveryUnit}` : ""}.`);
 
         const notificationMessage = [
           `${clientDisplayName} vient de créer ${orderNumber}.`,
           `${packageLabel} · ${weight} ${weightUnit}.`,
-          `Ramassage : ${pickupAddress}.`,
-          `Livraison : ${deliveryAddress}${deliveryUnit ? `, unité ${deliveryUnit}` : ""}.`,
-          `Destination : ${destinationLabel}.`,
-          pickupDate ? `Date demandée : ${pickupDate}.` : null,
-          signatureRequired
-            ? "Preuve requise : signature."
-            : "Preuve requise : photo.",
-        ]
-          .filter(Boolean)
-          .join(" ");
+          ...routeLabels,
+          pickupSchedule.date ? `Ramassage demandé : ${pickupSchedule.date}${pickupSchedule.time ? ` ${pickupSchedule.time}` : ""}.` : null,
+          deliverySchedule.date ? `Livraison demandée : ${deliverySchedule.date}${deliverySchedule.time ? ` ${deliverySchedule.time}` : ""}.` : null,
+          signatureRequired ? "Preuve requise : signature." : "Preuve requise : photo.",
+        ].filter(Boolean).join(" ");
 
         await notifyAdmin({
           io: req.app.get("io"),
@@ -921,10 +959,7 @@ const createOrder = async (req, res) => {
           email: true,
         });
       } catch (notificationError) {
-        console.error(
-          "Erreur notification nouvelle commande → admin :",
-          notificationError,
-        );
+        console.error("Erreur notification nouvelle commande → admin :", notificationError);
       }
     }
 
@@ -937,9 +972,10 @@ const createOrder = async (req, res) => {
   } catch (error) {
     console.error("Erreur createOrder :", error);
 
-    // Nettoyage compensatoire si une sous-création échoue.
     if (createdOrderId) {
-      try { await OrderModel.deleteOrder(createdOrderId); } catch (cleanupError) {
+      try {
+        await OrderModel.deleteOrder(createdOrderId);
+      } catch (cleanupError) {
         console.error("Erreur nettoyage commande incomplète :", cleanupError);
       }
     }

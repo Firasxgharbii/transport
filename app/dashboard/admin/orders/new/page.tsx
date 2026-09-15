@@ -302,10 +302,21 @@ export default function NewOrderPage() {
       Number(form.quantity);
 
     if (
-      !Number.isFinite(quantity) ||
-      quantity <= 0
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 100
     ) {
-      return "La quantité doit être supérieure à 0.";
+      return "La quantité doit être comprise entre 1 et 100.";
+    }
+
+    const weight =
+      Number(form.weight);
+
+    if (
+      !Number.isFinite(weight) ||
+      weight <= 0
+    ) {
+      return "Le poids doit être supérieur à 0 kg.";
     }
 
     return "";
@@ -381,8 +392,17 @@ export default function NewOrderPage() {
         description:
           form.description.trim(),
 
-        pallets_count:
+        quantity:
           Number(form.quantity),
+
+        package_type: "box",
+
+        weight:
+          Number(form.weight),
+
+        weight_unit: "kg",
+
+        dimension_unit: "cm",
 
         priority:
           form.priority,
@@ -400,14 +420,7 @@ export default function NewOrderPage() {
             : 0,
 
         notes:
-          [
-            form.notes.trim(),
-            form.weight
-              ? `Poids déclaré : ${form.weight} kg`
-              : "",
-          ]
-            .filter(Boolean)
-            .join("\n") || null,
+          form.notes.trim() || null,
 
         status: "pending",
       };
