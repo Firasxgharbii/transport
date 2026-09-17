@@ -4,47 +4,136 @@ const {
 } = require("../services/googlePlacesService");
 
 /**
+ * ============================================================
+ * GLORY SOLUTIONS
+ * Address Controller
+ * Google Places API (New)
+ * ============================================================
+ *
+ * Routes utilisées :
+ *
  * GET /api/addresses/autocomplete
+ * GET /api/addresses/details
+ */
+
+/**
+ * ============================================================
+ * AUTOCOMPLETE
+ * ============================================================
+ *
+ * Recherche intelligente d'une adresse.
  *
  * Exemple :
- * /api/addresses/autocomplete?input=5975&country=ca
+ *
+ * GET /api/addresses/autocomplete?input=5975&country=ca
+ *
+ * Optionnel :
+ *
+ * GET /api/addresses/autocomplete
+ *     ?input=5975
+ *     &country=ca
+ *     &sessionToken=xxxxx
  */
 async function autocomplete(req, res) {
   try {
-    const input =
-      String(req.query.input || "").trim();
+    /**
+     * --------------------------------------------------------
+     * INPUT
+     * --------------------------------------------------------
+     */
 
-    const country =
-      String(req.query.country || "ca")
-        .trim()
-        .toLowerCase();
+    const input = String(
+      req.query.input || ""
+    ).trim();
+
+    /**
+     * --------------------------------------------------------
+     * COUNTRY
+     * --------------------------------------------------------
+     *
+     * Par défaut :
+     * Canada
+     */
+
+    const country = String(
+      req.query.country || "ca"
+    )
+      .trim()
+      .toLowerCase();
+
+    /**
+     * --------------------------------------------------------
+     * SESSION TOKEN
+     * --------------------------------------------------------
+     *
+     * Optionnel pour le moment.
+     *
+     * Il pourra être envoyé par le frontend pour associer
+     * une recherche Autocomplete à la sélection de l'adresse.
+     */
+
+    const sessionToken = String(
+      req.query.sessionToken || ""
+    ).trim() || null;
+
+    /**
+     * --------------------------------------------------------
+     * VALIDATION
+     * --------------------------------------------------------
+     */
 
     if (!input) {
       return res.status(400).json({
         success: false,
+
         message:
           "Le paramètre input est obligatoire.",
       });
     }
 
+    /**
+     * On évite d'appeler Google pour 1 ou 2 caractères.
+     */
+
     if (input.length < 3) {
-      return res.json({
+      return res.status(200).json({
         success: true,
+
         predictions: [],
       });
     }
 
+    /**
+     * --------------------------------------------------------
+     * GOOGLE PLACES API (NEW)
+     * --------------------------------------------------------
+     */
+
     const predictions =
       await autocompleteAddress(
         input,
-        country
+        country,
+        sessionToken
       );
 
-    return res.json({
+    /**
+     * --------------------------------------------------------
+     * SUCCESS
+     * --------------------------------------------------------
+     */
+
+    return res.status(200).json({
       success: true,
+
       predictions,
     });
   } catch (error) {
+    /**
+     * --------------------------------------------------------
+     * ERROR
+     * --------------------------------------------------------
+     */
+
     console.error(
       "[addressController.autocomplete]",
       error
@@ -54,6 +143,7 @@ async function autocomplete(req, res) {
       .status(error.statusCode || 500)
       .json({
         success: false,
+
         message:
           error.message ||
           "Impossible de rechercher les adresses.",
@@ -62,32 +152,90 @@ async function autocomplete(req, res) {
 }
 
 /**
- * GET /api/addresses/details
+ * ============================================================
+ * ADDRESS DETAILS
+ * ============================================================
+ *
+ * Après sélection d'une suggestion Google,
+ * le frontend envoie le placeId.
  *
  * Exemple :
- * /api/addresses/details?placeId=xxxxx
+ *
+ * GET /api/addresses/details?placeId=ChIJxxxx
+ *
+ * Optionnel :
+ *
+ * GET /api/addresses/details
+ *     ?placeId=ChIJxxxx
+ *     &sessionToken=xxxxx
  */
 async function details(req, res) {
   try {
-    const placeId =
-      String(req.query.placeId || "").trim();
+    /**
+     * --------------------------------------------------------
+     * PLACE ID
+     * --------------------------------------------------------
+     */
+
+    const placeId = String(
+      req.query.placeId || ""
+    ).trim();
+
+    /**
+     * --------------------------------------------------------
+     * SESSION TOKEN
+     * --------------------------------------------------------
+     */
+
+    const sessionToken = String(
+      req.query.sessionToken || ""
+    ).trim() || null;
+
+    /**
+     * --------------------------------------------------------
+     * VALIDATION
+     * --------------------------------------------------------
+     */
 
     if (!placeId) {
       return res.status(400).json({
         success: false,
+
         message:
           "Le paramètre placeId est obligatoire.",
       });
     }
 
-    const address =
-      await getAddressDetails(placeId);
+    /**
+     * --------------------------------------------------------
+     * GOOGLE PLACE DETAILS (NEW)
+     * --------------------------------------------------------
+     */
 
-    return res.json({
+    const address =
+      await getAddressDetails(
+        placeId,
+        sessionToken
+      );
+
+    /**
+     * --------------------------------------------------------
+     * SUCCESS
+     * --------------------------------------------------------
+     */
+
+    return res.status(200).json({
       success: true,
+
       result: address,
     });
   } catch (error) {
+    /**
+     * --------------------------------------------------------
+     * ERROR
+     * --------------------------------------------------------
+     */
+
     console.error(
       "[addressController.details]",
       error
@@ -97,12 +245,19 @@ async function details(req, res) {
       .status(error.statusCode || 500)
       .json({
         success: false,
+
         message:
           error.message ||
           "Impossible de récupérer l'adresse.",
       });
   }
 }
+
+/**
+ * ============================================================
+ * EXPORTS
+ * ============================================================
+ */
 
 module.exports = {
   autocomplete,
