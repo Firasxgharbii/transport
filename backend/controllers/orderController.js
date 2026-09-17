@@ -700,14 +700,13 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Type de colis invalide." });
     }
 
-    const quantity = Number(req.body.quantity ?? req.body.package_quantity ?? req.body.pallets_count ?? 1);
+    const requestedPackages = Array.isArray(req.body.packages) ? req.body.packages : null;
+    const quantity = requestedPackages
+      ? requestedPackages.length
+      : Number(req.body.quantity ?? req.body.package_quantity ?? req.body.pallets_count ?? 1);
+
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
       return res.status(400).json({ success: false, message: "La quantité doit être comprise entre 1 et 100." });
-    }
-
-    const weight = normalizeNullableNumber(req.body.weight);
-    if (weight === null || weight <= 0 || weight > 100000) {
-      return res.status(400).json({ success: false, message: "Le poids doit être supérieur à zéro." });
     }
 
     const weightUnit = String(req.body.weight_unit || "kg").trim().toLowerCase();
@@ -720,14 +719,89 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Unité de dimensions invalide." });
     }
 
-    const dimensions = {};
-    for (const field of ["length", "width", "height"]) {
-      const value = normalizeNullableNumber(req.body[field]);
-      if (value !== null && (value <= 0 || value > 10000)) {
-        return res.status(400).json({ success: false, message: `La dimension ${field} est invalide.` });
+    const normalizedPackages = [];
+
+    if (requestedPackages) {
+      for (let index = 0; index < requestedPackages.length; index += 1) {
+        const item = requestedPackages[index] || {};
+        const itemType = String(item.package_type || packageType).trim().toLowerCase();
+        const itemWeightUnit = String(item.weight_unit || weightUnit).trim().toLowerCase();
+        const itemDimensionUnit = String(item.dimension_unit || dimensionUnit).trim().toLowerCase();
+        const itemWeight = normalizeNullableNumber(item.weight);
+
+        if (!ALLOWED_PACKAGE_TYPES.includes(itemType)) {
+          return res.status(400).json({ success: false, message: `Type invalide pour le colis ${index + 1}.` });
+        }
+        if (!ALLOWED_WEIGHT_UNITS.includes(itemWeightUnit)) {
+          return res.status(400).json({ success: false, message: `Unité de poids invalide pour le colis ${index + 1}.` });
+        }
+        if (!ALLOWED_DIMENSION_UNITS.includes(itemDimensionUnit)) {
+          return res.status(400).json({ success: false, message: `Unité de dimensions invalide pour le colis ${index + 1}.` });
+        }
+        if (itemWeight === null || itemWeight <= 0 || itemWeight > 100000) {
+          return res.status(400).json({ success: false, message: `Le poids du colis ${index + 1} doit être supérieur à zéro.` });
+        }
+
+        const itemDimensions = {};
+        for (const field of ["length", "width", "height"]) {
+          const value = normalizeNullableNumber(item[field]);
+          if (value !== null && (value <= 0 || value > 10000)) {
+            return res.status(400).json({ success: false, message: `La dimension ${field} du colis ${index + 1} est invalide.` });
+          }
+          itemDimensions[field] = value;
+        }
+
+        normalizedPackages.push({
+          package_number: index + 1,
+          package_type: itemType,
+          weight: itemWeight,
+          weight_unit: itemWeightUnit,
+          length: itemDimensions.length,
+          width: itemDimensions.width,
+          height: itemDimensions.height,
+          dimension_unit: itemDimensionUnit,
+        });
       }
-      dimensions[field] = value;
+    } else {
+      // Compatibilité avec les anciens écrans/API qui envoient un poids et
+      // des dimensions uniques pour toute la quantité.
+      const legacyWeight = normalizeNullableNumber(req.body.weight);
+      if (legacyWeight === null || legacyWeight <= 0 || legacyWeight > 100000) {
+        return res.status(400).json({ success: false, message: "Le poids doit être supérieur à zéro." });
+      }
+
+      const legacyDimensions = {};
+      for (const field of ["length", "width", "height"]) {
+        const value = normalizeNullableNumber(req.body[field]);
+        if (value !== null && (value <= 0 || value > 10000)) {
+          return res.status(400).json({ success: false, message: `La dimension ${field} est invalide.` });
+        }
+        legacyDimensions[field] = value;
+      }
+
+      for (let index = 0; index < quantity; index += 1) {
+        normalizedPackages.push({
+          package_number: index + 1,
+          package_type: packageType,
+          weight: legacyWeight,
+          weight_unit: weightUnit,
+          length: legacyDimensions.length,
+          width: legacyDimensions.width,
+          height: legacyDimensions.height,
+          dimension_unit: dimensionUnit,
+        });
+      }
     }
+
+    // Utilisé dans la notification et pour garder la compatibilité avec
+    // les champs historiques de la commande. Les colis restent la source
+    // détaillée de vérité.
+    const weight = normalizedPackages.reduce((sum, item) => sum + item.weight, 0);
+    const dimensions = {
+      length: normalizedPackages[0]?.length ?? null,
+      width: normalizedPackages[0]?.width ?? null,
+      height: normalizedPackages[0]?.height ?? null,
+    };
 
     const splitDateTime = (value, explicitTime) => {
       const normalized = normalizeOptionalText(value);
@@ -907,22 +981,24 @@ const createOrder = async (req, res) => {
       }
     }
 
-    for (let i = 1; i <= quantity; i += 1) {
+    for (let index = 0; index < normalizedPackages.length; index += 1) {
+      const item = normalizedPackages[index];
+      const packageNumber = index + 1;
       const barcode = quantity === 1
         ? orderNumber
-        : `${orderNumber}-P${String(i).padStart(3, "0")}`;
+        : `${orderNumber}-P${String(packageNumber).padStart(3, "0")}`;
 
       await OrderModel.createOrderPackage(createdOrderId, {
         barcode,
-        package_number: i,
-        package_type: packageType,
+        package_number: packageNumber,
+        package_type: item.package_type,
         description,
-        weight,
-        weight_unit: weightUnit,
-        length: dimensions.length,
-        width: dimensions.width,
-        height: dimensions.height,
-        dimension_unit: dimensionUnit,
+        weight: item.weight,
+        weight_unit: item.weight_unit,
+        length: item.length,
+        width: item.width,
+        height: item.height,
+        dimension_unit: item.dimension_unit,
         current_status: "created",
       });
     }

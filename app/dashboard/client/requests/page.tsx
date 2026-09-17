@@ -12,6 +12,13 @@ type DimensionUnit = "cm" | "in";
 type WeightUnit = "lb" | "kg";
 type DateChoice = "today" | "tomorrow" | "custom";
 
+type PackageItem = {
+  weight: string;
+  length: string;
+  width: string;
+  height: string;
+};
+
 export default function RequestsPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +56,14 @@ export default function RequestsPage() {
   });
 
   const [createdReference, setCreatedReference] = useState("");
+  const [packageItems, setPackageItems] = useState<PackageItem[]>([
+    { weight: "", length: "", width: "", height: "" },
+  ]);
+
+  const totalWeight = useMemo(
+    () => packageItems.reduce((sum, item) => sum + (Number(item.weight) || 0), 0),
+    [packageItems]
+  );
 
   const deliveryProofLabel = useMemo(() => {
     return form.signatureRequired
@@ -64,6 +79,24 @@ export default function RequestsPage() {
       ...prev,
       [field]: value,
     }));
+  }
+
+  function changeQuantity(value: string) {
+    const numeric = Math.max(1, Math.min(100, Number.parseInt(value || "1", 10) || 1));
+    updateField("quantity", String(numeric));
+    setPackageItems((previous) =>
+      Array.from({ length: numeric }, (_, index) =>
+        previous[index] || { weight: "", length: "", width: "", height: "" }
+      )
+    );
+  }
+
+  function updatePackage(index: number, field: keyof PackageItem, value: string) {
+    setPackageItems((previous) =>
+      previous.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
   }
 
   function handleContinue() {
@@ -82,8 +115,11 @@ export default function RequestsPage() {
       return;
     }
 
-    if (!form.weight || Number(form.weight) <= 0) {
-      alert("Veuillez entrer un poids valide.");
+    const invalidPackageIndex = packageItems.findIndex(
+      (item) => !item.weight || Number(item.weight) <= 0
+    );
+    if (invalidPackageIndex !== -1) {
+      alert(`Veuillez entrer un poids valide pour ${form.packageType === "pallet" ? "la palette" : "la boîte"} ${invalidPackageIndex + 1}.`);
       return;
     }
 
@@ -154,22 +190,33 @@ export default function RequestsPage() {
           contact_extension: form.contactExtension.trim() || null,
 
           package_type: form.packageType,
-          quantity: Number(form.quantity),
-          weight: Number(form.weight),
+          quantity: packageItems.length,
+          weight: totalWeight,
           weight_unit: form.weightUnit,
 
-          length: form.length ? Number(form.length) : null,
-          width: form.width ? Number(form.width) : null,
-          height: form.height ? Number(form.height) : null,
+          length: packageItems[0]?.length ? Number(packageItems[0].length) : null,
+          width: packageItems[0]?.width ? Number(packageItems[0].width) : null,
+          height: packageItems[0]?.height ? Number(packageItems[0].height) : null,
           dimension_unit: form.dimensionUnit,
+
+          packages: packageItems.map((item, index) => ({
+            package_number: index + 1,
+            package_type: form.packageType,
+            weight: Number(item.weight),
+            weight_unit: form.weightUnit,
+            length: item.length ? Number(item.length) : null,
+            width: item.width ? Number(item.width) : null,
+            height: item.height ? Number(item.height) : null,
+            dimension_unit: form.dimensionUnit,
+          })),
 
           pickup_date: pickupDate,
           delivery_date: pickupDate,
 
           description:
             form.packageType === "pallet"
-              ? `${form.quantity} palette(s)`
-              : `${form.quantity} colis`,
+              ? `${packageItems.length} palette(s)`
+              : `${packageItems.length} colis`,
 
           notes: form.notes.trim() || null,
           signature_required: form.signatureRequired,
@@ -412,24 +459,19 @@ export default function RequestsPage() {
 
             <Section
               title="Colis"
-              subtitle="Décrivez ce qui doit être transporté."
+              subtitle="Ajoutez le poids et les dimensions de chaque unité physique."
             >
               <Field label="Type de colis *">
                 <div style={choiceGridStyle}>
                   <ChoiceCard
                     selected={form.packageType === "box"}
-                    onClick={() =>
-                      updateField("packageType", "box")
-                    }
+                    onClick={() => updateField("packageType", "box")}
                     title="Boîte"
                     description="Colis ou boîte individuelle."
                   />
-
                   <ChoiceCard
                     selected={form.packageType === "pallet"}
-                    onClick={() =>
-                      updateField("packageType", "pallet")
-                    }
+                    onClick={() => updateField("packageType", "pallet")}
                     title="Palette"
                     description="Marchandise sur palette."
                   />
@@ -441,106 +483,63 @@ export default function RequestsPage() {
                   <input
                     type="number"
                     min="1"
+                    max="100"
                     value={form.quantity}
-                    onChange={(e) =>
-                      updateField("quantity", e.target.value)
-                    }
+                    onChange={(e) => changeQuantity(e.target.value)}
                     style={inputStyle}
                   />
                 </Field>
-
-                <Field label="Poids total *">
-                  <div style={inlineInputStyle}>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.weight}
-                      onChange={(e) =>
-                        updateField("weight", e.target.value)
-                      }
-                      placeholder="Ex. 125"
-                      style={{
-                        ...inputStyle,
-                        borderRadius: "12px 0 0 12px",
-                      }}
-                    />
-
-                    <select
-                      value={form.weightUnit}
-                      onChange={(e) =>
-                        updateField("weightUnit", e.target.value)
-                      }
-                      style={unitSelectStyle}
-                    >
-                      <option value="lb">lb</option>
-                      <option value="kg">kg</option>
-                    </select>
+                <Field label="Poids total calculé">
+                  <div style={{ ...inputStyle, display: "flex", alignItems: "center", background: "#f8f8fa", fontWeight: 800 }}>
+                    {totalWeight.toFixed(2)} {form.weightUnit}
                   </div>
                 </Field>
               </div>
 
-              <div style={dimensionsBoxStyle}>
-                <div>
-                  <h3 style={smallTitleStyle}>
-                    Dimensions
-                  </h3>
+              <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                {packageItems.map((item, index) => (
+                  <div key={index} style={dimensionsBoxStyle}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: 16 }}>
+                      <div>
+                        <h3 style={smallTitleStyle}>
+                          {form.packageType === "pallet" ? "Palette" : "Boîte"} {String(index + 1).padStart(2, "0")}
+                        </h3>
+                        <p style={helperStyle}>Mesures propres à cette unité</p>
+                      </div>
+                      <span style={optionalBadgeStyle}>#{index + 1}/{packageItems.length}</span>
+                    </div>
 
-                  <p style={helperStyle}>
-                    Optionnel
-                  </p>
-                </div>
+                    <div style={dimensionsGridStyle}>
+                      <Field label="Poids *">
+                        <input type="number" min="0.01" step="0.01" value={item.weight} onChange={(e) => updatePackage(index, "weight", e.target.value)} placeholder="Ex. 12" style={inputStyle} />
+                      </Field>
+                      <Field label="Longueur">
+                        <input type="number" min="0" step="0.01" value={item.length} onChange={(e) => updatePackage(index, "length", e.target.value)} placeholder="Ex. 20" style={inputStyle} />
+                      </Field>
+                      <Field label="Largeur">
+                        <input type="number" min="0" step="0.01" value={item.width} onChange={(e) => updatePackage(index, "width", e.target.value)} placeholder="Ex. 15" style={inputStyle} />
+                      </Field>
+                      <Field label="Hauteur">
+                        <input type="number" min="0" step="0.01" value={item.height} onChange={(e) => updatePackage(index, "height", e.target.value)} placeholder="Ex. 10" style={inputStyle} />
+                      </Field>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                <div style={dimensionsGridStyle}>
-                  <Field label="Longueur">
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.length}
-                      onChange={(e) =>
-                        updateField("length", e.target.value)
-                      }
-                      style={inputStyle}
-                    />
-                  </Field>
-
-                  <Field label="Largeur">
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.width}
-                      onChange={(e) =>
-                        updateField("width", e.target.value)
-                      }
-                      style={inputStyle}
-                    />
-                  </Field>
-
-                  <Field label="Hauteur">
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.height}
-                      onChange={(e) =>
-                        updateField("height", e.target.value)
-                      }
-                      style={inputStyle}
-                    />
-                  </Field>
-
-                  <Field label="Unité">
-                    <select
-                      value={form.dimensionUnit}
-                      onChange={(e) =>
-                        updateField("dimensionUnit", e.target.value)
-                      }
-                      style={inputStyle}
-                    >
-                      <option value="in">Pouces</option>
-                      <option value="cm">Centimètres</option>
-                    </select>
-                  </Field>
-                </div>
+              <div style={{ ...twoColumnsStyle, marginTop: 18 }}>
+                <Field label="Unité de poids">
+                  <select value={form.weightUnit} onChange={(e) => updateField("weightUnit", e.target.value)} style={inputStyle}>
+                    <option value="lb">lb</option>
+                    <option value="kg">kg</option>
+                  </select>
+                </Field>
+                <Field label="Unité des dimensions">
+                  <select value={form.dimensionUnit} onChange={(e) => updateField("dimensionUnit", e.target.value)} style={inputStyle}>
+                    <option value="in">Pouces</option>
+                    <option value="cm">Centimètres</option>
+                  </select>
+                </Field>
               </div>
             </Section>
 
@@ -710,30 +709,25 @@ export default function RequestsPage() {
 
               <SummaryRow
                 label="Colis"
-                value={`${
-                  form.packageType === "pallet"
-                    ? "Palette"
-                    : "Boîte"
-                } × ${form.quantity}`}
+                value={`${form.packageType === "pallet" ? "Palette" : "Boîte"} × ${packageItems.length}`}
               />
 
               <SummaryRow
-                label="Poids"
-                value={`${form.weight} ${form.weightUnit}`}
+                label="Poids total"
+                value={`${totalWeight.toFixed(2)} ${form.weightUnit}`}
               />
 
-              {(form.length ||
-                form.width ||
-                form.height) && (
+              {packageItems.map((item, index) => (
                 <SummaryRow
-                  label="Dimensions"
-                  value={`${form.length || "-"} × ${
-                    form.width || "-"
-                  } × ${form.height || "-"} ${
-                    form.dimensionUnit
+                  key={`package-summary-${index}`}
+                  label={`${form.packageType === "pallet" ? "Palette" : "Boîte"} ${String(index + 1).padStart(2, "0")}`}
+                  value={`${item.weight} ${form.weightUnit}${
+                    item.length || item.width || item.height
+                      ? ` — ${item.length || "-"} × ${item.width || "-"} × ${item.height || "-"} ${form.dimensionUnit}`
+                      : ""
                   }`}
                 />
-              )}
+              ))}
 
               <SummaryRow
                 label="Date"
