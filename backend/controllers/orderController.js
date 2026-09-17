@@ -637,6 +637,18 @@ const createOrder = async (req, res) => {
         return res.status(403).json({ success: false, message: "Profil client introuvable." });
       }
       clientId = Number(client.id);
+
+      const hasCompletePickupAddress =
+        await ClientModel.hasCompleteAddress(client.id);
+
+      if (!hasCompletePickupAddress) {
+        return res.status(400).json({
+          success: false,
+          code: "CLIENT_PICKUP_ADDRESS_REQUIRED",
+          message:
+            "Votre adresse de ramassage n’est pas complète. Veuillez compléter votre profil avant de créer une commande.",
+        });
+      }
     } else {
       clientId = parsePositiveId(req.body.client_id);
       if (!clientId) {
@@ -645,7 +657,7 @@ const createOrder = async (req, res) => {
     }
 
     const requestedPickupAddress = role === "client"
-      ? (normalizeLimitedText(req.body.pickup_address, 500) || buildClientPickupAddress(client))
+      ? normalizeLimitedText(buildClientPickupAddress(client), 500)
       : normalizeLimitedText(req.body.pickup_address, 500);
     const requestedDeliveryAddress = normalizeLimitedText(req.body.delivery_address, 500);
 
@@ -826,9 +838,15 @@ const createOrder = async (req, res) => {
 
     createdOrderId = await OrderModel.createOrder(orderData);
 
-    const pickupCity = normalizeLimitedText(req.body.pickup_city, 100) || (role === "client" ? normalizeLimitedText(client?.city, 100) : null);
-    const pickupProvince = normalizeLimitedText(req.body.pickup_province, 100) || (role === "client" ? normalizeLimitedText(client?.province, 100) : null);
-    const pickupPostalCode = normalizeLimitedText(req.body.pickup_postal_code, 20) || (role === "client" ? normalizeLimitedText(client?.postal_code, 20) : null);
+    const pickupCity = role === "client"
+      ? normalizeLimitedText(client?.city, 100)
+      : normalizeLimitedText(req.body.pickup_city, 100);
+    const pickupProvince = role === "client"
+      ? normalizeLimitedText(client?.province, 100)
+      : normalizeLimitedText(req.body.pickup_province, 100);
+    const pickupPostalCode = role === "client"
+      ? normalizeLimitedText(client?.postal_code, 20)
+      : normalizeLimitedText(req.body.pickup_postal_code, 20);
     const deliveryCity = normalizeLimitedText(req.body.delivery_city, 100);
     const deliveryProvince = normalizeLimitedText(req.body.delivery_province, 100);
     const deliveryPostalCode = normalizeLimitedText(req.body.delivery_postal_code, 20);
@@ -847,8 +865,8 @@ const createOrder = async (req, res) => {
         city: pickupCity,
         province: pickupProvince,
         postal_code: pickupPostalCode,
-        latitude: normalizeNullableNumber(req.body.pickup_latitude),
-        longitude: normalizeNullableNumber(req.body.pickup_longitude),
+        latitude: role === "client" ? null : normalizeNullableNumber(req.body.pickup_latitude),
+        longitude: role === "client" ? null : normalizeNullableNumber(req.body.pickup_longitude),
         status: "pending",
         notes: null,
       });

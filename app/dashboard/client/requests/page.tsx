@@ -13,9 +13,6 @@ export default function RequestsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
-    pickupAddress: "",
-    pickupUnit: "",
-
     deliveryAddress: "",
     deliveryUnit: "",
 
@@ -64,11 +61,6 @@ export default function RequestsPage() {
   }
 
   function handleContinue() {
-    if (!form.pickupAddress.trim()) {
-      alert("Veuillez entrer l’adresse de ramassage.");
-      return;
-    }
-
     if (!form.deliveryAddress.trim()) {
       alert("Veuillez entrer l’adresse de livraison.");
       return;
@@ -130,9 +122,6 @@ export default function RequestsPage() {
         },
         body: JSON.stringify({
           service_type: "pickup_delivery",
-
-          pickup_address: form.pickupAddress.trim(),
-          pickup_unit: form.pickupUnit.trim() || null,
 
           delivery_address: form.deliveryAddress.trim(),
           delivery_unit: form.deliveryUnit.trim() || null,
@@ -240,33 +229,6 @@ export default function RequestsPage() {
 
         {step === 1 && (
           <>
-            <Section
-              title="Ramassage"
-              subtitle="L’adresse du client sera utilisée par défaut."
-            >
-              <Field label="Adresse de ramassage *">
-                <input
-                  value={form.pickupAddress}
-                  onChange={(e) =>
-                    updateField("pickupAddress", e.target.value)
-                  }
-                  placeholder="Ex. 1234 Rue Sherbrooke O, Montréal, QC"
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Appartement / Suite / Unité">
-                <input
-                  value={form.pickupUnit}
-                  onChange={(e) =>
-                    updateField("pickupUnit", e.target.value)
-                  }
-                  placeholder="Optionnel"
-                  style={inputStyle}
-                />
-              </Field>
-            </Section>
-
             <Section
               title="Livraison"
               subtitle="Recherchez l’adresse exacte de destination."
@@ -619,11 +581,7 @@ export default function RequestsPage() {
             >
               <SummaryRow
                 label="Ramassage"
-                value={`${form.pickupAddress}${
-                  form.pickupUnit
-                    ? ` — ${form.pickupUnit}`
-                    : ""
-                }`}
+                value="Adresse principale enregistrée dans votre compte"
               />
 
               <SummaryRow
