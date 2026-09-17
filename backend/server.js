@@ -49,6 +49,10 @@ const orderRoutes = require(
   "./routes/orderRoutes"
 );
 
+const addressRoutes = require(
+  "./routes/addressRoutes"
+);
+
 const dispatchRoutes = require("./routes/dispatchRoutes");
 
 const dashboardRoutes = require(
@@ -352,6 +356,15 @@ app.use(
 );
 
 app.use("/api/dispatch", dispatchRoutes);
+
+/* ------------------------------------------------------------
+   RECHERCHE INTELLIGENTE D'ADRESSES
+------------------------------------------------------------ */
+
+app.use(
+  "/api/addresses",
+  addressRoutes
+);
 
 /* ------------------------------------------------------------
    TRACKING GPS — NOUVEAU

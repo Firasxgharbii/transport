@@ -2,6 +2,10 @@
 
 import { useMemo, useState } from "react";
 
+import AddressAutocomplete, {
+  type SelectedAddress,
+} from "../components/AddressAutocomplete";
+
 type AddressType = "residential" | "commercial";
 type PackageType = "box" | "pallet";
 type DimensionUnit = "cm" | "in";
@@ -11,6 +15,8 @@ type DateChoice = "today" | "tomorrow" | "custom";
 export default function RequestsPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedDeliveryAddress, setSelectedDeliveryAddress] =
+    useState<SelectedAddress | null>(null);
 
   const [form, setForm] = useState({
     deliveryAddress: "",
@@ -63,6 +69,11 @@ export default function RequestsPage() {
   function handleContinue() {
     if (!form.deliveryAddress.trim()) {
       alert("Veuillez entrer l’adresse de livraison.");
+      return;
+    }
+
+    if (!selectedDeliveryAddress) {
+      alert("Veuillez sélectionner une adresse valide dans les suggestions.");
       return;
     }
 
@@ -123,7 +134,13 @@ export default function RequestsPage() {
         body: JSON.stringify({
           service_type: "pickup_delivery",
 
-          delivery_address: form.deliveryAddress.trim(),
+          delivery_address: selectedDeliveryAddress?.formattedAddress || form.deliveryAddress.trim(),
+          delivery_city: selectedDeliveryAddress?.city || null,
+          delivery_province: selectedDeliveryAddress?.province || null,
+          delivery_postal_code: selectedDeliveryAddress?.postalCode || null,
+          delivery_country: selectedDeliveryAddress?.country || null,
+          delivery_latitude: selectedDeliveryAddress?.latitude ?? null,
+          delivery_longitude: selectedDeliveryAddress?.longitude ?? null,
           delivery_unit: form.deliveryUnit.trim() || null,
           destination_type: form.addressType,
 
@@ -234,17 +251,23 @@ export default function RequestsPage() {
               subtitle="Recherchez l’adresse exacte de destination."
             >
               <Field label="Adresse de livraison *">
-                <input
+                <AddressAutocomplete
                   value={form.deliveryAddress}
-                  onChange={(e) =>
-                    updateField("deliveryAddress", e.target.value)
-                  }
+                  onChange={(value) => {
+                    updateField("deliveryAddress", value);
+                    setSelectedDeliveryAddress(null);
+                  }}
+                  onSelect={(address) => {
+                    setSelectedDeliveryAddress(address);
+                    updateField("deliveryAddress", address.formattedAddress);
+                  }}
+                  country="ca"
                   placeholder="Commencez à taper une adresse..."
-                  style={inputStyle}
+                  inputStyle={inputStyle}
                 />
 
                 <p style={helperStyle}>
-                  La recherche Google d’adresse sera connectée ici.
+                  Commencez à écrire puis sélectionnez l’adresse exacte proposée.
                 </p>
               </Field>
 
