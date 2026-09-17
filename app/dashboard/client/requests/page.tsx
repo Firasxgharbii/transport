@@ -248,8 +248,24 @@ export default function RequestsPage() {
           <>
             <Section
               title="Livraison"
-              subtitle="Recherchez l’adresse exacte de destination."
+              subtitle="Indiquez précisément où la commande doit être livrée."
             >
+              <div style={deliveryIntroStyle}>
+                <div style={deliveryIntroIconStyle}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
+                    <circle cx="12" cy="10" r="2.5" />
+                  </svg>
+                </div>
+                <div>
+                  <strong style={deliveryIntroTitleStyle}>Destination</strong>
+                  <p style={deliveryIntroTextStyle}>
+                    Recherchez l’adresse, puis sélectionnez une suggestion pour la vérifier automatiquement.
+                  </p>
+                </div>
+              </div>
+
               <Field label="Adresse de livraison *">
                 <AddressAutocomplete
                   value={form.deliveryAddress}
@@ -262,95 +278,136 @@ export default function RequestsPage() {
                     updateField("deliveryAddress", address.formattedAddress);
                   }}
                   country="ca"
-                  placeholder="Commencez à taper une adresse..."
-                  inputStyle={inputStyle}
+                  placeholder="Ex. 5975 Avenue de l'Authion, Montréal"
+                  inputStyle={smartAddressInputStyle}
                 />
 
-                <p style={helperStyle}>
-                  Commencez à écrire puis sélectionnez l’adresse exacte proposée.
-                </p>
+                {selectedDeliveryAddress ? (
+                  <div style={verifiedAddressStyle}>
+                    <div style={verifiedIconStyle}>✓</div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={verifiedTopRowStyle}>
+                        <strong style={verifiedTitleStyle}>Adresse vérifiée</strong>
+                        <span style={verifiedBadgeStyle}>VALIDÉE</span>
+                      </div>
+                      <div style={verifiedAddressTextStyle}>
+                        {selectedDeliveryAddress.formattedAddress}
+                      </div>
+                      <div style={verifiedMetaStyle}>
+                        {[
+                          selectedDeliveryAddress.city,
+                          selectedDeliveryAddress.province,
+                          selectedDeliveryAddress.postalCode,
+                          selectedDeliveryAddress.country,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={helperStyle}>
+                    Saisissez au moins 3 caractères et choisissez une adresse dans la liste.
+                  </p>
+                )}
               </Field>
 
-              <Field label="Appartement / Suite / Unité">
-                <input
-                  value={form.deliveryUnit}
-                  onChange={(e) =>
-                    updateField("deliveryUnit", e.target.value)
-                  }
-                  placeholder="Optionnel"
-                  style={inputStyle}
-                />
-              </Field>
-
-              <Field label="Type d’adresse *">
+              <Field label="Type de destination *">
                 <div style={choiceGridStyle}>
                   <ChoiceCard
                     selected={form.addressType === "residential"}
-                    onClick={() =>
-                      updateField("addressType", "residential")
-                    }
+                    onClick={() => updateField("addressType", "residential")}
                     title="Résidentiel"
-                    description="Maison, condo ou appartement."
+                    description="Maison, condo ou immeuble résidentiel."
                   />
-
                   <ChoiceCard
                     selected={form.addressType === "commercial"}
-                    onClick={() =>
-                      updateField("addressType", "commercial")
-                    }
+                    onClick={() => updateField("addressType", "commercial")}
                     title="Commercial"
-                    description="Entreprise, bureau ou entrepôt."
+                    description="Entreprise, bureau, commerce ou entrepôt."
                   />
                 </div>
               </Field>
 
-              {form.addressType === "commercial" && (
-                <Field label="Nom de l’entreprise">
-                  <input
-                    value={form.companyName}
-                    onChange={(e) =>
-                      updateField("companyName", e.target.value)
-                    }
-                    placeholder="Optionnel"
-                    style={inputStyle}
-                  />
-                </Field>
-              )}
+              <div style={destinationDetailsStyle}>
+                <div style={destinationDetailsHeaderStyle}>
+                  <div>
+                    <h3 style={smallTitleStyle}>
+                      {form.addressType === "commercial"
+                        ? "Détails de l’entreprise"
+                        : "Détails de la résidence"}
+                    </h3>
+                    <p style={helperStyle}>
+                      Ces informations aident le chauffeur à trouver la bonne porte rapidement.
+                    </p>
+                  </div>
+                  <span style={optionalBadgeStyle}>Informations de livraison</span>
+                </div>
 
-              <div style={twoColumnsStyle}>
-                <Field label="Nom du contact">
-                  <input
-                    value={form.contactName}
-                    onChange={(e) =>
-                      updateField("contactName", e.target.value)
+                <div style={twoColumnsStyle}>
+                  <Field
+                    label={
+                      form.addressType === "commercial"
+                        ? "Suite / Bureau / Unité"
+                        : "Appartement / Unité"
                     }
-                    placeholder="Optionnel"
-                    style={inputStyle}
-                  />
-                </Field>
+                  >
+                    <input
+                      value={form.deliveryUnit}
+                      onChange={(e) => updateField("deliveryUnit", e.target.value)}
+                      placeholder={
+                        form.addressType === "commercial"
+                          ? "Ex. Suite 210, Bureau 4"
+                          : "Ex. Appartement 20"
+                      }
+                      style={inputStyle}
+                    />
+                  </Field>
 
-                <Field label="Téléphone">
-                  <input
-                    value={form.contactPhone}
-                    onChange={(e) =>
-                      updateField("contactPhone", e.target.value)
-                    }
-                    placeholder="Optionnel"
-                    style={inputStyle}
-                  />
-                </Field>
+                  {form.addressType === "commercial" && (
+                    <Field label="Nom de l’entreprise">
+                      <input
+                        value={form.companyName}
+                        onChange={(e) => updateField("companyName", e.target.value)}
+                        placeholder="Ex. Entreprise ABC"
+                        style={inputStyle}
+                      />
+                    </Field>
+                  )}
+                </div>
+
+                <div style={twoColumnsStyle}>
+                  <Field label="Nom du destinataire">
+                    <input
+                      value={form.contactName}
+                      onChange={(e) => updateField("contactName", e.target.value)}
+                      placeholder="Ex. Marie Tremblay"
+                      style={inputStyle}
+                    />
+                  </Field>
+
+                  <Field label="Téléphone">
+                    <input
+                      type="tel"
+                      value={form.contactPhone}
+                      onChange={(e) => updateField("contactPhone", e.target.value)}
+                      placeholder="Ex. 514 555-0123"
+                      style={inputStyle}
+                    />
+                  </Field>
+                </div>
+
+                {form.addressType === "commercial" && (
+                  <Field label="Extension téléphonique">
+                    <input
+                      value={form.contactExtension}
+                      onChange={(e) => updateField("contactExtension", e.target.value)}
+                      placeholder="Ex. 204"
+                      style={inputStyle}
+                    />
+                  </Field>
+                )}
               </div>
-
-              <Field label="Extension">
-                <input
-                  value={form.contactExtension}
-                  onChange={(e) =>
-                    updateField("contactExtension", e.target.value)
-                  }
-                  placeholder="Optionnel"
-                  style={inputStyle}
-                />
-              </Field>
             </Section>
 
             <Section
@@ -1156,6 +1213,143 @@ const unitSelectStyle: React.CSSProperties = {
   borderRadius: "0 12px 12px 0",
   background: "#f5f5f7",
   padding: "0 10px",
+  fontWeight: 800,
+};
+
+
+const smartAddressInputStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: "54px",
+  padding: "0 14px",
+  background: "#ffffff",
+  color: "#17171c",
+  fontSize: "14px",
+  boxSizing: "border-box",
+};
+
+const deliveryIntroStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "13px",
+  padding: "14px 16px",
+  border: "1px solid #eceef2",
+  borderRadius: "14px",
+  background: "#fafbfc",
+};
+
+const deliveryIntroIconStyle: React.CSSProperties = {
+  width: "40px",
+  height: "40px",
+  minWidth: "40px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "11px",
+  background: "#fff0f4",
+  color: "#ff003d",
+};
+
+const deliveryIntroTitleStyle: React.CSSProperties = {
+  display: "block",
+  color: "#202126",
+  fontSize: "13px",
+  fontWeight: 900,
+};
+
+const deliveryIntroTextStyle: React.CSSProperties = {
+  margin: "4px 0 0",
+  color: "#7b7f89",
+  fontSize: "11.5px",
+  lineHeight: 1.5,
+};
+
+const verifiedAddressStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "12px",
+  marginTop: "10px",
+  padding: "13px 14px",
+  border: "1px solid #cfe9d8",
+  borderRadius: "13px",
+  background: "#f7fcf9",
+};
+
+const verifiedIconStyle: React.CSSProperties = {
+  width: "30px",
+  height: "30px",
+  minWidth: "30px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "50%",
+  background: "#e5f7eb",
+  color: "#168447",
+  fontSize: "14px",
+  fontWeight: 900,
+};
+
+const verifiedTopRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "8px",
+};
+
+const verifiedTitleStyle: React.CSSProperties = {
+  color: "#17643a",
+  fontSize: "12px",
+  fontWeight: 900,
+};
+
+const verifiedBadgeStyle: React.CSSProperties = {
+  padding: "3px 6px",
+  borderRadius: "6px",
+  background: "#e7f7ec",
+  color: "#23824b",
+  fontSize: "8px",
+  fontWeight: 900,
+  letterSpacing: ".08em",
+};
+
+const verifiedAddressTextStyle: React.CSSProperties = {
+  marginTop: "5px",
+  color: "#25272c",
+  fontSize: "12.5px",
+  fontWeight: 750,
+  lineHeight: 1.4,
+};
+
+const verifiedMetaStyle: React.CSSProperties = {
+  marginTop: "3px",
+  color: "#7a7e87",
+  fontSize: "10.5px",
+  lineHeight: 1.4,
+};
+
+const destinationDetailsStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "18px",
+  padding: "18px",
+  border: "1px solid #ececf0",
+  borderRadius: "15px",
+  background: "#fafafa",
+};
+
+const destinationDetailsHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "16px",
+};
+
+const optionalBadgeStyle: React.CSSProperties = {
+  flexShrink: 0,
+  padding: "5px 8px",
+  border: "1px solid #e5e6ea",
+  borderRadius: "8px",
+  background: "#fff",
+  color: "#8a8e98",
+  fontSize: "9px",
   fontWeight: 800,
 };
 

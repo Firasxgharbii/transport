@@ -2,21 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-/**
- * ============================================================
- * GLORY SOLUTIONS
- * Address Autocomplete
- * ============================================================
- *
- * Backend utilisé :
- *
- * GET /api/addresses/autocomplete
- * GET /api/addresses/details
- *
- * Google Places API (New) est appelé uniquement par le backend.
- * La clé Google n'est donc jamais exposée dans le navigateur.
- */
-
 export type SelectedAddress = {
   formattedAddress: string;
   city: string;
@@ -44,36 +29,42 @@ type Props = {
   inputStyle?: React.CSSProperties;
 };
 
-/**
- * ============================================================
- * API URL
- * ============================================================
- *
- * Exemple production :
- *
- * NEXT_PUBLIC_API_URL=https://api.glorysolutions.ca
- *
- * Le replace retire les "/" à la fin pour éviter :
- *
- * https://api.glorysolutions.ca//api/...
- */
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || ""
-).replace(/\/+$/, "");
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 
-/**
- * Construit une URL vers le backend.
- *
- * Si NEXT_PUBLIC_API_URL est vide, on utilise une URL relative.
- * Cela reste utile si le reverse proxy de production envoie
- * /api vers Express.
- */
 function buildApiUrl(path: string) {
-  if (API_URL) {
-    return `${API_URL}${path}`;
-  }
+  return API_URL ? `${API_URL}${path}` : path;
+}
 
-  return path;
+function LocationIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+      aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
 }
 
 export default function AddressAutocomplete({
@@ -81,596 +72,370 @@ export default function AddressAutocomplete({
   onChange,
   onSelect,
   country = "ca",
-  placeholder = "Commencez à taper une adresse...",
+  placeholder = "Ex. 5975 Avenue de l'Authion, Montréal",
   inputStyle,
 }: Props) {
-  /**
-   * Suggestions Google
-   */
-  const [suggestions, setSuggestions] =
-    useState<Suggestion[]>([]);
-
-  /**
-   * État de chargement
-   */
-  const [loading, setLoading] =
-    useState(false);
-
-  /**
-   * Affichage / fermeture du menu
-   */
-  const [open, setOpen] =
-    useState(false);
-
-  /**
-   * Message d'erreur
-   */
-  const [errorMessage, setErrorMessage] =
-    useState("");
-
-  /**
-   * Permet d'ignorer une ancienne requête
-   * lorsqu'une nouvelle recherche est lancée.
-   */
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const requestId = useRef(0);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  /**
-   * ==========================================================
-   * AUTOCOMPLETE
-   * ==========================================================
-   */
+  useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
   useEffect(() => {
     const query = value.trim();
 
-    /**
-     * Pas de requête Google avant 3 caractères.
-     */
     if (query.length < 3) {
       setSuggestions([]);
       setOpen(false);
       setErrorMessage("");
       setLoading(false);
-
       return;
     }
 
-    /**
-     * Numéro unique de cette recherche.
-     */
-    const currentRequest =
-      ++requestId.current;
+    const currentRequest = ++requestId.current;
 
-    /**
-     * Debounce.
-     *
-     * On attend 300 ms avant d'envoyer la requête.
-     * Cela évite d'appeler Google à chaque frappe.
-     */
-    const timer = window.setTimeout(
-      async () => {
-        try {
-          setLoading(true);
-          setErrorMessage("");
+    const timer = window.setTimeout(async () => {
+      try {
+        setLoading(true);
+        setErrorMessage("");
 
-          /**
-           * IMPORTANT
-           *
-           * Ancienne route :
-           *
-           * /api/address-autocomplete
-           *
-           * Nouvelle route Express :
-           *
-           * /api/addresses/autocomplete
-           */
-          const url = buildApiUrl(
-            `/api/addresses/autocomplete?input=${encodeURIComponent(
-              query
-            )}&country=${encodeURIComponent(
-              country
-            )}`
-          );
+        const url = buildApiUrl(
+          `/api/addresses/autocomplete?input=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}`
+        );
 
-          const response =
-            await fetch(url, {
-              method: "GET",
-
-              headers: {
-                Accept:
-                  "application/json",
-              },
-
-              cache: "no-store",
-            });
-
-          /**
-           * Si une nouvelle requête a déjà commencé,
-           * on ignore cette ancienne réponse.
-           */
-          if (
-            currentRequest !==
-            requestId.current
-          ) {
-            return;
-          }
-
-          let payload: any = null;
-
-          try {
-            payload =
-              await response.json();
-          } catch {
-            payload = null;
-          }
-
-          /**
-           * Erreur backend.
-           */
-          if (!response.ok) {
-            console.error(
-              "[AddressAutocomplete]",
-              response.status,
-              payload
-            );
-
-            setSuggestions([]);
-            setOpen(false);
-
-            setErrorMessage(
-              payload?.message ||
-                "Impossible de rechercher les adresses."
-            );
-
-            return;
-          }
-
-          /**
-           * Le backend retourne :
-           *
-           * {
-           *   success: true,
-           *   predictions: [...]
-           * }
-           */
-          const items: Suggestion[] =
-            Array.isArray(
-              payload?.predictions
-            )
-              ? payload.predictions
-              : [];
-
-          setSuggestions(items);
-
-          setOpen(
-            items.length > 0
-          );
-        } catch (error) {
-          if (
-            currentRequest ===
-            requestId.current
-          ) {
-            console.error(
-              "[AddressAutocomplete fetch]",
-              error
-            );
-
-            setSuggestions([]);
-            setOpen(false);
-
-            setErrorMessage(
-              "Impossible de contacter le service d'adresses."
-            );
-          }
-        } finally {
-          if (
-            currentRequest ===
-            requestId.current
-          ) {
-            setLoading(false);
-          }
-        }
-      },
-      300
-    );
-
-    /**
-     * Annule le timer si l'utilisateur continue
-     * à écrire avant les 300 ms.
-     */
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [value, country]);
-
-  /**
-   * ==========================================================
-   * SÉLECTION D'UNE ADRESSE
-   * ==========================================================
-   */
-  async function chooseSuggestion(
-    suggestion: Suggestion
-  ) {
-    try {
-      setLoading(true);
-      setErrorMessage("");
-
-      /**
-       * Nouvelle route Express :
-       *
-       * /api/addresses/details
-       */
-      const url = buildApiUrl(
-        `/api/addresses/details?placeId=${encodeURIComponent(
-          suggestion.place_id
-        )}`
-      );
-
-      const response =
-        await fetch(url, {
+        const response = await fetch(url, {
           method: "GET",
-
-          headers: {
-            Accept:
-              "application/json",
-          },
-
+          headers: { Accept: "application/json" },
           cache: "no-store",
         });
 
-      let payload: any = null;
+        if (currentRequest !== requestId.current) return;
 
-      try {
-        payload =
-          await response.json();
-      } catch {
-        payload = null;
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          setSuggestions([]);
+          setOpen(false);
+          setErrorMessage(payload?.message || "Impossible de rechercher les adresses.");
+          return;
+        }
+
+        const items: Suggestion[] = Array.isArray(payload?.predictions)
+          ? payload.predictions.slice(0, 5)
+          : [];
+
+        setSuggestions(items);
+        setOpen(items.length > 0);
+      } catch (error) {
+        if (currentRequest === requestId.current) {
+          console.error("[AddressAutocomplete]", error);
+          setSuggestions([]);
+          setOpen(false);
+          setErrorMessage("Le service d’adresses est temporairement indisponible.");
+        }
+      } finally {
+        if (currentRequest === requestId.current) setLoading(false);
       }
+    }, 320);
 
-      if (
-        !response.ok ||
-        !payload?.result
-      ) {
-        console.error(
-          "[Address details]",
-          response.status,
-          payload
-        );
+    return () => window.clearTimeout(timer);
+  }, [value, country]);
 
-        setErrorMessage(
-          payload?.message ||
-            "Impossible de récupérer les détails de cette adresse."
-        );
+  async function chooseSuggestion(suggestion: Suggestion) {
+    try {
+      setLoading(true);
+      setErrorMessage("");
+      setOpen(false);
 
+      const url = buildApiUrl(
+        `/api/addresses/details?placeId=${encodeURIComponent(suggestion.place_id)}`
+      );
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.result) {
+        setErrorMessage(payload?.message || "Impossible de vérifier cette adresse.");
         return;
       }
 
-      /**
-       * ======================================================
-       * FORMAT RETOURNÉ PAR NOTRE BACKEND
-       * ======================================================
-       *
-       * {
-       *   place_id,
-       *   formatted_address,
-       *   street_number,
-       *   route,
-       *   city,
-       *   province,
-       *   province_name,
-       *   postal_code,
-       *   country,
-       *   country_name,
-       *   latitude,
-       *   longitude
-       * }
-       *
-       * On n'a donc PLUS besoin de parser
-       * address_components dans le frontend.
-       */
-      const result =
-        payload.result;
+      const result = payload.result;
 
-      const selected: SelectedAddress =
-        {
-          formattedAddress:
-            result.formatted_address ||
-            suggestion.description,
+      onSelect({
+        formattedAddress: result.formatted_address || suggestion.description,
+        city: result.city || "",
+        province: result.province || "",
+        postalCode: result.postal_code || "",
+        country: result.country || "",
+        latitude: typeof result.latitude === "number" ? result.latitude : null,
+        longitude: typeof result.longitude === "number" ? result.longitude : null,
+        placeId: result.place_id || suggestion.place_id,
+      });
 
-          city:
-            result.city || "",
-
-          province:
-            result.province || "",
-
-          postalCode:
-            result.postal_code || "",
-
-          country:
-            result.country || "",
-
-          latitude:
-            typeof result.latitude ===
-            "number"
-              ? result.latitude
-              : null,
-
-          longitude:
-            typeof result.longitude ===
-            "number"
-              ? result.longitude
-              : null,
-
-          placeId:
-            result.place_id ||
-            suggestion.place_id,
-        };
-
-      /**
-       * Met à jour le parent.
-       */
-      onSelect(selected);
-
-      /**
-       * Ferme les suggestions.
-       */
       setSuggestions([]);
-      setOpen(false);
-      setErrorMessage("");
     } catch (error) {
-      console.error(
-        "[Address details fetch]",
-        error
-      );
-
-      setErrorMessage(
-        "Impossible de récupérer les détails de cette adresse."
-      );
+      console.error("[Address details]", error);
+      setErrorMessage("Impossible de vérifier cette adresse.");
     } finally {
       setLoading(false);
     }
   }
 
-  /**
-   * ==========================================================
-   * UI
-   * ==========================================================
-   */
   return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-      }}
-    >
-      <input
-        value={value}
-        onChange={(e) => {
-          /**
-           * Lorsque l'utilisateur recommence à écrire,
-           * l'adresse précédemment sélectionnée n'est
-           * plus considérée comme définitive.
-           */
-          onChange(
-            e.target.value
-          );
+    <div ref={wrapperRef} style={{ position: "relative", width: "100%" }}>
+      <div style={inputShellStyle}>
+        <span style={searchIconStyle}><SearchIcon /></span>
 
-          setErrorMessage("");
-
-          if (
-            e.target.value.trim()
-              .length >= 3
-          ) {
-            setOpen(true);
-          }
-        }}
-        onFocus={() => {
-          if (
-            suggestions.length > 0
-          ) {
-            setOpen(true);
-          }
-        }}
-        placeholder={placeholder}
-        autoComplete="off"
-        spellCheck={false}
-        style={inputStyle}
-      />
-
-      {/* =====================================================
-          CHARGEMENT
-         ===================================================== */}
-
-      {loading && (
-        <span
-          style={{
-            position: "absolute",
-            right: 14,
-            top: 16,
-            color: "#8a8a94",
-            fontSize: 12,
-            pointerEvents: "none",
+        <input
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setErrorMessage("");
+            if (e.target.value.trim().length >= 3) setOpen(true);
           }}
-        >
-          Recherche...
-        </span>
-      )}
+          onFocus={() => suggestions.length > 0 && setOpen(true)}
+          placeholder={placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          aria-label="Adresse de livraison"
+          style={{
+            ...(inputStyle || {}),
+            border: "none",
+            boxShadow: "none",
+            outline: "none",
+            paddingLeft: 44,
+            paddingRight: loading ? 108 : 42,
+            minHeight: 54,
+            borderRadius: 14,
+          }}
+        />
 
-      {/* =====================================================
-          SUGGESTIONS
-         ===================================================== */}
-
-      {open &&
-        suggestions.length > 0 && (
-          <div
-            style={{
-              position:
-                "absolute",
-
-              zIndex: 9999,
-
-              top:
-                "calc(100% + 6px)",
-
-              left: 0,
-              right: 0,
-
-              background:
-                "#ffffff",
-
-              border:
-                "1px solid #e1e1e7",
-
-              borderRadius: 12,
-
-              boxShadow:
-                "0 14px 35px rgba(0,0,0,.12)",
-
-              overflow:
-                "hidden",
-
-              maxHeight: 300,
-
-              overflowY:
-                "auto",
+        {loading ? (
+          <span style={loadingStyle}>
+            <span style={spinnerStyle} />
+            Recherche
+          </span>
+        ) : value ? (
+          <button
+            type="button"
+            aria-label="Effacer l'adresse"
+            onClick={() => {
+              onChange("");
+              setSuggestions([]);
+              setOpen(false);
+              setErrorMessage("");
             }}
+            style={clearButtonStyle}
           >
-            {suggestions.map(
-              (
-                suggestion,
-                index
-              ) => (
-                <button
-                  key={
-                    suggestion.place_id
-                  }
-                  type="button"
-                  onMouseDown={(
-                    event
-                  ) => {
-                    /**
-                     * Empêche le champ de perdre
-                     * le focus avant le click.
-                     */
-                    event.preventDefault();
-                  }}
-                  onClick={() =>
-                    chooseSuggestion(
-                      suggestion
-                    )
-                  }
-                  style={{
-                    display:
-                      "flex",
+            ×
+          </button>
+        ) : null}
+      </div>
 
-                    alignItems:
-                      "flex-start",
-
-                    gap: 10,
-
-                    width:
-                      "100%",
-
-                    padding:
-                      "13px 15px",
-
-                    border: 0,
-
-                    borderBottom:
-                      index ===
-                      suggestions.length -
-                        1
-                        ? "none"
-                        : "1px solid #f0f0f3",
-
-                    background:
-                      "#ffffff",
-
-                    color:
-                      "#202026",
-
-                    textAlign:
-                      "left",
-
-                    cursor:
-                      "pointer",
-
-                    fontSize:
-                      13,
-
-                    lineHeight:
-                      1.45,
-                  }}
-                >
-                  <span
-                    style={{
-                      flexShrink: 0,
-                    }}
-                  >
-                    📍
-                  </span>
-
-                  <span
-                    style={{
-                      display:
-                        "flex",
-
-                      flexDirection:
-                        "column",
-
-                      minWidth: 0,
-                    }}
-                  >
-                    <strong
-                      style={{
-                        fontWeight:
-                          600,
-                      }}
-                    >
-                      {suggestion.main_text ||
-                        suggestion.description}
-                    </strong>
-
-                    {suggestion.secondary_text && (
-                      <span
-                        style={{
-                          marginTop:
-                            2,
-
-                          color:
-                            "#777780",
-
-                          fontSize:
-                            12,
-                        }}
-                      >
-                        {
-                          suggestion.secondary_text
-                        }
-                      </span>
-                    )}
-                  </span>
-                </button>
-              )
-            )}
+      {open && suggestions.length > 0 && (
+        <div style={menuStyle}>
+          <div style={menuHeaderStyle}>
+            <span>Adresses suggérées</span>
+            <span style={poweredStyle}>Canada</span>
           </div>
-        )}
 
-      {/* =====================================================
-          ERREUR
-         ===================================================== */}
+          {suggestions.map((suggestion, index) => (
+            <button
+              key={suggestion.place_id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => chooseSuggestion(suggestion)}
+              style={{
+                ...suggestionStyle,
+                borderBottom:
+                  index === suggestions.length - 1 ? "none" : "1px solid #f0f1f4",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#f8f9fb";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fff";
+              }}
+            >
+              <span style={pinStyle}><LocationIcon size={17} /></span>
 
-      {errorMessage && (
-        <div
-          style={{
-            marginTop: 6,
-            color: "#d92d20",
-            fontSize: 12,
-            lineHeight: 1.4,
-          }}
-        >
-          {errorMessage}
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={mainTextStyle}>
+                  {suggestion.main_text || suggestion.description}
+                </span>
+                {suggestion.secondary_text && (
+                  <span style={secondaryTextStyle}>{suggestion.secondary_text}</span>
+                )}
+              </span>
+
+              <span style={chevronStyle}><ChevronIcon /></span>
+            </button>
+          ))}
         </div>
       )}
+
+      {errorMessage && <div style={errorStyle}>{errorMessage}</div>}
     </div>
   );
 }
+
+const inputShellStyle: React.CSSProperties = {
+  position: "relative",
+  display: "flex",
+  alignItems: "center",
+  width: "100%",
+  border: "1px solid #dfe1e7",
+  borderRadius: 14,
+  background: "#fff",
+  boxShadow: "0 1px 2px rgba(16,24,40,.03)",
+  overflow: "hidden",
+};
+
+const searchIconStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 16,
+  zIndex: 2,
+  display: "flex",
+  color: "#777b86",
+  pointerEvents: "none",
+};
+
+const loadingStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 14,
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  color: "#747783",
+  fontSize: 11,
+  fontWeight: 700,
+};
+
+const spinnerStyle: React.CSSProperties = {
+  width: 13,
+  height: 13,
+  border: "2px solid #e6e7eb",
+  borderTopColor: "#ff003d",
+  borderRadius: "50%",
+};
+
+const clearButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 10,
+  width: 30,
+  height: 30,
+  border: 0,
+  borderRadius: 8,
+  background: "transparent",
+  color: "#9a9da6",
+  fontSize: 20,
+  cursor: "pointer",
+};
+
+const menuStyle: React.CSSProperties = {
+  position: "absolute",
+  zIndex: 9999,
+  top: "calc(100% + 8px)",
+  left: 0,
+  right: 0,
+  overflow: "hidden",
+  background: "#fff",
+  border: "1px solid #e2e4e9",
+  borderRadius: 14,
+  boxShadow: "0 18px 45px rgba(16,24,40,.13)",
+};
+
+const menuHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "10px 14px",
+  background: "#fafbfc",
+  borderBottom: "1px solid #eef0f3",
+  color: "#777b86",
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: ".08em",
+  textTransform: "uppercase",
+};
+
+const poweredStyle: React.CSSProperties = {
+  color: "#a0a3ac",
+  fontSize: 9,
+  letterSpacing: ".04em",
+};
+
+const suggestionStyle: React.CSSProperties = {
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "12px 14px",
+  border: 0,
+  background: "#fff",
+  textAlign: "left",
+  cursor: "pointer",
+  transition: "background .15s ease",
+};
+
+const pinStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  minWidth: 34,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: 10,
+  background: "#fff2f5",
+  color: "#ff003d",
+};
+
+const mainTextStyle: React.CSSProperties = {
+  display: "block",
+  overflow: "hidden",
+  color: "#202126",
+  fontSize: 13,
+  fontWeight: 750,
+  lineHeight: 1.35,
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const secondaryTextStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 3,
+  overflow: "hidden",
+  color: "#818590",
+  fontSize: 11.5,
+  lineHeight: 1.35,
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const chevronStyle: React.CSSProperties = {
+  display: "flex",
+  color: "#b0b3bb",
+};
+
+const errorStyle: React.CSSProperties = {
+  marginTop: 7,
+  color: "#c93434",
+  fontSize: 11.5,
+  lineHeight: 1.45,
+};
