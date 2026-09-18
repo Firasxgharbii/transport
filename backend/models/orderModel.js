@@ -253,6 +253,10 @@ const OrderModel = {
       delivery_unit,
       signature_required,
 
+      service_level,
+      pickup_appointment,
+      delivery_appointment,
+
       pickup_date,
       pickup_time,
 
@@ -324,6 +328,10 @@ const OrderModel = {
           delivery_unit,
           signature_required,
 
+          service_level,
+          pickup_appointment,
+          delivery_appointment,
+
           pickup_date,
           pickup_time,
 
@@ -352,6 +360,7 @@ const OrderModel = {
           ?, ?, ?, ?, ?, ?,
           ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?,
           ?, ?,
           ?, ?,
           ?,
@@ -380,6 +389,10 @@ const OrderModel = {
         contact_extension || null,
         delivery_unit || null,
         signature_required ? 1 : 0,
+
+        service_level || "standard",
+        pickup_appointment ? 1 : 0,
+        delivery_appointment ? 1 : 0,
 
         pickup_date || null,
         pickup_time || null,
@@ -433,6 +446,10 @@ const OrderModel = {
       "contact_extension",
       "delivery_unit",
       "signature_required",
+
+      "service_level",
+      "pickup_appointment",
+      "delivery_appointment",
 
       "pickup_date",
       "pickup_time",

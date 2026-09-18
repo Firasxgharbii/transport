@@ -54,6 +54,12 @@ const ALLOWED_SERVICE_TYPES = [
   "pickup_delivery",
 ];
 
+const ALLOWED_SERVICE_LEVELS = [
+  "standard",
+  "same_day",
+  "urgent",
+];
+
 
 const ALLOWED_DESTINATION_TYPES = ["residential", "commercial"];
 const ALLOWED_PACKAGE_TYPES = ["box", "pallet"];
@@ -479,6 +485,9 @@ function buildOrderAuditComment({
     ["pickup_time", "heure de ramassage"],
     ["delivery_date", "date de livraison"],
     ["delivery_time", "heure de livraison"],
+    ["service_level", "niveau de service"],
+    ["pickup_appointment", "rendez-vous de ramassage"],
+    ["delivery_appointment", "rendez-vous de livraison"],
     ["pallets_count", "palettes"],
     ["priority", "priorité"],
     ["status", "statut"],
@@ -829,6 +838,33 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "La date de livraison est obligatoire." });
     }
 
+    const serviceLevel = String(req.body.service_level || "standard").trim().toLowerCase();
+    if (!ALLOWED_SERVICE_LEVELS.includes(serviceLevel)) {
+      return res.status(400).json({ success: false, message: "Niveau de service invalide." });
+    }
+
+    const pickupAppointment = normalizeBoolean(req.body.pickup_appointment, false);
+    const deliveryAppointment = normalizeBoolean(req.body.delivery_appointment, false);
+
+    if (pickupAppointment && !pickupSchedule.time) {
+      return res.status(400).json({ success: false, message: "L’heure de rendez-vous de ramassage est obligatoire." });
+    }
+    if (deliveryAppointment && !deliverySchedule.time) {
+      return res.status(400).json({ success: false, message: "L’heure de rendez-vous de livraison est obligatoire." });
+    }
+
+    if (serviceLevel === "same_day" && pickupSchedule.date && deliverySchedule.date && pickupSchedule.date !== deliverySchedule.date) {
+      return res.status(400).json({ success: false, message: "Le service Jour même exige un ramassage et une livraison à la même date." });
+    }
+
+    if (pickupSchedule.date && deliverySchedule.date) {
+      const pickupDateTime = `${pickupSchedule.date}T${pickupSchedule.time || "00:00"}:00`;
+      const deliveryDateTime = `${deliverySchedule.date}T${deliverySchedule.time || "23:59"}:00`;
+      if (new Date(deliveryDateTime).getTime() < new Date(pickupDateTime).getTime()) {
+        return res.status(400).json({ success: false, message: "La livraison ne peut pas être planifiée avant le ramassage." });
+      }
+    }
+
     const signatureRequired = normalizeBoolean(req.body.signature_required, false);
     const companyName = destinationType === "commercial" ? normalizeLimitedText(req.body.company_name, 150) : null;
     const contactName = normalizeLimitedText(req.body.contact_name, 150);
@@ -892,6 +928,9 @@ const createOrder = async (req, res) => {
       contact_extension: contactExtension,
       delivery_unit: deliveryUnit,
       signature_required: signatureRequired,
+      service_level: serviceLevel,
+      pickup_appointment: pickupAppointment ? 1 : 0,
+      delivery_appointment: deliveryAppointment ? 1 : 0,
       pickup_date: pickupSchedule.date,
       pickup_time: pickupSchedule.time,
       delivery_date: deliverySchedule.date,
@@ -1038,6 +1077,9 @@ const createOrder = async (req, res) => {
           ...routeLabels,
           pickupSchedule.date ? `Ramassage demandé : ${pickupSchedule.date}${pickupSchedule.time ? ` ${pickupSchedule.time}` : ""}.` : null,
           deliverySchedule.date ? `Livraison demandée : ${deliverySchedule.date}${deliverySchedule.time ? ` ${deliverySchedule.time}` : ""}.` : null,
+          `Niveau de service : ${serviceLevel}.`,
+          pickupAppointment ? "Ramassage avec rendez-vous." : "Ramassage sans rendez-vous.",
+          deliveryAppointment ? "Livraison avec rendez-vous." : "Livraison sans rendez-vous.",
           signatureRequired ? "Preuve requise : signature." : "Preuve requise : photo.",
         ].filter(Boolean).join(" ");
 
@@ -1394,6 +1436,22 @@ const updateOrder = async (
 
     if (Object.prototype.hasOwnProperty.call(req.body, "signature_required")) {
       updatedData.signature_required = normalizeBoolean(req.body.signature_required, false) ? 1 : 0;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "service_level")) {
+      const serviceLevel = String(req.body.service_level || "").trim().toLowerCase();
+      if (!ALLOWED_SERVICE_LEVELS.includes(serviceLevel)) {
+        return res.status(400).json({ success: false, message: "Niveau de service invalide." });
+      }
+      updatedData.service_level = serviceLevel;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "pickup_appointment")) {
+      updatedData.pickup_appointment = normalizeBoolean(req.body.pickup_appointment, false) ? 1 : 0;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "delivery_appointment")) {
+      updatedData.delivery_appointment = normalizeBoolean(req.body.delivery_appointment, false) ? 1 : 0;
     }
 
     if (

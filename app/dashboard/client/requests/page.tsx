@@ -11,6 +11,7 @@ type PackageType = "box" | "pallet";
 type DimensionUnit = "cm" | "in";
 type WeightUnit = "lb" | "kg";
 type DateChoice = "today" | "tomorrow" | "custom";
+type ServiceLevel = "standard" | "same_day" | "urgent";
 
 type PackageItem = {
   weight: string;
@@ -47,8 +48,16 @@ export default function RequestsPage() {
     height: "",
     dimensionUnit: "in" as DimensionUnit,
 
+    serviceLevel: "standard" as ServiceLevel,
+
     dateChoice: "today" as DateChoice,
     customDate: "",
+
+    pickupAppointment: false,
+    pickupTime: "",
+    deliveryAppointment: false,
+    deliveryDate: "",
+    deliveryTime: "",
 
     notes: "",
 
@@ -124,7 +133,22 @@ export default function RequestsPage() {
     }
 
     if (form.dateChoice === "custom" && !form.customDate) {
-      alert("Veuillez choisir une date.");
+      alert("Veuillez choisir une date de ramassage.");
+      return;
+    }
+
+    if (form.pickupAppointment && !form.pickupTime) {
+      alert("Veuillez choisir l’heure du rendez-vous de ramassage.");
+      return;
+    }
+
+    if (form.deliveryAppointment && !form.deliveryDate) {
+      alert("Veuillez choisir la date du rendez-vous de livraison.");
+      return;
+    }
+
+    if (form.deliveryAppointment && !form.deliveryTime) {
+      alert("Veuillez choisir l’heure du rendez-vous de livraison.");
       return;
     }
 
@@ -161,6 +185,10 @@ export default function RequestsPage() {
               return `${year}-${month}-${day}`;
             })();
 
+      const deliveryDate = form.deliveryAppointment
+        ? form.deliveryDate
+        : pickupDate;
+
       const response = await fetch(`${apiUrl}/api/orders`, {
         method: "POST",
         headers: {
@@ -169,6 +197,7 @@ export default function RequestsPage() {
         },
         body: JSON.stringify({
           service_type: "pickup_delivery",
+          service_level: form.serviceLevel,
 
           delivery_address: selectedDeliveryAddress?.formattedAddress || form.deliveryAddress.trim(),
           delivery_city: selectedDeliveryAddress?.city || null,
@@ -210,8 +239,13 @@ export default function RequestsPage() {
             dimension_unit: form.dimensionUnit,
           })),
 
+          pickup_appointment: form.pickupAppointment,
           pickup_date: pickupDate,
-          delivery_date: pickupDate,
+          pickup_time: form.pickupAppointment ? form.pickupTime : null,
+
+          delivery_appointment: form.deliveryAppointment,
+          delivery_date: deliveryDate,
+          delivery_time: form.deliveryAppointment ? form.deliveryTime : null,
 
           description:
             form.packageType === "pallet"
@@ -544,49 +578,84 @@ export default function RequestsPage() {
             </Section>
 
             <Section
-              title="Date du ramassage"
-              subtitle="Choisissez quand Glory Solutions doit effectuer le ramassage."
+              title="Niveau de service"
+              subtitle="Choisissez la priorité de traitement de cette commande."
             >
               <div style={choiceGridThreeStyle}>
                 <ChoiceCard
-                  selected={form.dateChoice === "today"}
-                  onClick={() =>
-                    updateField("dateChoice", "today")
-                  }
-                  title="Aujourd’hui"
-                  description="Ramassage le jour même."
+                  selected={form.serviceLevel === "standard"}
+                  onClick={() => updateField("serviceLevel", "standard")}
+                  title="Standard"
+                  description="Traitement régulier selon les délais de Glory Solutions."
                 />
-
                 <ChoiceCard
-                  selected={form.dateChoice === "tomorrow"}
-                  onClick={() =>
-                    updateField("dateChoice", "tomorrow")
-                  }
-                  title="Demain"
-                  description="Ramassage le lendemain."
+                  selected={form.serviceLevel === "same_day"}
+                  onClick={() => {
+                    updateField("serviceLevel", "same_day");
+                    updateField("dateChoice", "today");
+                  }}
+                  title="Jour même"
+                  description="Ramassage et traitement le jour même."
                 />
-
                 <ChoiceCard
-                  selected={form.dateChoice === "custom"}
-                  onClick={() =>
-                    updateField("dateChoice", "custom")
-                  }
-                  title="Autre date"
-                  description="Choisir une date précise."
+                  selected={form.serviceLevel === "urgent"}
+                  onClick={() => updateField("serviceLevel", "urgent")}
+                  title="Urgent"
+                  description="Commande prioritaire nécessitant un traitement rapide."
                 />
+              </div>
+            </Section>
+
+            <Section
+              title="Ramassage"
+              subtitle="Choisissez la date et indiquez si un rendez-vous précis est requis."
+            >
+              <div style={choiceGridThreeStyle}>
+                <ChoiceCard selected={form.dateChoice === "today"} onClick={() => updateField("dateChoice", "today")} title="Aujourd’hui" description="Ramassage aujourd’hui." />
+                <ChoiceCard selected={form.dateChoice === "tomorrow"} onClick={() => updateField("dateChoice", "tomorrow")} title="Demain" description="Ramassage demain." />
+                <ChoiceCard selected={form.dateChoice === "custom"} onClick={() => updateField("dateChoice", "custom")} title="Autre date" description="Choisir une date précise." />
               </div>
 
               {form.dateChoice === "custom" && (
-                <div style={{ marginTop: "18px" }}>
-                  <Field label="Date">
-                    <input
-                      type="date"
-                      value={form.customDate}
-                      onChange={(e) =>
-                        updateField("customDate", e.target.value)
-                      }
-                      style={inputStyle}
-                    />
+                <Field label="Date de ramassage *">
+                  <input type="date" value={form.customDate} onChange={(e) => updateField("customDate", e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+
+              <label style={signatureCardStyle}>
+                <input type="checkbox" checked={form.pickupAppointment} onChange={(e) => updateField("pickupAppointment", e.target.checked)} style={{ width: "20px", height: "20px" }} />
+                <div>
+                  <strong style={signatureTitleStyle}>Rendez-vous requis pour le ramassage</strong>
+                  <p style={helperStyle}>Cochez cette option si le chauffeur doit se présenter à une heure précise.</p>
+                </div>
+              </label>
+
+              {form.pickupAppointment && (
+                <Field label="Heure du rendez-vous de ramassage *">
+                  <input type="time" value={form.pickupTime} onChange={(e) => updateField("pickupTime", e.target.value)} style={inputStyle} />
+                </Field>
+              )}
+            </Section>
+
+            <Section
+              title="Livraison"
+              subtitle="Indiquez si la livraison nécessite également un rendez-vous précis."
+            >
+              <label style={signatureCardStyle}>
+                <input type="checkbox" checked={form.deliveryAppointment} onChange={(e) => updateField("deliveryAppointment", e.target.checked)} style={{ width: "20px", height: "20px" }} />
+                <div>
+                  <strong style={signatureTitleStyle}>Rendez-vous requis pour la livraison</strong>
+                  <p style={helperStyle}>Cochez cette option si le destinataire exige une date et une heure précises.</p>
+                </div>
+              </label>
+
+              {form.deliveryAppointment && (
+                <div style={twoColumnsStyle}>
+                  <Field label="Date de livraison *">
+                    <input type="date" value={form.deliveryDate} onChange={(e) => updateField("deliveryDate", e.target.value)} style={inputStyle} />
+                  </Field>
+                  <Field label="Heure de livraison *">
+                    <input type="time" value={form.deliveryTime} onChange={(e) => updateField("deliveryTime", e.target.value)} style={inputStyle} />
                   </Field>
                 </div>
               )}
@@ -730,13 +799,33 @@ export default function RequestsPage() {
               ))}
 
               <SummaryRow
-                label="Date"
+                label="Niveau de service"
                 value={
+                  form.serviceLevel === "urgent"
+                    ? "Urgent"
+                    : form.serviceLevel === "same_day"
+                    ? "Jour même"
+                    : "Standard"
+                }
+              />
+
+              <SummaryRow
+                label="Ramassage"
+                value={`${
                   form.dateChoice === "today"
                     ? "Aujourd’hui"
                     : form.dateChoice === "tomorrow"
                     ? "Demain"
                     : form.customDate
+                }${form.pickupAppointment ? ` à ${form.pickupTime} — rendez-vous` : " — sans rendez-vous"}`}
+              />
+
+              <SummaryRow
+                label="Livraison planifiée"
+                value={
+                  form.deliveryAppointment
+                    ? `${form.deliveryDate} à ${form.deliveryTime} — rendez-vous`
+                    : "Sans rendez-vous précis"
                 }
               />
 
