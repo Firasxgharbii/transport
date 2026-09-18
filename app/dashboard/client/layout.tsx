@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useState } from "react";
 
 import {
-  Bell,
   ChevronRight,
   ClipboardList,
   FileText,
@@ -18,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 
+import ClientHeader from "./components/ClientHeader";
 import styles from "./dashboard.module.css";
 
 type ClientLayoutProps = {
@@ -63,46 +63,43 @@ export default function ClientLayout({
   const pathname = usePathname();
   const router = useRouter();
 
-  const [menuOpen, setMenuOpen] =
-    useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  /* ============================================================
+     MENU MOBILE
+  ============================================================ */
 
   const closeMenu = () => {
     setMenuOpen(false);
   };
 
-  const isActive = (
-    href: string
-  ) => {
-    if (
-      href === "/dashboard/client"
-    ) {
-      return (
-        pathname ===
-        "/dashboard/client"
-      );
+  /* ============================================================
+     NAVIGATION ACTIVE
+  ============================================================ */
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard/client") {
+      return pathname === "/dashboard/client";
     }
 
-    return pathname.startsWith(
-      href
-    );
+    return pathname.startsWith(href);
   };
+
+  /* ============================================================
+     DÉCONNEXION
+
+     IMPORTANT :
+     Le portail client utilise glory_token.
+  ============================================================ */
 
   const handleLogout = () => {
     try {
-      localStorage.removeItem(
-        "token"
-      );
-
-      localStorage.removeItem(
-        "authToken"
-      );
-
-      localStorage.removeItem(
-        "user"
-      );
+      localStorage.removeItem("glory_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("user");
     } catch {
-      // Rien à faire si localStorage
-      // n'est pas disponible.
+      // Rien à faire si localStorage n'est pas disponible.
     }
 
     router.push("/login");
@@ -110,57 +107,43 @@ export default function ClientLayout({
 
   return (
     <div className={styles.dashboard}>
-      {/* ===================================================
+      {/* =====================================================
           SIDEBAR MOBILE OVERLAY
-      =================================================== */}
+      ===================================================== */}
 
       {menuOpen && (
         <button
           type="button"
-          className={
-            styles.mobileOverlay
-          }
+          className={styles.mobileOverlay}
           onClick={closeMenu}
           aria-label="Fermer le menu"
         />
       )}
 
-      {/* ===================================================
+      {/* =====================================================
           SIDEBAR
-      =================================================== */}
+      ===================================================== */}
 
       <aside
         className={`${styles.sidebar} ${
-          menuOpen
-            ? styles.sidebarOpen
-            : ""
+          menuOpen ? styles.sidebarOpen : ""
         }`}
       >
-        {/* LOGO */}
+        {/* =================================================
+            LOGO
+        ================================================= */}
 
-        <div
-          className={
-            styles.sidebarHeader
-          }
-        >
+        <div className={styles.sidebarHeader}>
           <Link
             href="/dashboard/client"
             className={styles.brand}
             onClick={closeMenu}
           >
-            <span
-              className={
-                styles.brandIcon
-              }
-            >
+            <span className={styles.brandIcon}>
               G
             </span>
 
-            <span
-              className={
-                styles.brandText
-              }
-            >
+            <span className={styles.brandText}>
               <strong>
                 Glory Solutions
               </strong>
@@ -173,9 +156,7 @@ export default function ClientLayout({
 
           <button
             type="button"
-            className={
-              styles.mobileClose
-            }
+            className={styles.mobileClose}
             onClick={closeMenu}
             aria-label="Fermer le menu"
           >
@@ -183,104 +164,63 @@ export default function ClientLayout({
           </button>
         </div>
 
-        {/* NAVIGATION */}
+        {/* =================================================
+            NAVIGATION
+        ================================================= */}
 
-        <nav
-          className={
-            styles.navigation
-          }
-        >
-          <p
-            className={
-              styles.navigationTitle
-            }
-          >
+        <nav className={styles.navigation}>
+          <p className={styles.navigationTitle}>
             Navigation
           </p>
 
-          <div
-            className={
-              styles.navigationList
-            }
-          >
-            {navigation.map(
-              (item) => {
-                const Icon =
-                  item.icon;
+          <div className={styles.navigationList}>
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
 
-                const active =
-                  isActive(
-                    item.href
-                  );
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={closeMenu}
+                  className={`${styles.navigationLink} ${
+                    active
+                      ? styles.navigationLinkActive
+                      : ""
+                  }`}
+                >
+                  <Icon
+                    size={19}
+                    strokeWidth={1.8}
+                  />
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={
-                      closeMenu
-                    }
-                    className={`${
-                      styles.navigationLink
-                    } ${
-                      active
-                        ? styles.navigationLinkActive
-                        : ""
-                    }`}
-                  >
-                    <Icon
-                      size={19}
-                      strokeWidth={
-                        1.8
-                      }
+                  <span>
+                    {item.label}
+                  </span>
+
+                  {active && (
+                    <ChevronRight
+                      size={15}
+                      className={styles.activeArrow}
                     />
-
-                    <span>
-                      {
-                        item.label
-                      }
-                    </span>
-
-                    {active && (
-                      <ChevronRight
-                        size={15}
-                        className={
-                          styles.activeArrow
-                        }
-                      />
-                    )}
-                  </Link>
-                );
-              }
-            )}
+                  )}
+                </Link>
+              );
+            })}
           </div>
         </nav>
 
-        {/* BAS SIDEBAR */}
+        {/* =================================================
+            BAS SIDEBAR
+        ================================================= */}
 
-        <div
-          className={
-            styles.sidebarFooter
-          }
-        >
-          <div
-            className={
-              styles.profileCard
-            }
-          >
-            <div
-              className={
-                styles.avatar
-              }
-            >
+        <div className={styles.sidebarFooter}>
+          <div className={styles.profileCard}>
+            <div className={styles.avatar}>
               CL
             </div>
 
-            <div
-              className={
-                styles.profileInfo
-              }
-            >
+            <div className={styles.profileInfo}>
               <strong>
                 Client
               </strong>
@@ -293,16 +233,10 @@ export default function ClientLayout({
 
           <button
             type="button"
-            className={
-              styles.logoutButton
-            }
-            onClick={
-              handleLogout
-            }
+            className={styles.logoutButton}
+            onClick={handleLogout}
           >
-            <LogOut
-              size={18}
-            />
+            <LogOut size={18} />
 
             <span>
               Déconnexion
@@ -311,103 +245,73 @@ export default function ClientLayout({
         </div>
       </aside>
 
-      {/* ===================================================
+      {/* =====================================================
           MAIN
-      =================================================== */}
+      ===================================================== */}
 
-      <div
-        className={
-          styles.mainArea
-        }
-      >
-        {/* TOPBAR */}
+      <div className={styles.mainArea}>
+        {/* =================================================
+            TOPBAR
+        ================================================= */}
 
-        <header
-          className={
-            styles.topbar
-          }
-        >
-          <div
-            className={
-              styles.topbarLeft
-            }
-          >
+        <header className={styles.topbar}>
+          {/* ===============================================
+              GAUCHE
+          =============================================== */}
+
+          <div className={styles.topbarLeft}>
             <button
               type="button"
-              className={
-                styles.mobileMenu
-              }
-              onClick={() =>
-                setMenuOpen(true)
-              }
+              className={styles.mobileMenu}
+              onClick={() => setMenuOpen(true)}
               aria-label="Ouvrir le menu"
             >
               <Menu size={21} />
             </button>
 
-            <div
-              className={
-                styles.searchBox
-              }
-            >
+            <div className={styles.searchBox}>
               <Search
                 size={18}
-                className={
-                  styles.searchIcon
-                }
+                className={styles.searchIcon}
               />
 
               <input
                 type="search"
                 placeholder="Rechercher une commande..."
-                className={
-                  styles.searchInput
-                }
+                className={styles.searchInput}
               />
             </div>
           </div>
 
-          <div
-            className={
-              styles.topbarRight
-            }
-          >
-            <button
-              type="button"
-              className={
-                styles.notificationButton
-              }
-              aria-label="Notifications"
-            >
-              <Bell
-                size={19}
-              />
+          {/* ===============================================
+              DROITE
+          =============================================== */}
 
-              <span
-                className={
-                  styles.notificationDot
-                }
-              />
-            </button>
+          <div className={styles.topbarRight}>
+            {/* =============================================
+                NOTIFICATIONS CLIENT
 
-            <div
-              className={
-                styles.topProfile
-              }
-            >
-              <div
-                className={
-                  styles.topAvatar
-                }
-              >
+                Le ClientHeader gère :
+                - récupération API
+                - compteur non lu
+                - dropdown
+                - marquer comme lu
+                - tout marquer comme lu
+                - navigation action_url
+            ============================================= */}
+
+            <ClientHeader />
+
+            {/* =============================================
+                PROFIL
+            ============================================= */}
+
+            <div className={styles.topProfile}>
+              <div className={styles.topAvatar}>
                 CL
               </div>
 
-              <div
-                className={
-                  styles.topProfileInfo
-                }
-              >
+              <div className={styles.topProfileInfo}>
                 <strong>
                   Espace client
                 </strong>
@@ -420,13 +324,11 @@ export default function ClientLayout({
           </div>
         </header>
 
-        {/* PAGE */}
+        {/* =================================================
+            CONTENU DE LA PAGE
+        ================================================= */}
 
-        <main
-          className={
-            styles.content
-          }
-        >
+        <main className={styles.content}>
           {children}
         </main>
       </div>
