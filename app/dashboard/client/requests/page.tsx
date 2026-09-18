@@ -65,6 +65,7 @@ export default function RequestsPage() {
   });
 
   const [createdReference, setCreatedReference] = useState("");
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [packageItems, setPackageItems] = useState<PackageItem[]>([
     { weight: "", length: "", width: "", height: "" },
   ]);
@@ -277,7 +278,8 @@ export default function RequestsPage() {
       }
 
       const order = payload?.order || payload?.data;
-      const reference = order?.order_number;
+      const reference = String(order?.order_number || "").trim();
+      const orderId = Number(order?.id);
 
       if (!reference) {
         throw new Error(
@@ -285,7 +287,14 @@ export default function RequestsPage() {
         );
       }
 
+      if (!Number.isInteger(orderId) || orderId <= 0) {
+        throw new Error(
+          "La commande a été créée, mais son identifiant est introuvable."
+        );
+      }
+
       setCreatedReference(reference);
+      setCreatedOrderId(orderId);
       setStep(3);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -883,12 +892,22 @@ export default function RequestsPage() {
 
             <div style={successActionsStyle}>
               <button
-                style={primaryButtonStyle}
-                onClick={() =>
-                  alert(
-                    "L’impression Glory 4x6 sera connectée à cette commande."
-                  )
-                }
+                type="button"
+                style={{
+                  ...primaryButtonStyle,
+                  opacity: createdOrderId ? 1 : 0.6,
+                  cursor: createdOrderId ? "pointer" : "not-allowed",
+                }}
+                disabled={!createdOrderId}
+                onClick={() => {
+                  if (!createdOrderId) {
+                    alert("Identifiant de commande introuvable.");
+                    return;
+                  }
+
+                  window.location.href =
+                    `/dashboard/client/orders/${createdOrderId}/labels`;
+                }}
               >
                 Imprimer l’étiquette
               </button>
