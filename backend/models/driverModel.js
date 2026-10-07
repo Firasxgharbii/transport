@@ -751,6 +751,18 @@ const DriverModel = {
           o.id,
           o.order_number,
 
+          (
+            SELECT CASE
+              WHEN COUNT(DISTINCT linked_op.dispatch_task_id) = 1
+              THEN MAX(linked_op.dispatch_task_id)
+              ELSE NULL
+            END
+            FROM order_operations linked_op
+            WHERE linked_op.order_id = o.id
+              AND linked_op.driver_id = o.driver_id
+              AND linked_op.status <> 'cancelled'
+          ) AS dispatch_task_id,
+
           o.client_id,
           o.driver_id,
           o.vehicle_id,
@@ -899,6 +911,8 @@ const DriverModel = {
       `
         SELECT
           op.id,
+          op.id AS operation_id,
+          op.dispatch_task_id,
           op.order_id,
           op.operation_type,
           op.driver_id,
@@ -1066,6 +1080,11 @@ const DriverModel = {
             WHERE se.operation_id = op.id
               AND se.driver_id = op.driver_id
               AND se.scan_status = 'accepted'
+              AND NOT EXISTS (
+                SELECT 1
+                FROM scan_cancellations sc
+                WHERE sc.scan_event_id = se.id
+              )
               AND se.scan_type =
                 CASE op.operation_type
                   WHEN 'pickup' THEN 'pickup'
@@ -1140,6 +1159,11 @@ const DriverModel = {
                 AND se.operation_id = ?
                 AND se.driver_id = ?
                 AND se.scan_status = 'accepted'
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM scan_cancellations sc
+                  WHERE sc.scan_event_id = se.id
+                )
             )
             THEN 1
             ELSE 0
@@ -1353,6 +1377,119 @@ const DriverModel = {
     return rows;
   },
 
+  /* Recherche pure: retrouve le stop sans modifier le colis. */
+  async lookupDriverPackage(driverId, rawCode) {
+    const code = String(rawCode || "").trim().toUpperCase();
+    if (!code || code.length > 120) {
+      const error = new Error("Code-barres invalide.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const packageMatch = /^(GLY-\d{4}-\d{6})-P(\d{1,3})$/.exec(code);
+    const orderMatch = /^(GLY-\d{4}-\d{6})$/.exec(code);
+    const compatible = packageMatch
+      ? `${packageMatch[1]}-P${packageMatch[2].padStart(3, "0")}`
+      : code;
+
+    let [packages] = await db.query(`
+      SELECT p.id, p.order_id, p.barcode, p.package_number,
+             p.current_status, o.order_number
+      FROM order_packages p
+      INNER JOIN orders o ON o.id = p.order_id
+      WHERE UPPER(TRIM(p.barcode)) IN (?, ?)
+         OR (? IS NOT NULL AND UPPER(TRIM(o.order_number)) = ?
+             AND p.package_number = ?)
+      ORDER BY CASE WHEN UPPER(TRIM(p.barcode)) = ? THEN 0 ELSE 1 END,
+               p.package_number ASC
+      LIMIT 1
+    `, [code, compatible,
+        packageMatch ? packageMatch[1] : null,
+        packageMatch ? packageMatch[1] : null,
+        packageMatch ? Number(packageMatch[2]) : null, code]);
+
+    let pkg = packages[0] || null;
+
+    if (!pkg && orderMatch) {
+      const [rows] = await db.query(`
+        SELECT p.id, p.order_id, p.barcode, p.package_number,
+               p.current_status, o.order_number
+        FROM orders o
+        INNER JOIN order_packages p ON p.order_id = o.id
+        WHERE UPPER(TRIM(o.order_number)) = ?
+        ORDER BY p.package_number ASC, p.id ASC
+        LIMIT 1
+      `, [code]);
+      pkg = rows[0] || null;
+    }
+
+    if (!pkg) {
+      const error = new Error("Colis ou commande introuvable.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    /* dispatch_tasks.driver_id est l'autorité pour le chauffeur du stop.
+       On n'exige pas op.driver_id car un stop groupé peut contenir plusieurs commandes. */
+    const [operations] = await db.query(`
+      SELECT op.id AS operation_id, op.operation_type,
+             op.status AS operation_status,
+             dt.id AS task_id, dt.route_id, dt.address, dt.city,
+             dt.postal_code, dt.stop_position, dt.status AS task_status,
+             o.pickup_address, o.delivery_address,
+             (SELECT COUNT(*) FROM order_operations x
+               WHERE x.dispatch_task_id = dt.id AND x.status <> 'cancelled') AS stop_operations,
+             (SELECT COUNT(*) FROM order_packages q
+               INNER JOIN order_operations x2 ON x2.order_id = q.order_id
+               WHERE x2.dispatch_task_id = dt.id AND x2.status <> 'cancelled') AS stop_packages
+      FROM order_operations op
+      INNER JOIN orders o ON o.id = op.order_id
+      INNER JOIN dispatch_tasks dt ON dt.id = op.dispatch_task_id
+      WHERE op.order_id = ?
+        AND dt.driver_id = ?
+        AND op.operation_type = dt.task_type
+        AND op.status <> 'cancelled'
+        AND dt.status <> 'cancelled'
+      ORDER BY
+        CASE WHEN dt.status = 'in_progress' THEN 0
+             WHEN dt.status IN ('todo','pending','assigned') THEN 1
+             WHEN dt.status = 'completed' THEN 3 ELSE 2 END,
+        dt.stop_position ASC, op.id DESC
+      LIMIT 1
+    `, [pkg.order_id, driverId]);
+
+    if (!operations.length) {
+      const error = new Error("Ce colis n'appartient à aucun stop assigné à ce chauffeur.");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const op = operations[0];
+    return {
+      success: true,
+      scan_status: "identified",
+      lookup_only: true,
+      message: `Stop #${op.stop_position || op.task_id} trouvé.`,
+      package: pkg,
+      task: { id: Number(op.task_id), stop_position: op.stop_position,
+              status: op.task_status, route_id: op.route_id },
+      operation: { id: Number(op.operation_id),
+                   operation_type: op.operation_type,
+                   status: op.operation_status },
+      dispatch_task_id: Number(op.task_id),
+      task_id: Number(op.task_id),
+      route_id: op.route_id,
+      stop_position: op.stop_position,
+      address: op.operation_type === "delivery"
+        ? (op.delivery_address || op.address)
+        : (op.pickup_address || op.address),
+      city: op.city,
+      postal_code: op.postal_code,
+      stop_operations: Number(op.stop_operations || 0),
+      stop_packages: Number(op.stop_packages || 0)
+    };
+  },
+
   /* =====================================================
      TRAITER UN SCAN CHAUFFEUR
 
@@ -1382,6 +1519,9 @@ const DriverModel = {
     }
 
     const cleanCode = String(payload.scanned_code || "")
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/[‐‑‒–—−]/g, "-")
+      .replace(/\s+/g, "")
       .trim()
       .toUpperCase();
 
@@ -1424,6 +1564,7 @@ const DriverModel = {
       warehouse_in: "warehouse_in",
       warehouse_storage: "warehouse_storage",
       warehouse_out: "warehouse_out",
+      load_vehicle: "load_vehicle",
       delivery: "delivery",
     };
 
@@ -1474,6 +1615,13 @@ const DriverModel = {
          1. Retrouver le colis par son barcode
       ------------------------------------------------- */
 
+      // Accepter P01 et P001 sans modifier les codes-barres stockés.
+      // La recherche exacte reste prioritaire.
+      const barcodeMatch = /^(GLY-\d{4}-\d{6})-P(\d{1,3})$/.exec(cleanCode);
+      const compatibleCode = barcodeMatch
+        ? `${barcodeMatch[1]}-P${barcodeMatch[2].padStart(3, "0")}`
+        : cleanCode;
+
       let [packageRows] = await connection.query(
         `
           SELECT
@@ -1488,13 +1636,45 @@ const DriverModel = {
           FROM order_packages p
           INNER JOIN orders o
             ON o.id = p.order_id
-          WHERE UPPER(p.barcode) = ?
+          WHERE UPPER(p.barcode) IN (?, ?)
+          ORDER BY CASE WHEN UPPER(p.barcode) = ? THEN 0 ELSE 1 END
           LIMIT 1
         `,
-        [cleanCode]
+        [cleanCode, compatibleCode, cleanCode]
       );
 
       let packageRow = packageRows[0] || null;
+
+      // Compatibilité avec les anciens colis enregistrés sous
+      // le numéro de commande seul, par exemple GLY-2026-000053.
+      // On exige le numéro exact de commande ET le numéro de colis.
+      if (!packageRow && barcodeMatch) {
+        const packageNumber = Number(barcodeMatch[2]);
+
+        const [legacyRows] = await connection.query(
+          `
+            SELECT
+              p.id,
+              p.order_id,
+              p.barcode,
+              p.package_number,
+              p.description,
+              p.weight,
+              p.current_status,
+              o.order_number
+            FROM order_packages p
+            INNER JOIN orders o
+              ON o.id = p.order_id
+            WHERE UPPER(TRIM(o.order_number)) = ?
+              AND p.package_number = ?
+              AND UPPER(TRIM(p.barcode)) = UPPER(TRIM(o.order_number))
+            LIMIT 1
+          `,
+          [barcodeMatch[1], packageNumber]
+        );
+
+        packageRow = legacyRows[0] || null;
+      }
 
       /* -------------------------------------------------
          2. Compatibilité immédiate :
@@ -1659,7 +1839,8 @@ const DriverModel = {
             op.scheduled_date,
             op.scheduled_time,
             op.status,
-            op.route_position
+            op.route_position,
+            op.dispatch_task_id
           FROM order_operations op
           WHERE op.order_id = ?
             AND op.driver_id = ?
@@ -1697,10 +1878,8 @@ const DriverModel = {
         operation = operationRows[0] || null;
       } else if (requestedScanType === "load_vehicle") {
         operation =
-          operationRows.find((item) =>
-            ["warehouse_out", "delivery"].includes(
-              item.operation_type
-            )
+          operationRows.find(
+            (item) => item.operation_type === "load_vehicle"
           ) || null;
       } else {
         operation =
@@ -1720,20 +1899,26 @@ const DriverModel = {
       ];
 
       let duplicateSql = `
-        SELECT id, operation_id, scanned_at
-        FROM scan_events
-        WHERE package_id = ?
-          AND driver_id = ?
-          AND scan_type = ?
-          AND scan_status = 'accepted'
+        SELECT
+          se.id,
+          se.operation_id,
+          se.scanned_at
+        FROM scan_events se
+        LEFT JOIN scan_cancellations sc
+          ON sc.scan_event_id = se.id
+        WHERE se.package_id = ?
+          AND se.driver_id = ?
+          AND se.scan_type = ?
+          AND se.scan_status = 'accepted'
+          AND sc.id IS NULL
       `;
 
       if (operation?.id) {
-        duplicateSql += " AND operation_id = ?";
+        duplicateSql += " AND se.operation_id = ?";
         duplicateParams.push(operation.id);
       }
 
-      duplicateSql += " ORDER BY id DESC LIMIT 1";
+      duplicateSql += " ORDER BY se.id DESC LIMIT 1";
 
       const [duplicateRows] = await connection.query(
         duplicateSql,
@@ -1794,6 +1979,9 @@ const DriverModel = {
           event_id: duplicateInsert.insertId,
           package: packageRow,
           operation,
+          task: operation?.dispatch_task_id
+            ? { id: operation.dispatch_task_id }
+            : null,
           scan_type: finalScanType || requestedScanType,
         };
       }
@@ -1925,6 +2113,15 @@ const DriverModel = {
       const packageStatus =
         scanTypeToPackageStatus[finalScanType];
 
+      /*
+       * Scanner V4 :
+       * mémoriser l'état PHYSIQUE exact du colis avant le scan.
+       *
+       * Cette information permet à "Annuler ce scan" de restaurer
+       * exactement l'état précédent au lieu de le deviner.
+       */
+      const previousPackageStatus = packageRow.current_status;
+
       await connection.query(
         `
           UPDATE order_packages
@@ -1936,86 +2133,118 @@ const DriverModel = {
         [packageStatus, packageRow.id]
       );
 
+      await connection.query(
+        `
+          INSERT INTO package_status_audit (
+            package_id,
+            order_id,
+            operation_id,
+            dispatch_task_id,
+            route_id,
+            actor_type,
+            actor_id,
+            action,
+            from_status,
+            to_status,
+            reason,
+            metadata
+          )
+          VALUES (
+            ?, ?, ?, ?, ?, 'driver', ?,
+            'SCAN_ACCEPTED',
+            ?, ?, NULL,
+            JSON_OBJECT('scan_event_id', ?)
+          )
+        `,
+        [
+          packageRow.id,
+          packageRow.order_id,
+          operation?.id || null,
+          operation?.dispatch_task_id || null,
+          null,
+          scannedByUserId,
+          previousPackageStatus,
+          packageStatus,
+          insertResult.insertId
+        ]
+      );
+
       /* -------------------------------------------------
-         8. Démarrer l'opération si nécessaire.
+         8. Le scanner NE démarre jamais un stop.
+
+         Règle Glory Solutions :
+         - Commencer le stop => in_progress
+         - Scanner => enregistrer uniquement le scan
+         - Terminer le stop => completed
+
+         Le chauffeur doit donc avoir explicitement commencé
+         le stop avant de pouvoir scanner.
       ------------------------------------------------- */
-
-      if (operation?.id && operation.status === "pending") {
-        await connection.query(
-          `
-            UPDATE order_operations
-            SET
-              status = 'in_progress',
-              updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-          `,
-          [operation.id]
-        );
-      }
-
-      /* -------------------------------------------------
-         9. Pour une opération normale, la terminer quand
-            TOUS les colis connus de la commande ont été
-            scannés pour cette opération.
-
-            load_vehicle reste un événement supplémentaire
-            et ne clôture pas automatiquement l'opération.
-      ------------------------------------------------- */
-
-      let operationCompleted = false;
 
       if (
         operation?.id &&
-        finalScanType !== "load_vehicle" &&
-        finalScanType !== "incident"
+        ["pickup", "delivery"].includes(finalScanType)
       ) {
-        const [countRows] = await connection.query(
+        if (!operation.dispatch_task_id) {
+          const error = new Error(
+            "Cette opération n'est reliée à aucun stop."
+          );
+          error.statusCode = 409;
+          throw error;
+        }
+
+        const [startedRows] = await connection.query(
           `
             SELECT
-              (SELECT COUNT(*)
-               FROM order_packages
-               WHERE order_id = ?) AS total_packages,
-
-              (SELECT COUNT(DISTINCT package_id)
-               FROM scan_events
-               WHERE operation_id = ?
-                 AND scan_status = 'accepted'
-                 AND scan_type = ?) AS scanned_packages
+              dt.id,
+              dt.status AS task_status,
+              dsr.execution_status
+            FROM dispatch_tasks dt
+            LEFT JOIN driver_stop_runs dsr
+              ON dsr.dispatch_task_id = dt.id
+             AND dsr.driver_id = ?
+            WHERE dt.id = ?
+              AND dt.driver_id = ?
+            LIMIT 1
+            FOR UPDATE
           `,
           [
-            packageRow.order_id,
-            operation.id,
-            finalScanType,
+            driverId,
+            operation.dispatch_task_id,
+            driverId
           ]
         );
 
-        const totalPackages = Number(
-          countRows[0]?.total_packages || 0
-        );
-
-        const scannedPackages = Number(
-          countRows[0]?.scanned_packages || 0
-        );
+        const startedStop = startedRows[0] || null;
 
         if (
-          totalPackages > 0 &&
-          scannedPackages >= totalPackages
+          !startedStop ||
+          startedStop.task_status !== "in_progress" ||
+          startedStop.execution_status !== "in_progress"
         ) {
-          await connection.query(
-            `
-              UPDATE order_operations
-              SET
-                status = 'completed',
-                completed_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `,
-            [operation.id]
+          const error = new Error(
+            "Commencez le stop avant de scanner les colis."
           );
-
-          operationCompleted = true;
+          error.statusCode = 409;
+          throw error;
         }
       }
+
+      /* -------------------------------------------------
+         9. IMPORTANT - LE SCAN NE FERME JAMAIS UNE OPERATION
+
+         Un scan accepté signifie uniquement que le colis
+         a été physiquement traité pour l'étape courante.
+
+         La fermeture de l'opération et du stop appartient
+         exclusivement au workflow "Terminer le stop"
+         (driverDispatchTaskModel.closeStop).
+
+         Ceci évite qu'un stop avec un seul colis disparaisse
+         immédiatement après son scan.
+      ------------------------------------------------- */
+
+      const operationCompleted = false;
 
       const [eventRows] = await connection.query(
         `
@@ -2046,6 +2275,18 @@ const DriverModel = {
         [insertResult.insertId]
       );
 
+      /*
+       * Le scanner ne modifie volontairement PAS le statut final
+       * de dispatch_tasks.
+       *
+       * Même si tous les colis sont scannés :
+       *   - l'opération reste in_progress
+       *   - le stop reste in_progress
+       *
+       * Seule l'action explicite "Terminer le stop" peut
+       * effectuer la fermeture transactionnelle.
+       */
+
       await connection.commit();
 
       return {
@@ -2064,16 +2305,430 @@ const DriverModel = {
         operation: operation
           ? {
               ...operation,
-              status: operationCompleted
-                ? "completed"
-                : operation.status === "pending"
-                  ? "in_progress"
-                  : operation.status,
+              // Toujours retourner le vrai statut stocké.
+              // Le scanner ne démarre et ne termine jamais l'opération.
+              status: operation.status,
             }
           : null,
         operation_completed: operationCompleted,
+        task: operation?.dispatch_task_id
+          ? { id: operation.dispatch_task_id }
+          : null,
         scan_type: finalScanType,
       };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
+
+  /* =========================================================
+     ANNULER LE SCAN D'UN COLIS PRECIS
+  ========================================================= */
+  cancelPackageScan: async (
+    driverId,
+    userId,
+    dispatchTaskId,
+    packageId,
+    reason
+  ) => {
+    const connection = await db.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const cleanReason = String(reason || "").trim();
+
+      if (cleanReason.length < 3) {
+        const error = new Error(
+          "La raison de l'annulation est obligatoire."
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+
+      /* Stop obligatoirement EN COURS */
+      const [tasks] = await connection.query(
+        `
+          SELECT
+            dt.id,
+            dt.route_id,
+            dt.vehicle_id,
+            dt.status,
+            dsr.execution_status
+          FROM dispatch_tasks dt
+          LEFT JOIN driver_stop_runs dsr
+            ON dsr.dispatch_task_id = dt.id
+           AND dsr.driver_id = ?
+          WHERE dt.id = ?
+            AND dt.driver_id = ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [driverId, dispatchTaskId, driverId]
+      );
+
+      const task = tasks[0];
+
+      if (!task) {
+        const error = new Error("Stop introuvable.");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (
+        task.status !== "in_progress" ||
+        task.execution_status !== "in_progress"
+      ) {
+        const error = new Error(
+          "Le stop doit être en cours pour annuler un scan."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      /*
+       * Dernier scan ACCEPTED encore actif de CE colis,
+       * dans CE stop, effectué par CE chauffeur.
+       */
+      /*
+       * Vérifier d'abord que CE colis appartient réellement
+       * à CE stop. Ainsi on garde la sécurité du stop sans
+       * dépendre d'anciens scan_events mal reliés.
+       */
+      const [packageInTaskRows] = await connection.query(
+        `
+          SELECT DISTINCT p.id
+          FROM order_packages p
+          INNER JOIN order_operations op
+            ON op.order_id = p.order_id
+          WHERE p.id = ?
+            AND op.dispatch_task_id = ?
+            AND op.driver_id = ?
+          LIMIT 1
+        `,
+        [packageId, dispatchTaskId, driverId]
+      );
+
+      if (!packageInTaskRows[0]) {
+        const error = new Error(
+          "Ce colis n'appartient pas à ce stop."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      /*
+       * Dernier scan ACCEPTED encore actif de CE colis
+       * effectué par CE chauffeur.
+       *
+       * On préfère un scan directement relié au stop.
+       * Pour compatibilité avec les anciens scans, on accepte
+       * également un scan dont l'opération appartient à la
+       * même commande du stop.
+       */
+      const [rows] = await connection.query(
+        `
+          SELECT
+            se.id AS scan_event_id,
+            se.order_id,
+            se.package_id,
+            se.operation_id,
+            se.scanned_code,
+            se.scan_type,
+            p.current_status
+          FROM scan_events se
+          INNER JOIN order_packages p
+            ON p.id = se.package_id
+          LEFT JOIN order_operations scan_op
+            ON scan_op.id = se.operation_id
+          LEFT JOIN scan_cancellations sc
+            ON sc.scan_event_id = se.id
+          WHERE se.package_id = ?
+            AND se.driver_id = ?
+            AND se.scan_status = 'accepted'
+            AND sc.id IS NULL
+            AND (
+              scan_op.dispatch_task_id = ?
+              OR EXISTS (
+                SELECT 1
+                FROM order_operations task_op
+                WHERE task_op.dispatch_task_id = ?
+                  AND task_op.driver_id = ?
+                  AND task_op.order_id = se.order_id
+              )
+            )
+          ORDER BY
+            CASE
+              WHEN scan_op.dispatch_task_id = ? THEN 0
+              ELSE 1
+            END,
+            se.id DESC
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [
+          packageId,
+          driverId,
+          dispatchTaskId,
+          dispatchTaskId,
+          driverId,
+          dispatchTaskId
+        ]
+      );
+
+      const scan = rows[0];
+
+      if (!scan) {
+        const error = new Error(
+          "Aucun scan actif trouvé pour ce colis."
+        );
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const resultingStatus = {
+        pickup: "picked_up",
+        warehouse_in: "warehouse_in",
+        warehouse_storage: "warehouse_storage",
+        warehouse_out: "warehouse_out",
+        load_vehicle: "out_for_delivery",
+        delivery: "delivered",
+        incident: "incident",
+      };
+
+      const fallbackPrevious = {
+        pickup: "created",
+        warehouse_in: "picked_up",
+        warehouse_storage: "warehouse_in",
+        warehouse_out: "warehouse_storage",
+        load_vehicle: "warehouse_out",
+        delivery: "picked_up",
+        incident: "created",
+      };
+
+      const scannedStatus =
+        resultingStatus[scan.scan_type];
+
+      if (!scannedStatus) {
+        const error = new Error(
+          "Ce type de scan ne peut pas être annulé."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      /*
+       * Important : si le colis a déjà progressé depuis
+       * ce scan, on refuse le rollback.
+       */
+      if (scan.current_status !== scannedStatus) {
+        const error = new Error(
+          "Ce colis a déjà changé d'état. Ce scan ne peut plus être annulé."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      /*
+       * Scanner V4 :
+       * retrouver le véritable état du colis AVANT ce scan.
+       */
+      const [scanAuditRows] = await connection.query(
+        `
+          SELECT
+            from_status,
+            to_status
+          FROM package_status_audit
+          WHERE package_id = ?
+            AND action = 'SCAN_ACCEPTED'
+            AND JSON_UNQUOTE(
+              JSON_EXTRACT(metadata, '$.scan_event_id')
+            ) = ?
+          ORDER BY id DESC
+          LIMIT 1
+        `,
+        [packageId, String(scan.scan_event_id)]
+      );
+
+      let previousStatus =
+        scanAuditRows[0]?.from_status || null;
+
+      /*
+       * Compatibilité uniquement avec les anciens scans
+       * créés avant Scanner V4.
+       */
+      if (!previousStatus) {
+        const [previous] = await connection.query(
+          `
+            SELECT se.scan_type
+            FROM scan_events se
+            LEFT JOIN scan_cancellations sc
+              ON sc.scan_event_id = se.id
+            WHERE se.package_id = ?
+              AND se.id < ?
+              AND se.scan_status = 'accepted'
+              AND sc.id IS NULL
+            ORDER BY se.id DESC
+            LIMIT 1
+          `,
+          [packageId, scan.scan_event_id]
+        );
+
+        previousStatus =
+          previous[0]
+            ? resultingStatus[previous[0].scan_type]
+            : fallbackPrevious[scan.scan_type];
+      }
+
+      if (!previousStatus) {
+        const error = new Error(
+          "Impossible de déterminer l'état précédent du colis."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      /* Conserver l'annulation */
+      const [cancel] = await connection.query(
+        `
+          INSERT INTO scan_cancellations (
+            scan_event_id,
+            order_id,
+            package_id,
+            operation_id,
+            dispatch_task_id,
+            route_id,
+            driver_id,
+            cancelled_by_user_id,
+            previous_package_status,
+            scanned_package_status,
+            reason
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          scan.scan_event_id,
+          scan.order_id,
+          scan.package_id,
+          scan.operation_id,
+          dispatchTaskId,
+          task.route_id || null,
+          driverId,
+          userId || null,
+          previousStatus,
+          scannedStatus,
+          cleanReason,
+        ]
+      );
+
+      /* Restaurer le colis */
+      await connection.query(
+        `
+          UPDATE order_packages
+          SET current_status = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+        [previousStatus, packageId]
+      );
+
+      /* Audit colis */
+      await connection.query(
+        `
+          INSERT INTO package_status_audit (
+            package_id,
+            order_id,
+            operation_id,
+            dispatch_task_id,
+            route_id,
+            actor_type,
+            actor_id,
+            action,
+            from_status,
+            to_status,
+            reason,
+            metadata
+          )
+          VALUES (
+            ?, ?, ?, ?, ?,
+            'driver', ?,
+            'SCAN_CANCELLED',
+            ?, ?, ?, ?
+          )
+        `,
+        [
+          packageId,
+          scan.order_id,
+          scan.operation_id,
+          dispatchTaskId,
+          task.route_id || null,
+          driverId,
+          scannedStatus,
+          previousStatus,
+          cleanReason,
+          JSON.stringify({
+            scan_event_id: scan.scan_event_id,
+            cancellation_id: cancel.insertId,
+          }),
+        ]
+      );
+
+      /* Audit opérationnel */
+      await connection.query(
+        `
+          INSERT INTO operational_audit_log (
+            entity_type,
+            entity_id,
+            order_id,
+            action,
+            previous_status,
+            new_status,
+            route_id,
+            dispatch_task_id,
+            driver_id,
+            vehicle_id,
+            user_id,
+            metadata
+          )
+          VALUES (
+            'scan', ?, ?,
+            'SCAN_CANCELLED',
+            ?, ?, ?, ?, ?, ?, ?, ?
+          )
+        `,
+        [
+          scan.scan_event_id,
+          scan.order_id,
+          scannedStatus,
+          previousStatus,
+          task.route_id || null,
+          dispatchTaskId,
+          driverId,
+          task.vehicle_id || null,
+          userId || null,
+          JSON.stringify({
+            package_id: packageId,
+            cancellation_id: cancel.insertId,
+            reason: cleanReason,
+          }),
+        ]
+      );
+
+      await connection.commit();
+
+      return {
+        success: true,
+        message: "Scan du colis annulé.",
+        package_id: Number(packageId),
+        scan_event_id: scan.scan_event_id,
+        previous_status: scannedStatus,
+        current_status: previousStatus,
+      };
+
     } catch (error) {
       await connection.rollback();
       throw error;

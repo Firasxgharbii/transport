@@ -1,6 +1,10 @@
 const OrderModel = require("../models/orderModel");
 const DriverModel = require("../models/driverModel");
 const ClientModel = require("../models/clientModel");
+const { geocodeAddress } = require("../services/geocodingService");
+const db = require("../config/db");
+const OrderWorkflow = require("../services/orderWorkflowService");
+const DispatchOverride = require("../services/dispatchOverrideService");
 
 const {
   notifyAdmin,
@@ -880,7 +884,12 @@ const createOrder = async (req, res) => {
 
     let driverId = null;
     let vehicleId = null;
-    let priority = "normal";
+    let priority =
+      serviceLevel === "urgent"
+        ? "urgent"
+        : serviceLevel === "same_day"
+          ? "high"
+          : "normal";
     let status = "pending";
     let subtotal = 0;
     let taxes = 0;
@@ -964,6 +973,15 @@ const createOrder = async (req, res) => {
     const deliveryProvince = normalizeLimitedText(req.body.delivery_province, 100);
     const deliveryPostalCode = normalizeLimitedText(req.body.delivery_postal_code, 20);
 
+    // V4: géocodage automatique si le frontend n’a pas fourni de coordonnées.
+    // Une panne Google ne bloque jamais la création de la commande; le stop restera simplement sans géofence jusqu’à correction.
+    const pickupGeo = (role === "client" || (req.body.pickup_latitude == null || req.body.pickup_longitude == null))
+      ? await geocodeAddress([requestedPickupAddress, pickupCity, pickupProvince, pickupPostalCode, "Canada"])
+      : null;
+    const deliveryGeo = (req.body.delivery_latitude == null || req.body.delivery_longitude == null)
+      ? await geocodeAddress([requestedDeliveryAddress, deliveryCity, deliveryProvince, deliveryPostalCode, "Canada"])
+      : null;
+
     let stopOrder = 1;
     if (serviceType === "pickup_only" || serviceType === "pickup_delivery") {
       await OrderModel.createOrderStop(createdOrderId, {
@@ -978,8 +996,8 @@ const createOrder = async (req, res) => {
         city: pickupCity,
         province: pickupProvince,
         postal_code: pickupPostalCode,
-        latitude: role === "client" ? null : normalizeNullableNumber(req.body.pickup_latitude),
-        longitude: role === "client" ? null : normalizeNullableNumber(req.body.pickup_longitude),
+        latitude: normalizeNullableNumber(req.body.pickup_latitude) ?? pickupGeo?.latitude ?? null,
+        longitude: normalizeNullableNumber(req.body.pickup_longitude) ?? pickupGeo?.longitude ?? null,
         status: "pending",
         notes: null,
       });
@@ -998,8 +1016,8 @@ const createOrder = async (req, res) => {
         city: deliveryCity,
         province: deliveryProvince,
         postal_code: deliveryPostalCode,
-        latitude: normalizeNullableNumber(req.body.delivery_latitude),
-        longitude: normalizeNullableNumber(req.body.delivery_longitude),
+        latitude: normalizeNullableNumber(req.body.delivery_latitude) ?? deliveryGeo?.latitude ?? null,
+        longitude: normalizeNullableNumber(req.body.delivery_longitude) ?? deliveryGeo?.longitude ?? null,
         status: "pending",
         notes: deliveryUnit ? `Unité / suite : ${deliveryUnit}` : null,
       });
@@ -1086,8 +1104,16 @@ const createOrder = async (req, res) => {
         await notifyAdmin({
           io: req.app.get("io"),
           type: "order_created_by_client",
-          level: "info",
-          title: `Nouvelle commande ${orderNumber}`,
+          level: serviceLevel === "urgent"
+            ? "urgent"
+            : serviceLevel === "same_day"
+              ? "warning"
+              : "info",
+          title: serviceLevel === "urgent"
+            ? `URGENT — Nouvelle commande ${orderNumber}`
+            : serviceLevel === "same_day"
+              ? `JOUR MÊME — Nouvelle commande ${orderNumber}`
+              : `Nouvelle commande ${orderNumber}`,
           message: notificationMessage,
           entityType: "order",
           entityId: createdOrderId,
@@ -2010,6 +2036,8 @@ const updateOrderStatus = async (
   req,
   res,
 ) => {
+  let connection = null;
+
   try {
     const orderId =
       parsePositiveId(req.params.id);
@@ -2061,9 +2089,7 @@ const updateOrderStatus = async (
       return sendOrderNotFound(res);
     }
 
-    if (
-      order.status === status
-    ) {
+    if (order.status === status) {
       return res.status(409).json({
         success: false,
         message:
@@ -2072,9 +2098,9 @@ const updateOrderStatus = async (
     }
 
     /*
-     * Un chauffeur ne peut pas sauter les étapes.
-     * Les corrections opérationnelles restent possibles pour
-     * super_admin / dispatcher.
+     * Le chauffeur doit respecter le workflow normal.
+     * Le Dispatch / super_admin peut effectuer les
+     * corrections administratives autorisées.
      */
     if (
       access.role === "driver" &&
@@ -2093,11 +2119,8 @@ const updateOrderStatus = async (
     }
 
     /*
-     * Un chauffeur ne peut pas terminer manuellement une
-     * livraison sans preuve complète.
-     *
-     * La route POST /:id/proofs crée la preuve et passe ensuite
-     * la commande à completed automatiquement.
+     * Une livraison terminée par le chauffeur doit
+     * toujours posséder sa preuve.
      */
     if (
       status === "completed" &&
@@ -2108,12 +2131,23 @@ const updateOrderStatus = async (
           orderId,
         );
 
-      const signatureRequired = Boolean(Number(order.signature_required));
-      const hasCompleteProof = proofs.some((proof) =>
-        signatureRequired
-          ? Boolean(proof.signature_url)
-          : Boolean(proof.photo_url)
-      );
+      const signatureRequired =
+        Boolean(
+          Number(
+            order.signature_required,
+          ),
+        );
+
+      const hasCompleteProof =
+        proofs.some((proof) =>
+          signatureRequired
+            ? Boolean(
+                proof.signature_url,
+              )
+            : Boolean(
+                proof.photo_url,
+              ),
+        );
 
       if (!hasCompleteProof) {
         return res.status(409).json({
@@ -2128,31 +2162,130 @@ const updateOrderStatus = async (
       }
     }
 
-    const result =
-      await OrderModel.updateStatus(
-        orderId,
-        status,
-      );
-
-    if (
-      result.affectedRows === 0
-    ) {
-      return sendOrderNotFound(res);
-    }
-
     const auditComment =
       normalizeOptionalText(
         comment ||
-        reason ||
-        status_reason,
+          reason ||
+          status_reason,
       );
 
-    await OrderModel.insertStatusHistory(
-      orderId,
-      status,
-      getAuthenticatedUserId(req),
-      auditComment,
-    );
+    const actorUserId =
+      getAuthenticatedUserId(req);
+
+    connection =
+      await db.getConnection();
+
+    await connection.beginTransaction();
+
+    /*
+     * Le statut + son historique sont enregistrés
+     * dans la même transaction.
+     */
+    const transition =
+      await OrderWorkflow.transitionOrderStatus(
+        connection,
+        {
+          orderId,
+          nextStatus: status,
+          changedBy:
+            actorUserId,
+          action:
+            "dispatch_status_change",
+          comment:
+            auditComment,
+          metadata: {
+            source:
+              "dispatch",
+            requested_status:
+              status,
+          },
+        },
+      );
+
+    /*
+     * ANNULATION ADMINISTRATIVE
+     *
+     * - conserve la commande
+     * - conserve l'historique
+     * - annule ses opérations
+     * - la retire de ses stops
+     * - conserve les autres commandes du stop
+     * - retire le stop s'il devient vide
+     * - recalcule les positions de la route
+     */
+    let synchronization = null;
+
+    if (status === "cancelled") {
+      synchronization =
+        await OrderWorkflow.cancelOrderEverywhere(
+          connection,
+          {
+            orderId,
+            changedBy:
+              actorUserId,
+            reason:
+              auditComment ||
+              "Commande annulée depuis le Dispatch",
+          },
+        );
+    }
+
+    await connection.commit();
+    connection.release();
+    connection = null;
+
+    /*
+     * Synchronisation temps réel.
+     * Une erreur Socket ne doit jamais annuler
+     * une transaction SQL déjà validée.
+     */
+    try {
+      const io =
+        req.app.get("io");
+
+      if (io) {
+        const payload = {
+          type:
+            status === "cancelled"
+              ? "order.cancelled"
+              : "order.status.changed",
+
+          order_id:
+            orderId,
+
+          order_number:
+            order.order_number,
+
+          previous_status:
+            transition.previousStatus,
+
+          status,
+
+          synchronization,
+
+          at:
+            new Date().toISOString(),
+        };
+
+        io
+          .to("role:super_admin")
+          .to("role:dispatcher")
+          .emit(
+            "dispatch:sync",
+            payload,
+          );
+
+        io.emit(
+          "driver:tasks:sync",
+          payload,
+        );
+      }
+    } catch (socketError) {
+      console.warn(
+        "Socket sync order status:",
+        socketError.message,
+      );
+    }
 
     const updatedOrder =
       await OrderModel.getOrderById(
@@ -2161,22 +2294,57 @@ const updateOrderStatus = async (
 
     return res.status(200).json({
       success: true,
+
       message:
-        "Statut modifié avec succès.",
-      data: updatedOrder,
-      order: updatedOrder,
+        status === "cancelled"
+          ? "Commande annulée et retirée automatiquement des routes actives."
+          : "Statut modifié avec succès.",
+
+      data:
+        updatedOrder,
+
+      order:
+        updatedOrder,
+
+      synchronization,
     });
+
   } catch (error) {
+
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error(
+          "Erreur rollback updateOrderStatus :",
+          rollbackError,
+        );
+      }
+
+      try {
+        connection.release();
+      } catch (_) {}
+
+      connection = null;
+    }
+
     console.error(
       "Erreur updateOrderStatus :",
       error,
     );
 
-    return res.status(500).json({
-      success: false,
-      message:
-        "Erreur lors de la modification du statut.",
-    });
+    return res
+      .status(
+        Number(
+          error.statusCode,
+        ) || 500,
+      )
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Erreur lors de la modification du statut.",
+      });
   }
 };
 
@@ -3175,7 +3343,108 @@ const getDeliveryNoteByOrderId = async (
    EXPORTS
 ============================================================ */
 
+
+/**
+ * DISPATCH OVERRIDE
+ * Réouvre administrativement une commande.
+ *
+ * L'ancienne exécution n'est jamais supprimée.
+ * Une nouvelle opération disponible est préparée.
+ */
+const reopenOrderByDispatch = async (req, res) => {
+  let connection;
+
+  try {
+    const orderId = Number(req.params.id);
+
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Commande invalide.",
+      });
+    }
+
+    const operationType =
+      String(req.body?.operation_type || "delivery").toLowerCase();
+
+    if (!["pickup", "delivery"].includes(operationType)) {
+      return res.status(400).json({
+        success: false,
+        message: "operation_type doit être pickup ou delivery.",
+      });
+    }
+
+    const reason =
+      String(
+        req.body?.reason ||
+        "Commande rouverte manuellement par le Dispatch"
+      ).trim();
+
+    const actorUserId = getAuthenticatedUserId(req);
+
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    const result = await DispatchOverride.reopenOrder(connection, {
+      orderId,
+      operationType,
+      actorUserId,
+      reason,
+    });
+
+    await connection.commit();
+
+    const payload = {
+      type: "order.reopened",
+      order_id: orderId,
+      operation_id: result.operationId,
+      operation_type: result.operationType,
+      status: result.status,
+      at: new Date().toISOString(),
+    };
+
+    try {
+      const io = req.app.get("io");
+
+      if (io) {
+        io.to("role:super_admin")
+          .to("role:dispatcher")
+          .emit("dispatch:sync", payload);
+
+        io.emit("driver:tasks:sync", payload);
+      }
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      message: "Commande rouverte avec succès.",
+      ...result,
+    });
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (_) {}
+    }
+
+    console.error("reopenOrderByDispatch:", error);
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error?.message ||
+        "Impossible de rouvrir la commande.",
+    });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+};
+
+
 module.exports = {
+  reopenOrderByDispatch,
   getAllOrders,
   getMyOrders,
   getOrderById,

@@ -1171,3 +1171,11 @@
 @media (prefers-reduced-motion: reduce) {
 .page, .page *, .page *::before, .page *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior:auto !important; }
 }
+/* Affectation professionnelle STOP → ROUTE depuis Commandes */
+.routeAssignCell { min-width:190px; display:grid; gap:6px; }
+.routeAssignCell label { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.routeAssignCell label span { font-size:7px; font-weight:900; letter-spacing:.08em; color:#8b8d96; }
+.routeAssignCell label strong { font-size:9px; color:#25262d; }
+.routeAssignCell select { width:100%; min-height:30px; border:1px solid #dedfe5; border-radius:8px; background:#fff; padding:0 8px; color:#34353c; font-size:9px; font-weight:700; }
+.routeAssignCell select:focus { outline:2px solid rgba(225,15,55,.14); border-color:#e10f37; }
+.routeAssignCell small { max-width:210px; color:#999ba4; font-size:7px; line-height:1.35; }

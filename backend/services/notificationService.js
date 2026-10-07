@@ -39,10 +39,7 @@ async function resolveAdminEmails() {
       WHERE
         u.email IS NOT NULL
         AND u.email <> ''
-        AND (
-          r.name IN ('super_admin', 'dispatcher')
-          OR u.role IN ('super_admin', 'dispatcher')
-        )
+        AND r.name IN ('super_admin', 'dispatcher')
     `);
 
     for (const row of rows) {

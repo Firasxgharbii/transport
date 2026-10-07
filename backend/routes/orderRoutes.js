@@ -10,6 +10,7 @@ const {
   assignDriver,
   assignVehicle,
   updateOrderStatus,
+  reopenOrderByDispatch,
   getDriverOrders,
   getOrderStops,
   addOrderStop,
@@ -232,6 +233,19 @@ router.patch(
    - dispatcher
    - driver
 ------------------------------------------------------------ */
+
+
+/*
+ * DISPATCH OVERRIDE
+ * Réouverture administrative d'une commande.
+ * Réservée au super_admin / dispatcher.
+ */
+router.post(
+  "/:id/reopen",
+  authMiddleware,
+  roleMiddleware("super_admin", "dispatcher"),
+  reopenOrderByDispatch
+);
 
 router.patch(
   "/:id/status",

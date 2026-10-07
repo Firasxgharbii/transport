@@ -49,7 +49,7 @@ import styles from "./live-map.module.css";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 const DEFAULT_LATITUDE = 45.5019;
 const DEFAULT_LONGITUDE = -73.5674;

@@ -42,7 +42,7 @@ import styles from "./driver-details.module.css";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 /* ============================================================
    TYPES

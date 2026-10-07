@@ -105,12 +105,13 @@ function uploadBuffer(
    PHOTO DE LIVRAISON
 ========================================================= */
 
-async function uploadDeliveryPhoto(file, orderId) {
+async function uploadDeliveryPhoto(file, orderId, context = {}) {
   const safeOrderId = normalizePositiveId(orderId, "orderId");
   validateImageFile(file, "La photo de livraison");
 
   const result = await uploadBuffer(file.buffer, {
-    folder: `glory-solutions/delivery-proofs/order-${safeOrderId}/photos`,
+    folder: context.folder || `glory-solutions/delivery-proofs/order-${safeOrderId}/photos`,
+    publicId: context.publicId || undefined,
   });
 
   return {
@@ -127,12 +128,13 @@ async function uploadDeliveryPhoto(file, orderId) {
    SIGNATURE
 ========================================================= */
 
-async function uploadDeliverySignature(file, orderId) {
+async function uploadDeliverySignature(file, orderId, context = {}) {
   const safeOrderId = normalizePositiveId(orderId, "orderId");
   validateImageFile(file, "La signature");
 
   const result = await uploadBuffer(file.buffer, {
-    folder: `glory-solutions/delivery-proofs/order-${safeOrderId}/signatures`,
+    folder: context.folder || `glory-solutions/delivery-proofs/order-${safeOrderId}/signatures`,
+    publicId: context.publicId || undefined,
   });
 
   return {
@@ -159,6 +161,12 @@ async function uploadDeliveryProofFiles({
   photo = null,
   signature = null,
   orderId,
+  orderNumber = null,
+  taskId = null,
+  operationId = null,
+  packageId = null,
+  driverId = null,
+  category = "delivery",
 }) {
   const safeOrderId = normalizePositiveId(orderId, "orderId");
 
@@ -168,11 +176,28 @@ async function uploadDeliveryProofFiles({
     );
   }
 
+  const safeOrderNumber = String(orderNumber || `order-${safeOrderId}`).trim().replace(/[^A-Za-z0-9_-]+/g, "-");
+  const safeCategory = String(category || "delivery").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const parts = [
+    taskId ? `stop-${normalizePositiveId(taskId, "taskId")}` : null,
+    operationId ? `operation-${normalizePositiveId(operationId, "operationId")}` : null,
+    packageId ? `package-${normalizePositiveId(packageId, "packageId")}` : null,
+    driverId ? `driver-${normalizePositiveId(driverId, "driverId")}` : null,
+    stamp,
+  ].filter(Boolean);
+  const baseName = parts.join("_");
+  const root = `glory-solutions/orders/${safeOrderNumber}`;
+
   const [photoResult, signatureResult] = await Promise.all([
-    photo ? uploadDeliveryPhoto(photo, safeOrderId) : Promise.resolve(null),
-    signature
-      ? uploadDeliverySignature(signature, safeOrderId)
-      : Promise.resolve(null),
+    photo ? uploadDeliveryPhoto(photo, safeOrderId, {
+      folder: `${root}/${safeCategory}/${safeCategory === "delivery" ? "photos" : "evidence"}`,
+      publicId: `${baseName}_photo`,
+    }) : Promise.resolve(null),
+    signature ? uploadDeliverySignature(signature, safeOrderId, {
+      folder: `${root}/${safeCategory}/signatures`,
+      publicId: `${baseName}_signature`,
+    }) : Promise.resolve(null),
   ]);
 
   return {

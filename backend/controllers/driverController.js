@@ -1501,6 +1501,28 @@ exports.getCurrentDriverScanHistory = async (
    POST /api/drivers/me/scan
 ===================================================== */
 
+exports.lookupPackage = async (req, res) => {
+  try {
+    const userId = Number(req.user?.id || req.user?.user_id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+      return res.status(401).json({ success: false, message: "Non authentifié." });
+    }
+    const driver = await DriverModel.getDriverByUserId(userId);
+    if (!driver) {
+      return res.status(403).json({ success: false, message: "Profil chauffeur introuvable." });
+    }
+    const result = await DriverModel.lookupDriverPackage(driver.id, req.body?.scanned_code);
+    return res.json(result);
+  } catch (error) {
+    const status = Number(error.statusCode);
+    if (!Number.isInteger(status) || status >= 500) console.error("lookupPackage:", error);
+    return res.status(status >= 400 && status < 600 ? status : 500).json({
+      success: false,
+      message: status >= 400 && status < 500 ? error.message : "Recherche du colis impossible.",
+    });
+  }
+};
+
 exports.scanPackage = async (req, res) => {
   try {
     const userId = Number(
@@ -1813,3 +1835,563 @@ exports.deleteOrderOperation = async (req, res) => {
     });
   }
 };
+
+/* =========================================================
+   ANNULER LE DERNIER SCAN DU STOP
+========================================================= */
+exports.cancelLastScan = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur non authentifié.",
+      });
+    }
+
+    const driver = await DriverModel.getDriverByUserId(userId);
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "Profil chauffeur introuvable.",
+      });
+    }
+
+    const taskId = Number(req.params.taskId);
+
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Stop invalide.",
+      });
+    }
+
+    const reason = String(req.body?.reason || "").trim();
+
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        message: "La raison de l'annulation est obligatoire.",
+      });
+    }
+
+    const result = await DriverModel.cancelLastDriverScan(
+      driver.id,
+      userId,
+      taskId,
+      reason
+    );
+
+    /* Synchronisation temps réel */
+    try {
+      const io = req.app.get("io");
+
+      if (io) {
+        io.emit("driver:tasks:sync", {
+          type: "scan_cancelled",
+          task_id: taskId,
+          driver_id: driver.id,
+          timestamp: new Date().toISOString(),
+        });
+
+        io.to("role:super_admin").emit("dispatch:sync", {
+          type: "scan_cancelled",
+          task_id: taskId,
+          driver_id: driver.id,
+        });
+
+        io.to("role:dispatcher").emit("dispatch:sync", {
+          type: "scan_cancelled",
+          task_id: taskId,
+          driver_id: driver.id,
+        });
+      }
+    } catch (socketError) {
+      console.error(
+        "Socket scan cancellation:",
+        socketError.message
+      );
+    }
+
+    return res.status(200).json(result);
+
+  } catch (error) {
+    console.error("Erreur cancelLastScan :", error);
+
+    return res
+      .status(error.statusCode || 500)
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Impossible d'annuler le dernier scan.",
+      });
+  }
+};
+
+
+/* =========================================================
+   ANNULER LE SCAN D'UN COLIS PRECIS
+========================================================= */
+exports.cancelPackageScan = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    const driver =
+      await DriverModel.getDriverByUserId(userId);
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "Profil chauffeur introuvable.",
+      });
+    }
+
+    const taskId = Number(req.params.taskId);
+    const packageId = Number(req.params.packageId);
+    const reason = String(req.body?.reason || "").trim();
+
+    if (
+      !Number.isInteger(taskId) ||
+      taskId <= 0 ||
+      !Number.isInteger(packageId) ||
+      packageId <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Stop ou colis invalide.",
+      });
+    }
+
+    const result =
+      await DriverModel.cancelPackageScan(
+        driver.id,
+        userId,
+        taskId,
+        packageId,
+        reason
+      );
+
+    try {
+      const io = req.app.get("io");
+
+      if (io) {
+        io.emit("driver:tasks:sync", {
+          type: "package_scan_cancelled",
+          task_id: taskId,
+          package_id: packageId,
+          driver_id: driver.id,
+          timestamp: new Date().toISOString(),
+        });
+
+        io.to("role:super_admin").emit("dispatch:sync", {
+          type: "package_scan_cancelled",
+          task_id: taskId,
+          package_id: packageId,
+        });
+
+        io.to("role:dispatcher").emit("dispatch:sync", {
+          type: "package_scan_cancelled",
+          task_id: taskId,
+          package_id: packageId,
+        });
+      }
+    } catch (e) {
+      console.error(
+        "Socket package scan cancellation:",
+        e.message
+      );
+    }
+
+    return res.json(result);
+
+  } catch (error) {
+    console.error(
+      "Erreur cancelPackageScan:",
+      error
+    );
+
+    return res
+      .status(error.statusCode || 500)
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Impossible d'annuler le scan.",
+      });
+  }
+};
+
+/* =========================================================
+   V5 — RÉINITIALISER TOUS LES SCANS ACTIFS D'UN STOP
+========================================================= */
+exports.resetStopScans = async (req, res) => {
+  const db = require("../config/db");
+  let conn;
+
+  try {
+    const userId = req.user?.id;
+    const driver = await DriverModel.getDriverByUserId(userId);
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: "Profil chauffeur introuvable.",
+      });
+    }
+
+    const taskId = Number(req.params.taskId);
+    const reason = String(
+      req.body?.reason || "Réinitialisation complète du stop"
+    ).trim();
+
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Stop invalide.",
+      });
+    }
+
+    if (reason.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: "La raison est obligatoire.",
+      });
+    }
+
+    conn = await db.getConnection();
+    await conn.beginTransaction();
+
+    /*
+     * Verrouiller le stop et vérifier qu'il appartient bien au chauffeur.
+     */
+    const [taskRows] = await conn.query(
+      `SELECT id, driver_id, status, route_id
+       FROM dispatch_tasks
+       WHERE id=?
+       FOR UPDATE`,
+      [taskId]
+    );
+
+    const task = taskRows[0];
+
+    if (!task) {
+      const e = new Error("Stop introuvable.");
+      e.statusCode = 404;
+      throw e;
+    }
+
+    if (
+      task.driver_id != null &&
+      Number(task.driver_id) !== Number(driver.id)
+    ) {
+      const e = new Error("Ce stop n'appartient pas à ce chauffeur.");
+      e.statusCode = 403;
+      throw e;
+    }
+
+    if (String(task.status) === "completed") {
+      const e = new Error(
+        "Un stop déjà fermé ne peut pas être réinitialisé depuis l'application chauffeur."
+      );
+      e.statusCode = 409;
+      throw e;
+    }
+
+    /*
+     * 1. Annuler tous les scans actifs.
+     *    scan_events reste intact : traçabilité conservée.
+     */
+    const [scanRows] = await conn.query(
+      `SELECT
+         se.id AS scan_event_id,
+         se.package_id,
+         se.operation_id
+       FROM scan_events se
+       JOIN order_operations op
+         ON op.id=se.operation_id
+       LEFT JOIN scan_cancellations sc
+         ON sc.scan_event_id=se.id
+       WHERE op.dispatch_task_id=?
+         AND se.driver_id=?
+         AND se.scan_status='accepted'
+         AND sc.id IS NULL
+       FOR UPDATE`,
+      [taskId, driver.id]
+    );
+
+    for (const scan of scanRows) {
+      await conn.query(
+        `INSERT INTO scan_cancellations
+           (scan_event_id, cancelled_by, reason)
+         VALUES (?, ?, ?)`,
+        [scan.scan_event_id, userId || null, reason]
+      );
+    }
+
+    /*
+     * 2. Archiver les exceptions dans l'audit avant de les retirer
+     *    de l'état actif du stop.
+     */
+    const [exceptions] = await conn.query(
+      `SELECT *
+       FROM driver_package_exceptions
+       WHERE dispatch_task_id=?
+         AND driver_id=?
+       FOR UPDATE`,
+      [taskId, driver.id]
+    );
+
+    for (const ex of exceptions) {
+      try {
+        await conn.query(
+          `INSERT INTO operational_audit_log
+             (
+               entity_type,
+               entity_id,
+               action,
+               route_id,
+               dispatch_task_id,
+               driver_id,
+               metadata
+             )
+           VALUES ('package', ?, 'stop_reset_exception_archived', ?, ?, ?, ?)`,
+          [
+            ex.package_id,
+            task.route_id || null,
+            taskId,
+            driver.id,
+            JSON.stringify({
+              exception_id: ex.id,
+              operation_id: ex.operation_id,
+              order_id: ex.order_id,
+              package_id: ex.package_id,
+              reason: ex.reason,
+              comment: ex.comment,
+              latitude: ex.latitude,
+              longitude: ex.longitude,
+              accuracy: ex.accuracy,
+              original_created_at: ex.created_at,
+              reset_reason: reason,
+            }),
+          ]
+        );
+      } catch (auditError) {
+        if (
+          auditError?.code !== "ER_NO_SUCH_TABLE" &&
+          auditError?.code !== "ER_BAD_FIELD_ERROR"
+        ) {
+          throw auditError;
+        }
+      }
+    }
+
+    await conn.query(
+      `DELETE FROM driver_package_exceptions
+       WHERE dispatch_task_id=?
+         AND driver_id=?`,
+      [taskId, driver.id]
+    );
+
+    /*
+     * 3. Les preuves temporaires d'une livraison recommencée
+     *    ne doivent pas rester actives.
+     *    On les archive avant suppression.
+     */
+    const [proofs] = await conn.query(
+      `SELECT *
+       FROM driver_delivery_proofs
+       WHERE dispatch_task_id=?
+         AND driver_id=?
+       FOR UPDATE`,
+      [taskId, driver.id]
+    );
+
+    for (const proof of proofs) {
+      try {
+        await conn.query(
+          `INSERT INTO operational_audit_log
+             (
+               entity_type,
+               entity_id,
+               action,
+               route_id,
+               dispatch_task_id,
+               driver_id,
+               metadata
+             )
+           VALUES ('stop', ?, 'stop_reset_proof_archived', ?, ?, ?, ?)`,
+          [
+            taskId,
+            task.route_id || null,
+            taskId,
+            driver.id,
+            JSON.stringify({
+              proof_id: proof.id,
+              operation_id: proof.operation_id,
+              order_id: proof.order_id,
+              proof_type: proof.proof_type,
+              recipient_first_name: proof.recipient_first_name,
+              recipient_last_name: proof.recipient_last_name,
+              latitude: proof.latitude,
+              longitude: proof.longitude,
+              accuracy: proof.accuracy,
+              original_created_at: proof.created_at,
+              reset_reason: reason,
+            }),
+          ]
+        );
+      } catch (auditError) {
+        if (
+          auditError?.code !== "ER_NO_SUCH_TABLE" &&
+          auditError?.code !== "ER_BAD_FIELD_ERROR"
+        ) {
+          throw auditError;
+        }
+      }
+    }
+
+    await conn.query(
+      `DELETE FROM driver_delivery_proofs
+       WHERE dispatch_task_id=?
+         AND driver_id=?`,
+      [taskId, driver.id]
+    );
+
+    /*
+     * 4. Revenir réellement AVANT "Commencer le stop".
+     */
+    await conn.query(
+      `UPDATE driver_stop_runs
+       SET execution_status='todo',
+           started_at=NULL,
+           closed_at=NULL,
+           start_latitude=NULL,
+           start_longitude=NULL,
+           start_accuracy=NULL,
+           close_latitude=NULL,
+           close_longitude=NULL,
+           close_accuracy=NULL,
+           close_address=NULL
+       WHERE dispatch_task_id=?
+         AND driver_id=?`,
+      [taskId, driver.id]
+    );
+
+    /*
+     * Le stop et ses opérations redeviennent assignés/pending,
+     * mais restent affectés au même chauffeur.
+     */
+    await conn.query(
+      `UPDATE dispatch_tasks
+       SET status=CASE
+         WHEN driver_id IS NULL THEN 'pending'
+         ELSE 'assigned'
+       END
+       WHERE id=?`,
+      [taskId]
+    );
+
+    await conn.query(
+      `UPDATE order_operations
+       SET status=CASE
+             WHEN driver_id IS NULL THEN 'pending'
+             ELSE 'assigned'
+           END,
+           started_at=NULL,
+           completed_at=NULL
+       WHERE dispatch_task_id=?
+         AND status <> 'cancelled'`,
+      [taskId]
+    );
+
+    /*
+     * 5. Audit global du reset.
+     */
+    try {
+      await conn.query(
+        `INSERT INTO operational_audit_log
+           (
+             entity_type,
+             entity_id,
+             action,
+             route_id,
+             dispatch_task_id,
+             driver_id,
+             metadata
+           )
+         VALUES ('stop', ?, 'stop_full_reset', ?, ?, ?, ?)`,
+        [
+          taskId,
+          task.route_id || null,
+          taskId,
+          driver.id,
+          JSON.stringify({
+            reason,
+            reset_by_user_id: userId || null,
+            cancelled_scan_count: scanRows.length,
+            cleared_exception_count: exceptions.length,
+            cleared_proof_count: proofs.length,
+          }),
+        ]
+      );
+    } catch (auditError) {
+      if (
+        auditError?.code !== "ER_NO_SUCH_TABLE" &&
+        auditError?.code !== "ER_BAD_FIELD_ERROR"
+      ) {
+        throw auditError;
+      }
+    }
+
+    await conn.commit();
+
+    const io = req.app.get("io");
+
+    if (io) {
+      const payload = {
+        type: "stop_full_reset",
+        task_id: taskId,
+        driver_id: driver.id,
+      };
+
+      io.emit("driver:tasks:sync", payload);
+
+      io.to("role:super_admin")
+        .to("role:dispatcher")
+        .emit("dispatch:sync", payload);
+    }
+
+    return res.json({
+      success: true,
+      message:
+        "Stop complètement réinitialisé. Cliquez de nouveau sur Commencer le stop.",
+      reset_count: scanRows.length,
+      exception_count: exceptions.length,
+      proof_count: proofs.length,
+      requires_restart: true,
+    });
+  } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (_) {}
+    }
+
+    console.error("Erreur resetStopScans:", error);
+
+    return res
+      .status(error.statusCode || 500)
+      .json({
+        success: false,
+        message:
+          error.message ||
+          "Impossible de réinitialiser complètement le stop.",
+      });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+

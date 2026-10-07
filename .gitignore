@@ -39,3 +39,36 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ===== GLORY - fichiers locaux / sauvegardes =====
+*.bak
+*.bak-*
+*.backup
+*.backup-*
+*.zip
+
+backups/
+*backup*/
+*.backup-*/
+*.backup-*/
+
+backend/node_modules/
+node_modules/
+
+# Fichiers temporaires
+*.log
+*.tmp
+.DS_Store
+
+# Glory - fichiers de travail à ne jamais versionner
+*.save
+*.before-*
+.gitignore.before-*
+backend/cancelled
+backend/delivered
+backend/test-*.js
+GLORY-*-INSTALLATION.txt
+GLORY-MODIFICATIONS-PRO.md
+INSTALL-*.txt
+INSTALLATION-*.txt
+MODIFICATIONS-DISPATCH-PRO.md

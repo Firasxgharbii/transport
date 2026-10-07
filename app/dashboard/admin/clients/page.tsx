@@ -106,6 +106,7 @@ type Order = {
   total_amount?: number | string | null;
 
   status?: OrderStatus;
+  service_level?: string | null;
 
   stop_count?: number | string | null;
   completed_stops?: number | string | null;
@@ -240,6 +241,19 @@ function getDriverName(order: Order) {
   return name || "Non assigné";
 }
 
+function getServiceLabel(service?: string | null) {
+  const normalized = (service || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+  if (normalized === "urgent") return "URGENT";
+  if (["same_day", "sameday", "jour_meme", "le_jour_meme"].includes(normalized)) return "LE JOUR MÊME";
+  if (normalized === "standard") return "Standard";
+  return service?.trim() || "Service non précisé";
+}
+
+function isPriorityService(service?: string | null) {
+  return ["urgent", "same_day", "sameday", "jour_meme", "le_jour_meme"]
+    .includes((service || "").trim().toLowerCase().replace(/[-\s]+/g, "_"));
+}
+
 function getStatusLabel(
   status?: OrderStatus,
 ) {
@@ -366,8 +380,8 @@ function formatTime(
 
 function getOrderDate(order: Order) {
   const value =
-    order.pickup_date ||
-    order.created_at;
+    order.created_at ||
+    order.pickup_date;
 
   if (!value) {
     return 0;
@@ -408,6 +422,7 @@ export default function ClientsPage() {
 
   const [loading, setLoading] =
     useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const [error, setError] =
     useState("");
@@ -563,6 +578,7 @@ export default function ClientsPage() {
 
         setClients(receivedClients);
         setOrders(receivedOrders);
+        setLastUpdated(new Date());
       } catch (reason) {
         setError(
           reason instanceof Error
@@ -576,6 +592,24 @@ export default function ClientsPage() {
 
   useEffect(() => {
     void loadData();
+    // Rafraîchir seulement lorsque l'onglet est visible et connecté.
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible" && getToken()) {
+        void loadData();
+      }
+    }, 30000);
+    const refreshOnReturn = () => {
+      if (document.visibilityState === "visible" && getToken()) {
+        void loadData();
+      }
+    };
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    window.addEventListener("focus", refreshOnReturn);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+      window.removeEventListener("focus", refreshOnReturn);
+    };
   }, [loadData]);
 
   /* ============================================================
@@ -711,6 +745,15 @@ export default function ClientsPage() {
         };
       });
     }, [clients, orders]);
+
+  // Conserver le dossier ouvert synchronisé après chaque rechargement.
+  useEffect(() => {
+    setSelectedClient((current) =>
+      current
+        ? clientSummaries.find((client) => client.id === current.id) || null
+        : null,
+    );
+  }, [clientSummaries]);
 
   /* ============================================================
      STATISTIQUES GLOBALES
@@ -940,6 +983,11 @@ export default function ClientsPage() {
 
           Actualiser
         </button>
+        <small aria-live="polite" style={{ opacity: 0.7 }}>
+          {lastUpdated
+            ? `Synchronisé à ${lastUpdated.toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · actualisation toutes les 30 s`
+            : "Synchronisation en cours"}
+        </small>
       </section>
 
       {/* =====================================================
@@ -1426,10 +1474,10 @@ export default function ClientsPage() {
                                 ? formatDate(
                                     client
                                       .last_order
-                                      .pickup_date ||
+                                      .created_at ||
                                       client
                                         .last_order
-                                        .created_at,
+                                        .pickup_date,
                                   )
                                 : "Aucune commande"}
                             </strong>
@@ -1869,6 +1917,21 @@ export default function ClientsPage() {
                                 {order.order_number ||
                                   `CMD-${order.id}`}
                               </strong>
+                              <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    padding: "4px 8px",
+                                    borderRadius: 6,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    background: isPriorityService(order.service_level) ? "#fff0ed" : "#edf3ff",
+                                    color: isPriorityService(order.service_level) ? "#b42318" : "#234b82",
+                                  }}
+                                >
+                                  {getServiceLabel(order.service_level)}
+                                </span>
+                              </div>
 
                               <small>
                                 {formatDate(

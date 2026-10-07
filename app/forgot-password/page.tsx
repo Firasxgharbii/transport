@@ -27,7 +27,7 @@ type ForgotPasswordResponse = {
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

@@ -48,10 +48,18 @@ type ScanResult = {
   success?: boolean;
   duplicate?: boolean;
   rejected?: boolean;
-  scan_status?: "accepted" | "duplicate" | "rejected";
+  scan_status?: "identified" | "accepted" | "duplicate" | "rejected";
   message?: string;
   scan_type?: string;
   operation_completed?: boolean;
+  address?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+  route_id?: number | null;
+  stop_position?: number | null;
+  total_packages?: number;
+  scanned_packages?: number;
+  remaining_packages?: number;
   package?: {
     id?: number;
     order_id?: number;
@@ -120,6 +128,20 @@ function operationLabel(value?: string) {
   }
 }
 
+function playScanSound(ok: boolean) {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    const tone = (freq:number,start:number,dur:number,type:OscillatorType='sine') => {
+      const osc=ctx.createOscillator(), gain=ctx.createGain(); osc.type=type; osc.frequency.value=freq;
+      gain.gain.setValueAtTime(.0001,ctx.currentTime+start); gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+start+.01); gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+start+dur);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(ctx.currentTime+start); osc.stop(ctx.currentTime+start+dur);
+    };
+    if(ok){ tone(880,0,.09); tone(1175,.11,.11); } else { tone(260,0,.16,'square'); tone(180,.18,.24,'square'); }
+    window.setTimeout(()=>ctx.close().catch(()=>{}),650);
+  } catch {}
+}
+
 export default function DriverScannerPage() {
   const router = useRouter();
 
@@ -130,6 +152,8 @@ export default function DriverScannerPage() {
   const lastDetectedRef = useRef<string>("");
   const lastDetectedAtRef = useRef<number>(0);
   const scanInputRef = useRef<HTMLInputElement | null>(null);
+  const identifiedRef = useRef<{ code: string; taskId: number } | null>(null);
+  const submittingRef = useRef(false);
   const lastHardwareKeyAtRef = useRef<number>(0);
   const hardwareBurstRef = useRef(0);
 
@@ -200,7 +224,7 @@ export default function DriverScannerPage() {
 
   const resultTone = useMemo(() => {
     if (!result) return "";
-    if (result.scan_status === "accepted") return styles.success;
+    if (result.scan_status === "identified" || result.scan_status === "accepted") return styles.success;
     if (result.scan_status === "duplicate") return styles.warning;
     return styles.danger;
   }, [result]);
@@ -230,117 +254,66 @@ export default function DriverScannerPage() {
     ) => {
       const scannedCode = rawCode.trim();
 
-      if (!scannedCode || submitting) {
+      if (!scannedCode || submittingRef.current) {
         return;
       }
 
       const token = getToken();
-
       if (!token) {
         router.replace("/login");
         return;
       }
 
+
+      submittingRef.current = true;
       setSubmitting(true);
       setResult(null);
       setLastCode(scannedCode);
+      identifiedRef.current = null;
 
       try {
-        const freshPosition =
-          (await getFreshPosition()) ||
-          position;
-
-        const response = await fetch(
-          `${API_URL}/api/drivers/me/scan`,
-          {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              scanned_code: scannedCode,
-              scan_type: "auto",
-              scan_source: source,
-              latitude: freshPosition?.latitude ?? null,
-              longitude: freshPosition?.longitude ?? null,
-              accuracy: freshPosition?.accuracy ?? null,
-              device_type: isZebraDevice
-                ? "zebra_tc77"
-                : "web_driver_scanner",
-              device_name:
-                typeof navigator !== "undefined"
-                  ? navigator.userAgent.slice(0, 140)
-                  : null,
-            }),
+        const response = await fetch(`${API_URL}/api/drivers/me/scan/lookup`, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
-        );
-
+          body: JSON.stringify({ scanned_code: scannedCode }),
+        });
         let payload: ScanResult = {};
-
         try {
           payload = await response.json();
         } catch {
-          payload = {
-            success: false,
-            message: "Réponse serveur invalide.",
-          };
+          payload = { success: false, message: "Réponse serveur invalide." };
         }
-
-        setResult(payload);
-
-        if (!response.ok && !payload.message) {
-          setResult({
-            ...payload,
-            success: false,
-            scan_status: "rejected",
-            message: `Erreur API (${response.status}).`,
-          });
-        }
-
-        if (response.ok) {
-          setManualCode("");
-
-          /*
-           * OUVERTURE AUTOMATIQUE DE LA TÂCHE
-           *
-           * Le task/operation id vient du backend après validation :
-           * - chauffeur authentifié,
-           * - commande/colis,
-           * - opération active,
-           * - opération réellement assignée au chauffeur.
-           *
-           * Le frontend ne choisit jamais driver_id.
-           */
-          const taskId =
-            Number(payload.task?.id) ||
-            Number(payload.operation?.id);
-
-          const canOpenTask =
-            Number.isInteger(taskId) &&
-            taskId > 0 &&
-            (
-              payload.scan_status === "accepted" ||
-              payload.scan_status === "duplicate"
-            );
-
-          if (canOpenTask) {
+        if (!response.ok) {
+          playScanSound(false);
+          setResult({ ...payload, success: false, scan_status: "rejected" });
+        } else {
+          const taskId = Number(
+            payload.task?.id ??
+            (payload as any).task_id ??
+            (payload as any).dispatch_task_id ??
+            (payload as any).operation?.dispatch_task_id
+          );
+          if (Number.isSafeInteger(taskId) && taskId > 0) {
+            playScanSound(true);
+            identifiedRef.current = null;
+            setResult(payload);
+            setManualCode("");
             stopCamera();
-
-            window.setTimeout(() => {
-              router.push(
-                `/dashboard/driver/tasks/${taskId}`,
-              );
-            }, 450);
-
+            router.replace(`/dashboard/driver/tasks/${taskId}`);
             return;
+          } else {
+            playScanSound(false);
+            setResult({ success: false, scan_status: "rejected", message: "Mission introuvable pour ce colis." });
           }
         }
-
         focusScanInput();
       } catch (error) {
         console.error(error);
+        playScanSound(false);
         setResult({
           success: false,
           scan_status: "rejected",
@@ -348,18 +321,11 @@ export default function DriverScannerPage() {
             "Impossible de communiquer avec Glory Solutions.",
         });
       } finally {
+        submittingRef.current = false;
         setSubmitting(false);
       }
     },
-    [
-      focusScanInput,
-      getFreshPosition,
-      isZebraDevice,
-      position,
-      router,
-      stopCamera,
-      submitting,
-    ],
+    [focusScanInput, router, stopCamera],
   );
 
   const scanFrame = useCallback(async () => {
@@ -383,7 +349,7 @@ export default function DriverScannerPage() {
         const now = Date.now();
         const sameRecentCode =
           lastDetectedRef.current === code &&
-          now - lastDetectedAtRef.current < 3500;
+          now - lastDetectedAtRef.current < 1200;
 
         if (!sameRecentCode) {
           lastDetectedRef.current = code;
@@ -528,7 +494,7 @@ export default function DriverScannerPage() {
           <span>GLORY SOLUTIONS</span>
           <h1>Scanner un colis</h1>
           <p>
-            Scannez le colis : Glory vérifie votre opération assignée et ouvre automatiquement la bonne tâche.
+            Scannez un colis : Glory ouvre automatiquement le stop correspondant. Le scan de contrôle du colis se fait ensuite dans le stop.
           </p>
         </div>
       </header>
@@ -741,7 +707,7 @@ export default function DriverScannerPage() {
       {result && !submitting && (
         <section className={`${styles.resultCard} ${resultTone}`}>
           <div className={styles.resultIcon}>
-            {result.scan_status === "accepted" ? (
+            {result.scan_status === "identified" || result.scan_status === "accepted" ? (
               <CheckCircle2 size={28} />
             ) : result.scan_status === "duplicate" ? (
               <RotateCcw size={28} />
@@ -752,7 +718,9 @@ export default function DriverScannerPage() {
 
           <div className={styles.resultContent}>
             <span>
-              {result.scan_status === "accepted"
+              {result.scan_status === "identified"
+                ? "COLIS IDENTIFIÉ"
+                : result.scan_status === "accepted"
                 ? "SCAN ACCEPTÉ"
                 : result.scan_status === "duplicate"
                   ? "DÉJÀ SCANNÉ"
@@ -776,6 +744,15 @@ export default function DriverScannerPage() {
                 </strong>
               </div>
 
+              {result.scan_status === "identified" && (
+                <>
+                  <div><small>Mission</small><strong>#{result.task?.id}</strong></div>
+                  <div><small>Route / arrêt</small><strong>{result.route_id ? `Route #${result.route_id}` : "Sans route"}{result.stop_position ? ` · Arrêt ${result.stop_position}` : ""}</strong></div>
+                  <div><small>Destination</small><strong>{[result.address, result.city, result.postal_code].filter(Boolean).join(", ") || "Voir la mission"}</strong></div>
+                  <div><small>Colis de la commande</small><strong>{result.scanned_packages ?? 0} / {result.total_packages ?? 0} scannés · {result.remaining_packages ?? 0} restants</strong></div>
+                  <div><small>Étape suivante</small><strong>Ouverture automatique du stop…</strong></div>
+                </>
+              )}
               {result.operation?.warehouse_name && (
                 <div>
                   <small>Entrepôt</small>

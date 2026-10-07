@@ -1,0 +1,30 @@
+-- GLORY SOLUTIONS - Étape 1
+-- Journal d'audit opérationnel central. Ne supprime aucune donnée existante.
+CREATE TABLE IF NOT EXISTS operational_audit_log (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  entity_type VARCHAR(40) NOT NULL,
+  entity_id BIGINT NOT NULL,
+  order_id INT NULL,
+  action VARCHAR(100) NOT NULL,
+  previous_status VARCHAR(100) NULL,
+  new_status VARCHAR(100) NULL,
+  route_id INT NULL,
+  dispatch_task_id INT NULL,
+  driver_id INT NULL,
+  vehicle_id INT NULL,
+  user_id INT NULL,
+  metadata JSON NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_audit_entity (entity_type, entity_id, created_at),
+  KEY idx_audit_order (order_id, created_at),
+  KEY idx_audit_route (route_id, created_at),
+  KEY idx_audit_task (dispatch_task_id, created_at),
+  KEY idx_audit_driver (driver_id, created_at),
+  CONSTRAINT fk_audit_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_route FOREIGN KEY (route_id) REFERENCES dispatch_routes(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_task FOREIGN KEY (dispatch_task_id) REFERENCES dispatch_tasks(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_driver FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_vehicle FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

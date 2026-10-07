@@ -100,6 +100,12 @@ type Order = {
   weight?: number | string | null;
 
   created_at?: string | null;
+  pickup_stop_id?: number | null;
+  pickup_route_id?: number | null;
+  pickup_route_code?: string | null;
+  delivery_stop_id?: number | null;
+  delivery_route_id?: number | null;
+  delivery_route_code?: string | null;
 };
 
 type Driver = {
@@ -125,6 +131,9 @@ type OrdersResponse = {
 
   message?: string;
 };
+
+type RouteChoice = { id:number; route_code?:string|null; scheduled_date?:string|null; status?:string|null };
+type RouteChoicesResponse = { success?:boolean; routes?:RouteChoice[]; message?:string };
 
 type DriversResponse = {
   success?: boolean;
@@ -382,6 +391,9 @@ export default function OrdersPage() {
     setDrivers,
   ] = useState<Driver[]>([]);
 
+  const [routeChoices, setRouteChoices] = useState<RouteChoice[]>([]);
+  const [routeBusy, setRouteBusy] = useState<string>("");
+
   const [
     loading,
     setLoading,
@@ -591,9 +603,19 @@ export default function OrdersPage() {
       authenticatedFetch,
     ]);
 
+  const loadRouteChoices = useCallback(async () => {
+    try {
+      const result = await authenticatedFetch<RouteChoicesResponse>("/api/dispatch/route-choices");
+      setRouteChoices(Array.isArray(result.routes) ? result.routes : []);
+    } catch {
+      setRouteChoices([]);
+    }
+  }, [authenticatedFetch]);
+
   useEffect(() => {
     void loadOrders();
-  }, [loadOrders]);
+    void loadRouteChoices();
+  }, [loadOrders, loadRouteChoices]);
 
   /* ==========================================================
      CHAUFFEURS
@@ -836,6 +858,19 @@ export default function OrdersPage() {
         );
       }
     };
+
+  const assignOperationRoute = async (order: Order, operationType: "pickup" | "delivery", routeId: string) => {
+    if (!routeId) return;
+    const key = `${order.id}-${operationType}`;
+    try {
+      setRouteBusy(key); setError(""); setSuccess("");
+      await authenticatedFetch(`/api/dispatch/routes/${routeId}/orders/${order.id}/${operationType}/assign`, { method: "POST" });
+      setSuccess(`${operationType === "pickup" ? "Ramassage" : "Livraison"} assigné à la route avec succès.`);
+      await loadOrders();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Impossible d’assigner la route.");
+    } finally { setRouteBusy(""); }
+  };
 
   /* ==========================================================
      FILTRES
@@ -1537,6 +1572,10 @@ export default function OrdersPage() {
                 </th>
 
                 <th>
+                  Route opérationnelle
+                </th>
+
+                <th>
                   Chauffeur
                 </th>
 
@@ -1582,7 +1621,7 @@ export default function OrdersPage() {
                       >
                         <td
                           colSpan={
-                            10
+                            11
                           }
                         >
                           <div
@@ -1718,6 +1757,33 @@ export default function OrdersPage() {
                                     </em>
                                   </span>
                                 )}
+                            </div>
+                          </td>
+
+                          {/* ROUTE OPÉRATIONNELLE */}
+                          <td>
+                            <div className={styles.routeAssignCell}>
+                              <label><span>RAMASSAGE</span><strong>{order.pickup_route_code || "Non assigné"}</strong></label>
+                              <select
+                                aria-label={`Route ramassage ${getOrderNumber(order)}`}
+                                value={order.pickup_route_id ? String(order.pickup_route_id) : ""}
+                                disabled={routeBusy === `${order.id}-pickup`}
+                                onChange={(e) => void assignOperationRoute(order, "pickup", e.target.value)}
+                              >
+                                <option value="">Choisir une route…</option>
+                                {routeChoices.map((route) => <option key={`p-${route.id}`} value={route.id}>{route.route_code || `Route #${route.id}`}</option>)}
+                              </select>
+                              <label><span>LIVRAISON</span><strong>{order.delivery_route_code || "Non assigné"}</strong></label>
+                              <select
+                                aria-label={`Route livraison ${getOrderNumber(order)}`}
+                                value={order.delivery_route_id ? String(order.delivery_route_id) : ""}
+                                disabled={routeBusy === `${order.id}-delivery`}
+                                onChange={(e) => void assignOperationRoute(order, "delivery", e.target.value)}
+                              >
+                                <option value="">Choisir une route…</option>
+                                {routeChoices.map((route) => <option key={`d-${route.id}`} value={route.id}>{route.route_code || `Route #${route.id}`}</option>)}
+                              </select>
+                              <small>L’affectation déplace le stop complet si cette adresse est regroupée.</small>
                             </div>
                           </td>
 

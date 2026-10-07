@@ -6,6 +6,10 @@ const driverController = require(
   "../controllers/driverController"
 );
 
+const driverDispatchTaskController = require(
+  "../controllers/driverDispatchTaskController"
+);
+
 const authMiddleware = require(
   "../middleware/authMiddleware"
 );
@@ -132,6 +136,13 @@ router.get(
 ========================================================= */
 
 router.post(
+  "/me/scan/lookup",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.lookupPackage
+);
+
+router.post(
   "/me/scan",
 
   authMiddleware,
@@ -139,6 +150,14 @@ router.post(
   roleMiddleware("driver"),
 
   driverController.scanPackage
+);
+
+/* V5 : un seul bouton remet tous les scans actifs du stop à zéro. */
+router.post(
+  "/me/dispatch-tasks/:taskId/scans/reset",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverController.resetStopScans
 );
 
 /* =========================================================
@@ -336,5 +355,35 @@ router.delete(
    EXPORT
 
 ========================================================= */
+
+/* =========================================================
+
+   MISSIONS REGROUPÉES DU CHAUFFEUR CONNECTÉ
+
+   GET /api/drivers/me/dispatch-tasks
+   GET /api/drivers/me/dispatch-tasks/:taskId
+
+========================================================= */
+
+router.get(
+  "/me/dispatch-tasks",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverDispatchTaskController.getMyDispatchTasks
+);
+
+router.get(
+  "/me/dispatch-tasks/:taskId",
+  authMiddleware,
+  roleMiddleware("driver"),
+  driverDispatchTaskController.getMyDispatchTaskById
+);
+
+
+router.post("/me/dispatch-tasks/:taskId/start",authMiddleware,roleMiddleware("driver"),driverDispatchTaskController.startMyStop);
+router.put("/me/dispatch-tasks/:taskId/packages/:packageId/exception",authMiddleware,roleMiddleware("driver"),driverDispatchTaskController.savePackageException);
+router.put("/me/dispatch-tasks/:taskId/operations/:operationId/proof",authMiddleware,roleMiddleware("driver"),driverDispatchTaskController.saveDeliveryProof);
+router.get("/me/dispatch-tasks/:taskId/operations/:operationId/proof",authMiddleware,roleMiddleware("driver"),driverDispatchTaskController.getDeliveryProof);
+router.post("/me/dispatch-tasks/:taskId/close",authMiddleware,roleMiddleware("driver"),driverDispatchTaskController.closeMyStop);
 
 module.exports = router;

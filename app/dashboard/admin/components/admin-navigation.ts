@@ -2,10 +2,13 @@ import {
   Activity,
   Building2,
   Clock3,
+  Archive,
+  Bell,
   FileCheck2,
   FileText,
   LayoutDashboard,
   PackageCheck,
+  ScanLine,
   Route,
   Settings,
   Truck,
@@ -23,6 +26,12 @@ export const adminNavigationItems = [
     label: "Demandes",
     href: "/dashboard/admin/requests",
     icon: Clock3,
+  },
+
+  {
+    label: "Notifications",
+    href: "/dashboard/admin/notifications",
+    icon: Bell,
   },
 
   {
@@ -57,6 +66,18 @@ export const adminNavigationItems = [
     label: "Dispatch",
     href: "/dashboard/admin/dispatch",
     icon: Route,
+  },
+
+  {
+    label: "Triage",
+    href: "/dashboard/admin/dispatch/triage",
+    icon: ScanLine,
+  },
+
+  {
+    label: "Archive routes",
+    href: "/dashboard/admin/dispatch/archive",
+    icon: Archive,
   },
 
   // ==========================================================

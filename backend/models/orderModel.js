@@ -77,6 +77,14 @@ const OrderModel = {
           WHERE os.order_id = o.id
             AND os.status = 'completed'
         ) AS completed_stops
+,
+
+        (SELECT dt.id FROM order_operations oo LEFT JOIN dispatch_tasks dt ON dt.id=oo.dispatch_task_id WHERE oo.order_id=o.id AND oo.operation_type='pickup' ORDER BY oo.id DESC LIMIT 1) AS pickup_stop_id,
+        (SELECT dr.id FROM order_operations oo LEFT JOIN dispatch_tasks dt ON dt.id=oo.dispatch_task_id LEFT JOIN dispatch_routes dr ON dr.id=dt.route_id WHERE oo.order_id=o.id AND oo.operation_type='pickup' ORDER BY oo.id DESC LIMIT 1) AS pickup_route_id,
+        (SELECT dr.route_code FROM order_operations oo LEFT JOIN dispatch_tasks dt ON dt.id=oo.dispatch_task_id LEFT JOIN dispatch_routes dr ON dr.id=dt.route_id WHERE oo.order_id=o.id AND oo.operation_type='pickup' ORDER BY oo.id DESC LIMIT 1) AS pickup_route_code,
+        (SELECT dt.id FROM order_operations oo LEFT JOIN dispatch_tasks dt ON dt.id=oo.dispatch_task_id WHERE oo.order_id=o.id AND oo.operation_type='delivery' ORDER BY oo.id DESC LIMIT 1) AS delivery_stop_id,
+        (SELECT dr.id FROM order_operations oo LEFT JOIN dispatch_tasks dt ON dt.id=oo.dispatch_task_id LEFT JOIN dispatch_routes dr ON dr.id=dt.route_id WHERE oo.order_id=o.id AND oo.operation_type='delivery' ORDER BY oo.id DESC LIMIT 1) AS delivery_route_id,
+        (SELECT dr.route_code FROM order_operations oo LEFT JOIN dispatch_tasks dt ON dt.id=oo.dispatch_task_id LEFT JOIN dispatch_routes dr ON dr.id=dt.route_id WHERE oo.order_id=o.id AND oo.operation_type='delivery' ORDER BY oo.id DESC LIMIT 1) AS delivery_route_code
 
       FROM orders o
 
@@ -1109,21 +1117,64 @@ const OrderModel = {
 
   async getDeliveryProofs(orderId) {
     orderId = normalizePositiveId(orderId, "orderId");
-    const [rows] = await db.query(
+
+    /*
+     * On conserve les deux sources :
+     *
+     * 1. delivery_proofs
+     *    Ancien système / preuves administratives.
+     *
+     * 2. driver_delivery_proofs
+     *    Preuves réelles enregistrées par le chauffeur
+     *    lors de la fermeture d'un stop.
+     *
+     * Aucune preuve historique n'est supprimée.
+     */
+
+    const [legacyProofs] = await db.query(
       `
         SELECT
+          CONCAT('legacy-', dp.id) AS proof_key,
           dp.id,
           dp.order_id,
           dp.driver_id,
 
-          dp.receiver_first_name,
-          dp.receiver_last_name,
+          NULL AS dispatch_task_id,
+          NULL AS operation_id,
+
+          CASE
+            WHEN dp.signature_url IS NOT NULL
+              AND TRIM(dp.signature_url) <> ''
+            THEN 'signature'
+            ELSE 'photo'
+          END AS proof_type,
+
+          dp.receiver_first_name AS recipient_first_name,
+          dp.receiver_last_name AS recipient_last_name,
 
           dp.signature_url,
           dp.photo_url,
 
+          CASE
+            WHEN dp.signature_url IS NOT NULL
+              AND TRIM(dp.signature_url) <> ''
+            THEN dp.signature_url
+            ELSE dp.photo_url
+          END AS file_url,
+
+          NULL AS proof_data,
+          NULL AS cloudinary_url,
+          NULL AS cloudinary_public_id,
+
+          NULL AS closure_address,
+          NULL AS latitude,
+          NULL AS longitude,
+          NULL AS accuracy,
+
           dp.notes,
-          dp.delivered_at,
+
+          dp.delivered_at AS delivered_at,
+          dp.delivered_at AS created_at,
 
           u.first_name AS driver_first_name,
           u.last_name AS driver_last_name,
@@ -1135,7 +1186,9 @@ const OrderModel = {
           ) AS driver_phone,
 
           d.vehicle_name,
-          d.vehicle_plate
+          d.vehicle_plate,
+
+          'delivery_proofs' AS proof_source
 
         FROM delivery_proofs dp
 
@@ -1146,15 +1199,105 @@ const OrderModel = {
           ON u.id = d.user_id
 
         WHERE dp.order_id = ?
-
-        ORDER BY
-          dp.delivered_at DESC,
-          dp.id DESC
       `,
       [orderId]
     );
 
-    return rows;
+    const [driverProofs] = await db.query(
+      `
+        SELECT
+          CONCAT('driver-', dp.id) AS proof_key,
+          dp.id,
+          dp.order_id,
+          dp.driver_id,
+
+          dp.dispatch_task_id,
+          dp.operation_id,
+
+          dp.proof_type,
+
+          dp.recipient_first_name,
+          dp.recipient_last_name,
+
+          CASE
+            WHEN dp.proof_type = 'signature'
+            THEN COALESCE(
+              dp.cloudinary_url,
+              dp.proof_data
+            )
+            ELSE NULL
+          END AS signature_url,
+
+          CASE
+            WHEN dp.proof_type = 'photo'
+            THEN COALESCE(
+              dp.cloudinary_url,
+              dp.proof_data
+            )
+            ELSE NULL
+          END AS photo_url,
+
+          COALESCE(
+            dp.cloudinary_url,
+            dp.proof_data
+          ) AS file_url,
+
+          dp.proof_data,
+          dp.cloudinary_url,
+          dp.cloudinary_public_id,
+
+          dp.closure_address,
+          dp.latitude,
+          dp.longitude,
+          dp.accuracy,
+
+          NULL AS notes,
+
+          dp.created_at AS delivered_at,
+          dp.created_at,
+
+          u.first_name AS driver_first_name,
+          u.last_name AS driver_last_name,
+          u.email AS driver_email,
+
+          COALESCE(
+            d.phone,
+            u.phone
+          ) AS driver_phone,
+
+          d.vehicle_name,
+          d.vehicle_plate,
+
+          'driver_delivery_proofs' AS proof_source
+
+        FROM driver_delivery_proofs dp
+
+        LEFT JOIN drivers d
+          ON d.id = dp.driver_id
+
+        LEFT JOIN users u
+          ON u.id = d.user_id
+
+        WHERE dp.order_id = ?
+      `,
+      [orderId]
+    );
+
+    return [...legacyProofs, ...driverProofs].sort((a, b) => {
+      const dateA = new Date(
+        a.delivered_at || a.created_at || 0
+      ).getTime();
+
+      const dateB = new Date(
+        b.delivered_at || b.created_at || 0
+      ).getTime();
+
+      if (dateB !== dateA) {
+        return dateB - dateA;
+      }
+
+      return Number(b.id || 0) - Number(a.id || 0);
+    });
   },
 
   /* =====================================================

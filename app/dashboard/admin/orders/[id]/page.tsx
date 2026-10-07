@@ -49,7 +49,7 @@ import styles from "./order-details.module.css";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 /* ============================================================
    TYPES
@@ -91,6 +91,15 @@ type Order = {
   pickup_address?: string | null;
   delivery_address?: string | null;
 
+  pickup_appointment?: boolean | number | string | null;
+  delivery_appointment?: boolean | number | string | null;
+  signature_required?: boolean | number | string | null;
+  service_level?: string | null;
+  destination_type?: string | null;
+  delivery_unit?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_extension?: string | null;
   pickup_date?: string | null;
   pickup_time?: string | null;
   delivery_date?: string | null;
@@ -108,6 +117,7 @@ type Order = {
 
   description?: string | null;
   notes?: string | null;
+  packages?: OrderPackage[];
 
   status_reason?: string | null;
   failure_reason?: string | null;
@@ -115,6 +125,22 @@ type Order = {
 
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+type OrderPackage = {
+  id: number;
+  order_id: number;
+  barcode?: string | null;
+  package_number?: number | null;
+  package_type?: string | null;
+  description?: string | null;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  length?: number | string | null;
+  width?: number | string | null;
+  height?: number | string | null;
+  dimension_unit?: string | null;
+  current_status?: string | null;
 };
 
 type Driver = {
@@ -172,15 +198,51 @@ type TimelineItem = {
 type DeliveryProof = {
   id: number;
 
+  proof_key?: string;
+
   type?: string;
-  proof_type?: string;
+  proof_type?: "photo" | "signature" | string;
+
+  order_id?: number | null;
+  driver_id?: number | null;
+  dispatch_task_id?: number | null;
+  operation_id?: number | null;
+
+  recipient_first_name?: string | null;
+  recipient_last_name?: string | null;
+
+  receiver_first_name?: string | null;
+  receiver_last_name?: string | null;
+
+  signature_url?: string | null;
+  photo_url?: string | null;
 
   file_url?: string | null;
   image_url?: string | null;
 
+  proof_data?: string | null;
+  cloudinary_url?: string | null;
+
+  closure_address?: string | null;
+
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  accuracy?: number | string | null;
+
+  driver_first_name?: string | null;
+  driver_last_name?: string | null;
+  driver_email?: string | null;
+  driver_phone?: string | null;
+
+  vehicle_name?: string | null;
+  vehicle_plate?: string | null;
+
   notes?: string | null;
 
+  delivered_at?: string | null;
   created_at?: string | null;
+
+  proof_source?: string | null;
 };
 
 type OrderResponse = {
@@ -327,6 +389,17 @@ function formatDate(
       timeStyle: "short",
     },
   ).format(date);
+}
+
+function formatRequestedSchedule(date?: string | null, time?: string | null) {
+  if (!date) return "Non renseignée";
+  const dateOnly = String(date).slice(0, 10);
+  const parts = dateOnly.split("-");
+  const formatted = parts.length === 3 && parts.every((part) => /^\d+$/.test(part))
+    ? `${parts[2]}/${parts[1]}/${parts[0]}`
+    : dateOnly;
+  const hour = time ? String(time).slice(0, 5) : "";
+  return hour ? `${formatted} à ${hour}` : `${formatted} · heure non précisée`;
 }
 
 function formatMoney(
@@ -1712,6 +1785,40 @@ export default function OrderDetailsPage() {
             styles.mainColumn
           }
         >
+          {/* COLIS : données réelles de order_packages, renvoyées par GET /api/orders/:id */}
+          <section className={styles.panel}>
+            <PanelHeader
+              icon={<Package size={20} />}
+              eyebrow="Marchandise"
+              title={`Colis de la commande (${order.packages?.length ?? 0})`}
+              description="Chaque boîte ou palette est suivie individuellement avec son code-barres."
+            />
+            {!order.packages?.length ? (
+              <p className={styles.packagesEmpty}>Aucun colis enregistré pour cette commande.</p>
+            ) : (
+              <div className={styles.packagesGrid}>
+                {order.packages.map((item, index) => (
+                  <article className={styles.packageCard} key={item.id}>
+                    <div className={styles.packageTop}>
+                      <strong>
+                        {item.package_type === "pallet" ? "Palette" : "Boîte"} {String(item.package_number ?? index + 1).padStart(2, "0")}
+                      </strong>
+                      <span className={styles.packageStatus}>{item.current_status || "created"}</span>
+                    </div>
+                    <div className={styles.packageBarcode}>{item.barcode || "Code-barres non renseigné"}</div>
+                    {item.description && <p className={styles.packageDescription}>{item.description}</p>}
+                    <div className={styles.packageMeta}>
+                      <span>Poids : {item.weight != null ? `${item.weight} ${item.weight_unit || "lb"}` : "Non renseigné"}</span>
+                      <span>Dimensions : {[item.length, item.width, item.height].every(v => v != null)
+                        ? `${item.length} × ${item.width} × ${item.height} ${item.dimension_unit || ""}`
+                        : "Non renseignées"}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* ROUTE */}
 
           <section
@@ -2152,82 +2259,241 @@ export default function OrderDetailsPage() {
 
           {/* PROOFS */}
 
-          <section
-            className={
-              styles.panel
-            }
-          >
+          <section className={styles.panel}>
             <PanelHeader
-              icon={
-                <FileCheck2
-                  size={20}
-                />
-              }
+              icon={<FileCheck2 size={20} />}
               eyebrow="Livraison"
               title="Preuves de livraison"
             />
 
-            {proofs.length ===
-            0 ? (
-              <div
-                className={
-                  styles.emptyState
-                }
-              >
+            {proofs.length === 0 ? (
+              <div className={styles.emptyState}>
                 Aucune preuve de livraison enregistrée.
               </div>
             ) : (
               <div
-                className={
-                  styles.proofsGrid
-                }
+                style={{
+                  display: "grid",
+                  gap: 16,
+                }}
               >
-                {proofs.map(
-                  (proof) => {
-                    const url =
-                      proof.file_url ||
-                      proof.image_url;
+                {proofs.map((proof) => {
+                  const proofType =
+                    String(
+                      proof.proof_type ||
+                        proof.type ||
+                        ""
+                    ).toLowerCase();
 
-                    return (
-                      <article
-                        key={
-                          proof.id
-                        }
-                        className={
-                          styles.proofCard
-                        }
+                  const isSignature =
+                    proofType === "signature";
+
+                  const recipientFirst =
+                    proof.recipient_first_name ||
+                    proof.receiver_first_name ||
+                    "";
+
+                  const recipientLast =
+                    proof.recipient_last_name ||
+                    proof.receiver_last_name ||
+                    "";
+
+                  const recipientName =
+                    `${recipientFirst} ${recipientLast}`.trim();
+
+                  const driverName =
+                    `${proof.driver_first_name || ""} ${
+                      proof.driver_last_name || ""
+                    }`.trim();
+
+                  const url =
+                    proof.cloudinary_url ||
+                    proof.file_url ||
+                    proof.image_url ||
+                    (isSignature
+                      ? proof.signature_url
+                      : proof.photo_url) ||
+                    proof.proof_data ||
+                    null;
+
+                  const proofDate =
+                    proof.delivered_at ||
+                    proof.created_at;
+
+                  return (
+                    <article
+                      key={
+                        proof.proof_key ||
+                        `${proof.proof_source || "proof"}-${proof.id}`
+                      }
+                      className={styles.proofCard}
+                      style={{
+                        display: "grid",
+                        gap: 14,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                        }}
                       >
-                        <FileCheck2
-                          size={21}
-                        />
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            alignItems: "center",
+                          }}
+                        >
+                          <FileCheck2 size={21} />
 
-                        <div>
-                          <strong>
-                            {proof.type ||
-                              proof.proof_type ||
-                              "Preuve de livraison"}
-                          </strong>
+                          <div>
+                            <strong>
+                              {isSignature
+                                ? "Signature de livraison"
+                                : "Photo de livraison"}
+                            </strong>
 
-                          <span>
-                            {formatDate(
-                              proof.created_at,
-                            )}
-                          </span>
+                            <div
+                              style={{
+                                marginTop: 4,
+                                opacity: 0.72,
+                                fontSize: 13,
+                              }}
+                            >
+                              {formatDate(proofDate)}
+                            </div>
+                          </div>
                         </div>
 
-                        {url && (
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {isSignature
+                            ? "Signature"
+                            : "Photo"}
+                        </span>
+                      </div>
+
+                      {recipientName && (
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              opacity: 0.65,
+                              marginBottom: 3,
+                            }}
+                          >
+                            Réceptionnaire
+                          </div>
+
+                          <strong>
+                            {recipientName}
+                          </strong>
+                        </div>
+                      )}
+
+                      {driverName && (
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              opacity: 0.65,
+                              marginBottom: 3,
+                            }}
+                          >
+                            Chauffeur
+                          </div>
+
+                          <span>{driverName}</span>
+                        </div>
+                      )}
+
+                      {proof.closure_address && (
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              opacity: 0.65,
+                              marginBottom: 3,
+                            }}
+                          >
+                            Adresse de fermeture
+                          </div>
+
+                          <span>
+                            {proof.closure_address}
+                          </span>
+                        </div>
+                      )}
+
+                      {url && (
+                        <div
+                          style={{
+                            marginTop: 2,
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt={
+                              isSignature
+                                ? "Signature du réceptionnaire"
+                                : "Photo de livraison"
+                            }
+                            style={{
+                              display: "block",
+                              width: "100%",
+                              maxWidth: isSignature
+                                ? 520
+                                : 680,
+                              maxHeight: isSignature
+                                ? 240
+                                : 520,
+                              objectFit: "contain",
+                              borderRadius: 12,
+                              background: "rgba(255,255,255,0.04)",
+                            }}
+                          />
+
                           <a
                             href={url}
                             target="_blank"
                             rel="noreferrer"
+                            style={{
+                              display: "inline-block",
+                              marginTop: 10,
+                            }}
                           >
-                            Ouvrir
+                            Ouvrir la preuve
                           </a>
-                        )}
-                      </article>
-                    );
-                  },
-                )}
+                        </div>
+                      )}
+
+                      {proof.notes && (
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              opacity: 0.65,
+                              marginBottom: 3,
+                            }}
+                          >
+                            Notes
+                          </div>
+
+                          <span>{proof.notes}</span>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -2620,6 +2886,42 @@ export default function OrderDetailsPage() {
                   "Normale"
                 }
               />
+
+              <SummaryRow
+                label="Marchandise"
+                value={`${order.packages?.length ?? 0} colis`}
+              />
+              <SummaryRow
+                label="Niveau de service"
+                value={order.service_level === "same_day" ? "Jour même" : order.service_level === "urgent" ? "Urgent" : order.service_level === "standard" ? "Standard" : order.service_level || "Non renseigné"}
+              />
+              <SummaryRow
+                label="Ramassage avec rendez-vous"
+                value={Number(order.pickup_appointment) === 1 || order.pickup_appointment === true ? "Oui" : "Non"}
+              />
+              <SummaryRow
+                label="Date de ramassage demandée"
+                value={formatRequestedSchedule(order.pickup_date, order.pickup_time)}
+              />
+              <SummaryRow
+                label="Livraison avec rendez-vous"
+                value={Number(order.delivery_appointment) === 1 || order.delivery_appointment === true ? "Oui" : "Non"}
+              />
+              <SummaryRow
+                label="Date de livraison demandée"
+                value={formatRequestedSchedule(order.delivery_date, order.delivery_time)}
+              />
+              <SummaryRow
+                label="Preuve de livraison"
+                value={Number(order.signature_required) === 1 || order.signature_required === true ? "Signature requise" : "Photo requise si aucune signature"}
+              />
+              <SummaryRow
+                label="Type de destination"
+                value={order.destination_type === "commercial" ? "Commerciale" : order.destination_type === "residential" ? "Résidentielle" : order.destination_type || "Non renseigné"}
+              />
+              {order.delivery_unit && <SummaryRow label="Appartement / unité" value={order.delivery_unit} />}
+              {order.contact_name && <SummaryRow label="Destinataire" value={order.contact_name} />}
+              {(order.contact_phone || order.contact_extension) && <SummaryRow label="Téléphone destinataire" value={[order.contact_phone, order.contact_extension ? `poste ${order.contact_extension}` : ""].filter(Boolean).join(" · ")} />}
 
               <SummaryRow
                 label="Montant"

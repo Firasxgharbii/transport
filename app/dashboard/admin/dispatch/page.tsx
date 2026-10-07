@@ -57,6 +57,124 @@ type OperationStatus =
   | "completed"
   | "cancelled";
 
+type DispatchRoutePackage = {
+  id: number;
+  order_id: number;
+  barcode?: string | null;
+  package_number?: number | null;
+  package_type?: string | null;
+  description?: string | null;
+  weight?: number | string | null;
+  weight_unit?: string | null;
+  length?: number | string | null;
+  width?: number | string | null;
+  height?: number | string | null;
+  dimension_unit?: string | null;
+  current_status?: string | null;
+};
+
+type DispatchRouteOrder = {
+  id: number;
+  order_number?: string | null;
+  client_id?: number | null;
+  client_first_name?: string | null;
+  client_last_name?: string | null;
+  client_company_name?: string | null;
+  status?: string | null;
+  signature_required?: boolean;
+  service_level?: string | null;
+  priority?: string | null;
+  pickup_appointment?: boolean;
+  pickup_time?: string | null;
+  delivery_appointment?: boolean;
+  delivery_time?: string | null;
+  destination_type?: string | null;
+  company_name?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_extension?: string | null;
+  delivery_unit?: string | null;
+  description?: string | null;
+  pallets_count?: number;
+  pickup_address?: string | null;
+  delivery_address?: string | null;
+  pickup_date?: string | null;
+  delivery_date?: string | null;
+  notes?: string | null;
+  packages: DispatchRoutePackage[];
+};
+
+type DispatchRouteStop = {
+  id: number;
+  route_id: number;
+  stop_position?: number | null;
+  task_type: string;
+  client_id?: number | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  total_orders: number;
+  total_packages: number;
+  total_pallets: number;
+  orders: DispatchRouteOrder[];
+};
+
+type DispatchRoute = {
+  id: number;
+  route_code?: string | null;
+  driver_id?: number | null;
+  vehicle_id?: number | null;
+  driver_name?: string | null;
+  vehicle_make?: string | null;
+  vehicle_model?: string | null;
+  vehicle_plate?: string | null;
+  scheduled_date?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  total_stops?: number;
+  total_orders?: number;
+  total_packages?: number;
+  total_pallets?: number;
+  stops?: DispatchRouteStop[];
+};
+
+type DispatchRoutesResponse = {
+  success: boolean;
+  routes: DispatchRoute[];
+};
+
+type DispatchRouteDetailResponse = {
+  success: boolean;
+  route: DispatchRoute;
+};
+
+type AdminDispatchTask = {
+  id: number;
+  task_type: "pickup" | "delivery";
+  client_id: number;
+  driver_id: number | null;
+  vehicle_id: number | null;
+  address: string | null;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  status: string;
+  total_orders: number;
+  total_packages: number;
+  scanned_packages: number;
+  remaining_packages: number;
+};
+
+type AdminDispatchTasksResponse = {
+  success: boolean;
+  total: number;
+  tasks: AdminDispatchTask[];
+};
+
 type DispatchOrder = {
   id: number;
   order_number?: string | null;
@@ -414,6 +532,12 @@ function historyActor(item: TimelineItem) {
 }
 
 export default function DispatchPage() {
+  const [dispatchView, setDispatchView] =
+    useState<"orders" | "routes" | "missions">("orders");
+
+  const [showDispatchActions, setShowDispatchActions] =
+    useState(false);
+
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -424,9 +548,57 @@ export default function DispatchPage() {
   const [clientId, setClientId] = useState("");
   const [status, setStatus] = useState("");
   const [driverFilter, setDriverFilter] = useState("");
-  const [bulkDriver, setBulkDriver] = useState("");
-  const [bulkVehicle, setBulkVehicle] = useState("");
+  const [dateType, setDateType] =
+    useState<"pickup" | "delivery" | "created">("pickup");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
+
+  const [groupedTaskType, setGroupedTaskType] =
+    useState<"pickup" | "pickup_grouped" | "delivery" | "delivery_grouped">("pickup");
+  const [groupedTaskRoute, setGroupedTaskRoute] = useState("");
+  const [groupedTaskSaving, setGroupedTaskSaving] = useState(false);
+  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null);
+
+  const [dispatchRoutes, setDispatchRoutes] = useState<DispatchRoute[]>([]);
+  const [dispatchRoutesLoading, setDispatchRoutesLoading] = useState(false);
+  const [dispatchRoutesError, setDispatchRoutesError] = useState("");
+
+  const [selectedDispatchRoute, setSelectedDispatchRoute] =
+    useState<DispatchRoute | null>(null);
+
+  const [dispatchRouteDetailLoading, setDispatchRouteDetailLoading] =
+    useState(false);
+
+  const [newRouteOpen, setNewRouteOpen] = useState(false);
+  const [routeSectors, setRouteSectors] = useState<{code: string; name: string; postal_prefixes: string}[]>([]);
+  const [sectorCode, setSectorCode] = useState("");
+  const [sectorName, setSectorName] = useState("");
+  const [sectorPostal, setSectorPostal] = useState("");
+  const [sectorSaving, setSectorSaving] = useState(false);
+  const [newRouteSector, setNewRouteSector] = useState("MTL");
+  const [newRouteDate, setNewRouteDate] = useState("");
+  const [newRouteNotes, setNewRouteNotes] = useState("");
+  const [newRouteSaving, setNewRouteSaving] = useState(false);
+  const [dispatchRouteSearch, setDispatchRouteSearch] = useState("");
+  const [dispatchRouteSector, setDispatchRouteSector] = useState("");
+  const [dispatchRouteDate, setDispatchRouteDate] = useState("");
+  const [dispatchRouteDateFrom, setDispatchRouteDateFrom] = useState("");
+  const [dispatchRouteDateTo, setDispatchRouteDateTo] = useState("");
+  const [dispatchRouteDriver, setDispatchRouteDriver] = useState("");
+  const [dispatchRouteStatus, setDispatchRouteStatus] = useState("");
+
+  const [adminTasks, setAdminTasks] = useState<AdminDispatchTask[]>([]);
+  const [adminTasksLoading, setAdminTasksLoading] = useState(false);
+  const [adminTasksError, setAdminTasksError] = useState("");
+  const [planningTaskId, setPlanningTaskId] = useState<number | null>(null);
+  const [planningRoute, setPlanningRoute] = useState("");
+  const [planningDriver, setPlanningDriver] = useState("");
+  const [planningVehicle, setPlanningVehicle] = useState("");
+  const [planningDate, setPlanningDate] = useState("");
+  const [planningSector, setPlanningSector] = useState("");
+  const [planningSaving, setPlanningSaving] = useState(false);
+
 
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(100);
@@ -508,6 +680,179 @@ export default function DispatchPage() {
     [],
   );
 
+  const deleteDispatchRoute = async (route: DispatchRoute) => {
+    if (!['draft','assigned','in_progress'].includes(String(route.status || ''))) {
+      setDispatchRoutesError("Seules les routes non commencées peuvent être supprimées.");
+      return;
+    }
+    const label = route.route_code || `Route #${route.id}`;
+    if (!window.confirm(`Supprimer ${label} ? Les stops, commandes et colis seront conservés et simplement détachés de la route. Les statuts métier ne seront pas modifiés.`)) return;
+    try {
+      setDispatchRoutesError("");
+      await apiFetch(`/api/dispatch/routes/${route.id}`, { method: "DELETE" });
+      setSuccess(`${label} supprimée. Les stops et commandes ont été conservés.`);
+      setDispatchRoutes((current) => current.filter((item) => item.id !== route.id));
+    } catch (reason) {
+      setDispatchRoutesError(reason instanceof Error ? reason.message : "Impossible de supprimer la route.");
+    }
+  };
+
+  const loadRouteSectors = useCallback(async () => {
+    try {
+      const result = await apiFetch<{sectors: {code: string; name: string; postal_prefixes: string}[]}>("/api/dispatch/sectors");
+      setRouteSectors(Array.isArray(result.sectors) ? result.sectors : []);
+    } catch (reason) { setDispatchRoutesError(reason instanceof Error ? reason.message : "Impossible de charger les secteurs."); }
+  }, [apiFetch]);
+
+  const saveNewSector = async () => {
+    if (sectorSaving) return;
+    try {
+      setSectorSaving(true);
+      setDispatchRoutesError("");
+      const result = await apiFetch<{sector: {code: string}}>("/api/dispatch/sectors", {method: "POST", body: JSON.stringify({code: sectorCode, name: sectorName, postal_prefixes: sectorPostal})});
+      await loadRouteSectors();
+      setNewRouteSector(result.sector.code);
+      setPlanningSector(result.sector.code);
+      setSectorCode(""); setSectorName(""); setSectorPostal("");
+      setSuccess(`Secteur ${result.sector.code} créé. Tu peux maintenant préparer une route.`);
+    } catch (reason) { setDispatchRoutesError(reason instanceof Error ? reason.message : "Impossible de créer le secteur."); }
+    finally { setSectorSaving(false); }
+  };
+
+  const loadDispatchRoutes = useCallback(async () => {
+    try {
+      setDispatchRoutesLoading(true);
+      setDispatchRoutesError("");
+
+      const result = await apiFetch<DispatchRoutesResponse>(
+        "/api/dispatch/routes"
+      );
+
+      setDispatchRoutes(
+        Array.isArray(result.routes) ? result.routes : []
+      );
+    } catch (reason) {
+      setDispatchRoutesError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de charger les routes."
+      );
+    } finally {
+      setDispatchRoutesLoading(false);
+    }
+  }, [apiFetch]);
+
+  const openDispatchRoute = async (routeId: number) => {
+    try {
+      setDispatchRouteDetailLoading(true);
+      setDispatchRoutesError("");
+      setSelectedDispatchRoute(null);
+
+      const result = await apiFetch<DispatchRouteDetailResponse>(
+        `/api/dispatch/routes/${routeId}`
+      );
+
+      if (!result.route) {
+        throw new Error("Route introuvable.");
+      }
+
+      setSelectedDispatchRoute(result.route);
+    } catch (reason) {
+      setDispatchRoutesError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de charger les arrêts."
+      );
+    } finally {
+      setDispatchRouteDetailLoading(false);
+    }
+  };
+
+  const createNewDraftRoute = async () => {
+    if (!newRouteDate || newRouteSaving) return;
+    try {
+      setNewRouteSaving(true);
+      setDispatchRoutesError("");
+      const result = await apiFetch<{ success: boolean; route_code?: string }>(
+        "/api/dispatch/routes",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            sector: newRouteSector,
+            scheduled_date: newRouteDate,
+            notes: newRouteNotes,
+            stop_ids: [],
+          }),
+        }
+      );
+      setNewRouteOpen(false);
+      setNewRouteNotes("");
+      setSuccess(`Route ${result.route_code || ""} créée en brouillon.`);
+      await loadDispatchRoutes();
+    } catch (reason) {
+      setDispatchRoutesError(reason instanceof Error ? reason.message : "Création impossible.");
+    } finally {
+      setNewRouteSaving(false);
+    }
+  };
+
+  const filteredDispatchRoutes = dispatchRoutes.filter((route) => {
+    const code = String(route.route_code || "").toUpperCase();
+
+    const searchText = [
+      route.route_code,
+      route.driver_name,
+      route.vehicle_plate,
+      route.vehicle_make,
+      route.vehicle_model,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    if (
+      dispatchRouteSearch.trim() &&
+      !searchText.includes(dispatchRouteSearch.trim().toLowerCase())
+    ) {
+      return false;
+    }
+
+    if (
+      dispatchRouteSector &&
+      !code.startsWith(`${dispatchRouteSector}-`)
+    ) {
+      return false;
+    }
+
+    if (
+      dispatchRouteDate &&
+      String(route.scheduled_date || "").slice(0, 10) !==
+        dispatchRouteDate
+    ) {
+      return false;
+    }
+
+    const routeDate = String(route.scheduled_date || "").slice(0, 10);
+    if (!dispatchRouteDate && dispatchRouteDateFrom && routeDate < dispatchRouteDateFrom) return false;
+    if (!dispatchRouteDate && dispatchRouteDateTo && routeDate > dispatchRouteDateTo) return false;
+
+    if (
+      dispatchRouteDriver &&
+      String(route.driver_id || "") !== dispatchRouteDriver
+    ) {
+      return false;
+    }
+
+    if (
+      dispatchRouteStatus &&
+      route.status !== dispatchRouteStatus
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
   const queryString = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
@@ -517,8 +862,14 @@ export default function DispatchPage() {
     if (clientId) params.set("client_id", clientId);
     if (status) params.set("status", status);
     if (driverFilter) params.set("driver_id", driverFilter);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    if (dateFrom || dateTo) params.set("date_type", dateType);
     return params.toString();
-  }, [page, limit, search, clientId, status, driverFilter]);
+  }, [
+    page, limit, search, clientId, status, driverFilter,
+    dateType, dateFrom, dateTo
+  ]);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -557,6 +908,71 @@ export default function DispatchPage() {
       setLoading(false);
     }
   }, [apiFetch, queryString]);
+
+  const loadAdminTasks = useCallback(async () => {
+    try {
+      setAdminTasksLoading(true);
+      setAdminTasksError("");
+
+      const result = await apiFetch<AdminDispatchTasksResponse>(
+        "/api/dispatch/tasks",
+      );
+
+      setAdminTasks(
+        Array.isArray(result.tasks) ? result.tasks : [],
+      );
+    } catch (reason) {
+      setAdminTasksError(
+        reason instanceof Error
+          ? reason.message
+          : "Impossible de charger les missions regroupées.",
+      );
+    } finally {
+      setAdminTasksLoading(false);
+    }
+  }, [apiFetch]);
+
+  const assignStopToExistingRoute = async (taskId: number) => {
+    if (planningSaving) return;
+    if (!planningRoute) {
+      setAdminTasksError("Choisis la route à laquelle ce stop doit être assigné.");
+      return;
+    }
+    try {
+      setPlanningSaving(true);
+      setAdminTasksError("");
+      await apiFetch(`/api/dispatch/routes/${Number(planningRoute)}/stops/assign`, {
+        method: "POST",
+        body: JSON.stringify({ stop_id: taskId }),
+      });
+      const route = dispatchRoutes.find((item) => item.id === Number(planningRoute));
+      setPlanningTaskId(null);
+      setPlanningRoute("");
+      await Promise.all([loadAdminTasks(), loadDispatchRoutes(), loadOrders()]);
+      setSuccess(`Stop #${taskId} assigné à ${route?.route_code || `la route #${planningRoute}`}. Son statut métier n’a pas été modifié.`);
+    } catch (reason) {
+      setAdminTasksError(reason instanceof Error ? reason.message : "Impossible d’assigner le stop à la route.");
+    } finally {
+      setPlanningSaving(false);
+    }
+  };
+
+  const deleteGroupedTask = async (taskId: number) => {
+    if (deletingTaskId) return;
+    if (!window.confirm(`Supprimer la mission #${taskId} ?\n\nLes commandes et colis seront conservés et redeviendront non planifiés.`)) return;
+    try {
+      setDeletingTaskId(taskId);
+      setAdminTasksError("");
+      const result = await apiFetch<{ success: boolean; message?: string }>(`/api/dispatch/tasks/${taskId}`, { method: "DELETE" });
+      if (!result.success) throw new Error(result.message || "Suppression impossible.");
+      setSuccess(result.message || `Mission #${taskId} supprimée sans supprimer les commandes ni les colis.`);
+      await Promise.all([loadAdminTasks(), loadDispatchRoutes(), loadOrders()]);
+    } catch (reason) {
+      setAdminTasksError(reason instanceof Error ? reason.message : "Impossible de supprimer la mission.");
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
 
   const loadReferenceData = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -603,10 +1019,41 @@ export default function DispatchPage() {
     void loadReferenceData();
   }, [loadReferenceData]);
 
+  // Les routes sont nécessaires dans TOUTES les vues du Dispatch :
+  // - Commandes : menu « Route principale »
+  // - Missions regroupées : assignation d'un stop
+  // - Routes & stops : consultation/gestion
+  // Ne pas limiter ce chargement à l'onglet « routes », sinon le select
+  // « Route principale » reste vide lorsque l'admin arrive sur Commandes.
+  useEffect(() => {
+    void loadDispatchRoutes();
+  }, [loadDispatchRoutes]);
+
+  // Les secteurs ne sont nécessaires que pour la création/gestion des routes.
+  useEffect(() => {
+    if (dispatchView === "routes") {
+      void loadRouteSectors();
+    }
+  }, [dispatchView, loadRouteSectors]);
+
+
+
   useEffect(() => {
     const timer = window.setTimeout(() => void loadOrders(), search ? 250 : 0);
     return () => window.clearTimeout(timer);
   }, [loadOrders, search]);
+
+  useEffect(() => {
+    void loadAdminTasks();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadAdminTasks();
+      }
+    }, 20000);
+
+    return () => window.clearInterval(interval);
+  }, [loadAdminTasks]);
 
   useEffect(() => {
     setPage(1);
@@ -643,6 +1090,9 @@ export default function DispatchPage() {
       if (clientId) params.set("client_id", clientId);
       if (status) params.set("status", status);
       if (driverFilter) params.set("driver_id", driverFilter);
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+      if (dateFrom || dateTo) params.set("date_type", dateType);
 
       const result = await apiFetch<{ ids?: number[]; data?: number[] }>(
         `/api/dispatch/order-ids?${params}`,
@@ -663,51 +1113,49 @@ export default function DispatchPage() {
     }
   };
 
-  const applyBulk = async () => {
-    if (!selected.size) {
-      setError("Sélectionne au moins une commande.");
+  const createGroupedTask = async () => {
+    const orderIds = Array.from(selected);
+    if (!orderIds.length || orderIds.length > 1000) {
+      setError("Sélectionne entre 1 et 1000 commandes.");
+      return;
+    }
+    if (!groupedTaskRoute) {
+      setError("Choisis la route avant de cliquer sur ASSIGNER.");
       return;
     }
 
-    const changes: Record<string, unknown> = {};
-    if (bulkDriver) {
-      changes.driver_id = bulkDriver === "none" ? null : Number(bulkDriver);
-    }
-    if (bulkVehicle) {
-      changes.vehicle_id = bulkVehicle === "none" ? null : Number(bulkVehicle);
-    }
-    if (bulkStatus) changes.status = bulkStatus;
-
-    if (!Object.keys(changes).length) {
-      setError("Choisis une action à appliquer.");
-      return;
-    }
+    const operationType = groupedTaskType.startsWith("pickup") ? "pickup" : "delivery";
+    const grouped = groupedTaskType.endsWith("_grouped");
+    const batches = grouped ? [orderIds] : orderIds.map((orderId) => [orderId]);
 
     try {
-      setSaving(true);
-      setError("");
-      await apiFetch("/api/dispatch/bulk", {
-        method: "PATCH",
-        body: JSON.stringify({
-          order_ids: Array.from(selected),
-          changes,
-        }),
-      });
-      setSuccess(`${selected.size} commande(s) mise(s) à jour.`);
-      setSelected(new Set());
-      setBulkDriver("");
-      setBulkVehicle("");
-      setBulkStatus("");
-      await loadOrders();
+      setGroupedTaskSaving(true); setError(""); setSuccess("");
+      const created: number[] = [];
+      let totalPackages = 0;
+      for (const batch of batches) {
+        const result = await apiFetch<{success:boolean;task_id:number;total_packages:number;message?:string}>(
+          `/api/dispatch/tasks/${operationType}`,
+          { method:"POST", body:JSON.stringify({order_ids:batch,driver_id:null}) }
+        );
+        if (!result.success || !result.task_id) throw new Error(result.message || "Création du stop impossible.");
+        await apiFetch(`/api/dispatch/routes/${Number(groupedTaskRoute)}/stops/assign`, {
+          method:"POST", body:JSON.stringify({stop_id:result.task_id}),
+        });
+        created.push(result.task_id);
+        totalPackages += Number(result.total_packages || 0);
+      }
+      const route = dispatchRoutes.find((item) => item.id === Number(groupedTaskRoute));
+      setSuccess(`${created.length} stop(s) assigné(s) à ${route?.route_code || `la route #${groupedTaskRoute}`} · ${orderIds.length} commande(s) · ${totalPackages} colis.`);
+      setSelected(new Set()); setGroupedTaskRoute(""); setDispatchView("routes");
+      await Promise.all([loadOrders(), loadAdminTasks(), loadDispatchRoutes()]);
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Mise à jour massive impossible.",
-      );
-    } finally {
-      setSaving(false);
-    }
+      setError(reason instanceof Error ? reason.message : "Assignation impossible.");
+    } finally { setGroupedTaskSaving(false); }
+  };
+
+  const applyBulk = async () => {
+    if (!selected.size) { setError("Sélectionne au moins une commande."); return; }
+    await createGroupedTask();
   };
 
   const saveReorder = async (nextOrders: DispatchOrder[]) => {
@@ -1363,7 +1811,15 @@ export default function DispatchPage() {
   };
 
   return (
-    <main className={styles.page}>
+    <main
+      className={`${styles.page} ${
+        dispatchView === "orders"
+          ? styles.dispatchOrdersMode
+          : dispatchView === "missions"
+            ? styles.dispatchMissionsMode
+            : styles.dispatchRoutesMode
+      }`}
+    >
       <header className={styles.header}>
         <div>
           <span className={styles.eyebrow}>
@@ -1411,6 +1867,46 @@ export default function DispatchPage() {
         </div>
       </header>
 
+      <nav className={styles.dispatchProNav} aria-label="Navigation Dispatch">
+        <button
+          type="button"
+          className={
+            dispatchView === "orders"
+              ? styles.dispatchProNavActive
+              : ""
+          }
+          onClick={() => setDispatchView("orders")}
+        >
+          Commandes
+          <span>{total}</span>
+        </button>
+
+        <button
+          type="button"
+          className={
+            dispatchView === "routes"
+              ? styles.dispatchProNavActive
+              : ""
+          }
+          onClick={() => setDispatchView("routes")}
+        >
+          Routes & stops
+        </button>
+
+        <button
+          type="button"
+          className={
+            dispatchView === "missions"
+              ? styles.dispatchProNavActive
+              : ""
+          }
+          onClick={() => setDispatchView("missions")}
+        >
+          Missions regroupées
+          <span>{adminTasks.length}</span>
+        </button>
+      </nav>
+
       {error && (
         <div className={styles.alertError}>
           <span>{error}</span>
@@ -1426,6 +1922,48 @@ export default function DispatchPage() {
           <button onClick={() => setSuccess("")} aria-label="Fermer">
             <X size={16} />
           </button>
+        </div>
+      )}
+
+      {dispatchView === "orders" && (
+        <div className={styles.dispatchProToolbar}>
+          <div className={styles.dispatchProToolbarInfo}>
+            <strong>Commandes</strong>
+            <span>{total} résultat(s)</span>
+            <span>{selected.size} sélectionnée(s)</span>
+          </div>
+
+          <div className={styles.dispatchProToolbarActions}>
+            <button
+              type="button"
+              className={styles.dispatchProReset}
+              onClick={() => {
+                setSearch("");
+                setClientId("");
+                setStatus("");
+                setDriverFilter("");
+                setDateType("pickup");
+                setDateFrom("");
+                setDateTo("");
+                setPage(1);
+              }}
+            >
+              Réinitialiser
+            </button>
+
+            <button
+              type="button"
+              className={styles.dispatchProActionButton}
+              aria-expanded={showDispatchActions}
+              onClick={() =>
+                setShowDispatchActions((current) => !current)
+              }
+            >
+              {showDispatchActions
+                ? "Fermer les actions"
+                : "Affecter / Créer une mission"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1472,6 +2010,51 @@ export default function DispatchPage() {
           ))}
         </select>
 
+        <div className={styles.dispatchDateFilters}>
+          <label className={styles.dispatchDateField}>
+            <span>Type de date</span>
+            <select
+              value={dateType}
+              onChange={(e) => {
+                setDateType(
+                  e.target.value as "pickup" | "delivery" | "created"
+                );
+                setPage(1);
+              }}
+            >
+              <option value="pickup">Date de ramassage</option>
+              <option value="delivery">Date de livraison</option>
+              <option value="created">Date de création</option>
+            </select>
+          </label>
+
+          <label className={styles.dispatchDateField}>
+            <span>Du</span>
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+
+          <label className={styles.dispatchDateField}>
+            <span>Au</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+            />
+          </label>
+        </div>
+
         <select value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
           <option value={50}>50 / page</option>
           <option value={100}>100 / page</option>
@@ -1479,7 +2062,11 @@ export default function DispatchPage() {
         </select>
       </section>
 
-      <section className={styles.bulkBar}>
+      <section
+        className={`${styles.bulkBar} ${styles.dispatchProActionPanel} ${
+          !showDispatchActions ? styles.dispatchProActionHidden : ""
+        }`}
+      >
         <div className={styles.selectionInfo}>
           <strong>{selected.size}</strong>
           <span>sélectionnée(s)</span>
@@ -1502,40 +2089,36 @@ export default function DispatchPage() {
 
         <div className={styles.bulkActions}>
           <select
-            value={bulkDriver}
-            onChange={(e) => setBulkDriver(e.target.value)}
+            aria-label="Route principale"
+            value={groupedTaskRoute}
+            onChange={(e) => setGroupedTaskRoute(e.target.value)}
           >
-            <option value="">Chauffeur principal...</option>
-            <option value="none">Désassigner</option>
-            {drivers.map((driver) => (
-              <option key={driver.id} value={driver.id}>
-                {[driver.first_name, driver.last_name]
-                  .filter(Boolean)
-                  .join(" ") || `#${driver.id}`}
-              </option>
-            ))}
+            <option value="">Route principale...</option>
+            {dispatchRoutes
+              .filter((route) => ["draft", "assigned", "in_progress"].includes(String(route.status)))
+              .map((route) => (
+                <option key={route.id} value={route.id}>
+                  {route.route_code || `Route #${route.id}`} · {String(route.scheduled_date || "").slice(0, 10) || "sans date"}
+                </option>
+              ))}
           </select>
 
           <select
-            value={bulkVehicle}
-            onChange={(e) => setBulkVehicle(e.target.value)}
+            aria-label="Type de stop à planifier"
+            value={groupedTaskType}
+            onChange={(e) => setGroupedTaskType(e.target.value as "pickup" | "pickup_grouped" | "delivery" | "delivery_grouped")}
           >
-            <option value="">Véhicule principal...</option>
-            <option value="none">Désassigner</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {[vehicle.make, vehicle.model].filter(Boolean).join(" ") ||
-                  `#${vehicle.id}`}
-                {vehicle.plate ? ` · ${vehicle.plate}` : ""}
-              </option>
-            ))}
+            <option value="pickup">Ramassage</option>
+            <option value="pickup_grouped">Ramassage regroupé</option>
+            <option value="delivery">Livraison</option>
+            <option value="delivery_grouped">Livraison regroupée</option>
           </select>
 
           <select
             value={bulkStatus}
             onChange={(e) => setBulkStatus(e.target.value)}
           >
-            <option value="">Statut commande...</option>
+            <option value="">Statut de commande</option>
             {STATUSES.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -1545,20 +2128,207 @@ export default function DispatchPage() {
 
           <button
             className={styles.applyBtn}
-            disabled={saving || !selected.size}
+            disabled={saving || groupedTaskSaving || !selected.size}
             onClick={() => void applyBulk()}
           >
-            {saving ? (
+            {saving || groupedTaskSaving ? (
               <Loader2 size={17} className={styles.spin} />
             ) : (
-              <Zap size={17} />
+              <Truck size={17} />
             )}
-            Appliquer
+            ASSIGNER
           </button>
         </div>
       </section>
 
-      <section className={styles.tableCard}>
+      <section className={`${styles.tableCard} ${styles.dispatchProMissions}`}>
+        <div className={styles.tableHead}>
+          <div>
+            <strong>
+              Missions regroupées ({adminTasks.length})
+            </strong>
+            <span>
+              Suivi des ramassages, livraisons et colis scannés.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className={styles.applyBtn}
+            disabled={adminTasksLoading}
+            onClick={() => void loadAdminTasks()}
+          >
+            <RefreshCw size={16} />
+            Actualiser les missions
+          </button>
+        </div>
+
+        {adminTasksError && (
+          <p role="alert" style={{ padding: 16, color: "#dc2626" }}>
+            {adminTasksError}
+          </p>
+        )}
+
+        <div className={styles.tableWrap}>
+          <table>
+            <thead>
+              <tr>
+                <th>Mission</th>
+                <th>Type</th>
+                <th>Chauffeur</th>
+                <th>Adresse</th>
+                <th>Statut</th>
+                <th>Commandes</th>
+                <th>Colis</th>
+                <th>Scannés</th>
+                <th>Restants</th>
+                <th>Progression</th>
+                <th>Route</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {adminTasksLoading && adminTasks.length === 0 ? (
+                <tr>
+                  <td colSpan={11}>
+                    Chargement des missions...
+                  </td>
+                </tr>
+              ) : adminTasks.length === 0 ? (
+                <tr>
+                  <td colSpan={11}>
+                    Aucune mission regroupée enregistrée.
+                  </td>
+                </tr>
+              ) : (
+                adminTasks.map((task) => {
+                  const driver = drivers.find(
+                    (item) => Number(item.id) === Number(task.driver_id),
+                  );
+
+                  const driverName = driver
+                    ? [driver.first_name, driver.last_name]
+                        .filter(Boolean)
+                        .join(" ")
+                    : task.driver_id
+                      ? `Chauffeur #${task.driver_id}`
+                      : "Non assigné";
+
+                  const progress = task.total_packages > 0
+                    ? Math.min(
+                        100,
+                        Math.round(
+                          (task.scanned_packages / task.total_packages) * 100,
+                        ),
+                      )
+                    : 0;
+
+                  return (
+                    <tr key={task.id}>
+                      <td>#{task.id}</td>
+                      <td>
+                        {task.task_type === "pickup"
+                          ? "Ramassage"
+                          : "Livraison"}
+                      </td>
+                      <td>{driverName}</td>
+                      <td>{task.address || "—"}</td>
+                      <td>{task.status}</td>
+                      <td>{task.total_orders}</td>
+                      <td>{task.total_packages}</td>
+                      <td>{task.scanned_packages}</td>
+                      <td>{task.remaining_packages}</td>
+                      <td>
+                        <div style={{ minWidth: 100 }}>
+                          <progress
+                            value={progress}
+                            max={100}
+                            style={{ width: "100%" }}
+                          />
+                          <span>{progress}%</span>
+                        </div>
+                      </td>
+                      <td>
+                        {task.status === "pending" || task.status === "assigned" ? (
+                          planningTaskId === task.id ? (
+                            <div style={{ display: "grid", gap: 8, minWidth: 230 }}>
+                              <select
+                                aria-label={`Route pour le stop ${task.id}`}
+                                value={planningRoute}
+                                disabled={planningSaving}
+                                onChange={(event) => setPlanningRoute(event.target.value)}
+                              >
+                                <option value="">Choisir une route…</option>
+                                {dispatchRoutes
+                                  .filter((route) => ["draft", "assigned", "in_progress"].includes(String(route.status)))
+                                  .map((route) => (
+                                    <option key={route.id} value={route.id}>
+                                      {route.route_code || `Route #${route.id}`} · {String(route.scheduled_date || "").slice(0, 10) || "sans date"}
+                                    </option>
+                                  ))}
+                              </select>
+                              <button
+                                type="button"
+                                className={styles.applyBtn}
+                                disabled={planningSaving || !planningRoute}
+                                onClick={() => void assignStopToExistingRoute(task.id)}
+                              >
+                                {planningSaving ? "Assignation…" : "CONFIRMER LA ROUTE"}
+                              </button>
+                              <button type="button" disabled={planningSaving} onClick={() => { setPlanningTaskId(null); setPlanningRoute(""); }}>
+                                Annuler
+                              </button>
+                              <small>Le statut du stop et des commandes ne sera pas modifié.</small>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className={styles.applyBtn}
+                              disabled={planningSaving}
+                              onClick={() => {
+                                setPlanningTaskId(task.id);
+                                setPlanningRoute("");
+                                setAdminTasksError("");
+                                void loadDispatchRoutes();
+                              }}
+                            >
+                              ASSIGNER À UNE ROUTE
+                            </button>
+                          )
+                        ) : (
+                          <span>Stop déjà commencé</span>
+                        )}
+                        {(task.status === "pending" || task.status === "assigned") && (
+                          <button
+                            type="button"
+                            disabled={deletingTaskId === task.id}
+                            onClick={() => void deleteGroupedTask(task.id)}
+                            style={{
+                              marginTop: 8,
+                              width: "100%",
+                              minHeight: 38,
+                              border: "1px solid #ef4444",
+                              borderRadius: 9,
+                              background: "#fff",
+                              color: "#dc2626",
+                              fontWeight: 800,
+                              cursor: deletingTaskId === task.id ? "wait" : "pointer",
+                            }}
+                          >
+                            {deletingTaskId === task.id ? "SUPPRESSION…" : "SUPPRIMER LA MISSION"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className={`${styles.tableCard} ${styles.dispatchProOrders}`}>
         <div className={styles.tableHead}>
           <div>
             <strong>{total.toLocaleString("fr-CA")} commandes</strong>
@@ -1782,6 +2552,456 @@ export default function DispatchPage() {
       </section>
 
 
+
+      {dispatchView === "routes" && (
+        <section className={styles.dispatchProRoutes}>
+          <div className={styles.routesHero}>
+            <div className={styles.routesHeroText}>
+              <span className={styles.routesEyebrow}><MapPin size={15} /> GLORY SOLUTIONS · PLANIFICATION</span>
+              <h2>Routes & arrêts</h2>
+              <p>Une vue claire de vos secteurs, chauffeurs, commandes et colis. Préparez une route même avant de recevoir les missions.</p>
+            </div>
+            <button type="button" className={styles.routesPrimaryButton} onClick={() => setNewRouteOpen((value) => !value)}>
+              <Plus size={19} /> {newRouteOpen ? "Fermer le formulaire" : "Créer une route"}
+            </button>
+          </div>
+
+          {newRouteOpen && (
+            <form className={styles.routesCreatePanel} onSubmit={(event) => { event.preventDefault(); void createNewDraftRoute(); }}>
+              <div><span className={styles.routesEyebrow}>NOUVELLE ROUTE</span><h3>Préparer un nouveau secteur</h3><p>Créez un brouillon sans commande. Les colis ne seront comptés qu'une fois liés à une mission.</p></div>
+              <div className={styles.routesSectorCreator}>
+                <strong>+ Créer un secteur pour une nouvelle ville ou zone</strong>
+                <p>Ex. LAV · Laval · H7A, H7B. Les préfixes postaux sont enregistrés avec le secteur, sans modifier les commandes existantes.</p>
+                <div className={styles.routesSectorFields}>
+                  <label>Code unique<input value={sectorCode} maxLength={8} placeholder="LAV" onChange={e => setSectorCode(e.target.value.toUpperCase())} /></label>
+                  <label>Nom du secteur<input value={sectorName} maxLength={100} placeholder="Laval" onChange={e => setSectorName(e.target.value)} /></label>
+                  <label>Préfixes postaux<input value={sectorPostal} placeholder="H7A, H7B, H7C" onChange={e => setSectorPostal(e.target.value.toUpperCase())} /></label>
+                  <button type="button" className={styles.routesPrimaryButton} disabled={sectorSaving || !sectorCode || !sectorName} onClick={() => void saveNewSector()}>{sectorSaving ? "Enregistrement…" : "Enregistrer le secteur"}</button>
+                </div>
+              </div>
+              <div className={styles.routesCreateGrid}>
+                <label>Secteur
+                  <select value={newRouteSector} onChange={(event) => setNewRouteSector(event.target.value)} required>
+                    <option value="MTL">Montréal</option><option value="RS">Rive-Sud</option><option value="RN">Rive-Nord</option><option value="ME">Montréal Est</option><option value="MO">Montréal Ouest</option>
+                    {routeSectors.filter(s => !["RS", "RN", "MTL", "ME", "MO"].includes(s.code)).map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+                  </select>
+                </label>
+                <label>Date prévue<input type="date" value={newRouteDate} onChange={(event) => setNewRouteDate(event.target.value)} required /></label>
+                <label className={styles.routesNotesField}>Notes de planification<input maxLength={5000} placeholder="Ex. Nouveaux clients à Laval, tournée à préparer…" value={newRouteNotes} onChange={(event) => setNewRouteNotes(event.target.value)} /></label>
+              </div>
+              <button type="submit" className={styles.routesPrimaryButton} disabled={!newRouteDate || newRouteSaving}>{newRouteSaving ? "Création…" : "Enregistrer la route brouillon"} <ChevronRight size={17} /></button>
+            </form>
+          )}
+
+          <div className={styles.routesFilterPanel}>
+            <div className={styles.routesFilterTitle}><Search size={18} /><strong>Rechercher et filtrer</strong><span>{filteredDispatchRoutes.length} route(s)</span></div>
+            <div className={styles.routesFilterGrid}>
+              <label>Recherche<input aria-label="Rechercher une route" placeholder="Code, chauffeur, véhicule…" value={dispatchRouteSearch} onChange={(event) => setDispatchRouteSearch(event.target.value)} /></label>
+              <label>Secteur<select value={dispatchRouteSector} onChange={(event) => setDispatchRouteSector(event.target.value)}><option value="">Tous les secteurs</option><option value="RS">Rive-Sud</option><option value="RN">Rive-Nord</option><option value="MTL">Montréal</option><option value="ME">Montréal Est</option><option value="MO">Montréal Ouest</option>{routeSectors.filter(s => !["RS", "RN", "MTL", "ME", "MO"].includes(s.code)).map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}</select></label>
+              <label>Date exacte<input aria-label="Filtrer par date exacte" type="date" value={dispatchRouteDate} onChange={(event) => setDispatchRouteDate(event.target.value)} /></label>
+              <label>Du<input aria-label="Date de début" type="date" value={dispatchRouteDateFrom} disabled={Boolean(dispatchRouteDate)} onChange={(event) => setDispatchRouteDateFrom(event.target.value)} /></label>
+              <label>Au<input aria-label="Date de fin" type="date" value={dispatchRouteDateTo} disabled={Boolean(dispatchRouteDate)} onChange={(event) => setDispatchRouteDateTo(event.target.value)} /></label>
+              <label>Chauffeur<select value={dispatchRouteDriver} onChange={(event) => setDispatchRouteDriver(event.target.value)}><option value="">Tous les chauffeurs</option>{drivers.map((driver) => <option key={driver.id} value={driver.id}>{[driver.first_name, driver.last_name].filter(Boolean).join(" ") || `Chauffeur #${driver.id}`}</option>)}</select></label>
+              <label>Statut<select value={dispatchRouteStatus} onChange={(event) => setDispatchRouteStatus(event.target.value)}><option value="">Tous les statuts</option><option value="draft">Brouillon</option><option value="assigned">Assignée</option><option value="in_progress">En cours</option><option value="completed">Terminée</option><option value="cancelled">Annulée</option></select></label>
+              <button type="button" className={styles.routesResetButton} onClick={() => {setDispatchRouteSearch("");setDispatchRouteSector("");setDispatchRouteDate("");setDispatchRouteDateFrom("");setDispatchRouteDateTo("");setDispatchRouteDriver("");setDispatchRouteStatus("");void loadDispatchRoutes();}} disabled={dispatchRoutesLoading}><RefreshCw size={16} /> Réinitialiser</button>
+            </div>
+          </div>
+
+          {dispatchRoutesError && (
+            <p role="alert" style={{ color: "#b91c1c" }}>
+              {dispatchRoutesError}
+            </p>
+          )}
+
+          {dispatchRoutesLoading ? (
+            <p>Chargement des routes...</p>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              <p>
+                {filteredDispatchRoutes.length} route(s) affichée(s)
+              </p>
+
+              {filteredDispatchRoutes.map((route) => (
+                <div
+                  key={route.id}
+                  className={styles.routeProCard}
+                >
+                  <div className={styles.routesCardHeading}><span className={styles.routesCardIcon}><Truck size={22} /></span><div><span className={styles.routesEyebrow}>TOURNÉE #{route.id}</span><strong>{route.route_code || `Route #${route.id}`}</strong></div><span className={styles.routesStatusBadge}>{route.status === "draft" ? "À préparer" : route.status === "assigned" ? "Assignée" : route.status === "in_progress" ? "En cours" : route.status === "completed" ? "Terminée" : route.status || "—"}</span></div>
+
+                  <span>
+                    {dateTime(route.scheduled_date)}
+                    {" · "}
+                    {route.status === "draft" ? "Route brouillon" : "Tournée planifiée"}
+                  </span>
+
+                  <span>
+                    Chauffeur :{" "}
+                    {drivers.find(
+                      (driver) => driver.id === route.driver_id
+                    )
+                      ? [
+                          drivers.find(
+                            (driver) => driver.id === route.driver_id
+                          )?.first_name,
+                          drivers.find(
+                            (driver) => driver.id === route.driver_id
+                          )?.last_name,
+                        ]
+                          .filter(Boolean)
+                          .join(" ")
+                      : route.driver_name || "Non assigné"}
+                  </span>
+
+                  <span>
+                    Véhicule :{" "}
+                    {[
+                      route.vehicle_make,
+                      route.vehicle_model,
+                      route.vehicle_plate,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || "—"}
+                  </span>
+
+                  <div className={styles.routeProMetrics} aria-label="Totaux de la route">
+                    <div><strong>{asCount(route.total_stops)}</strong><span>Arrêts</span></div>
+                    <div><strong>{asCount(route.total_orders)}</strong><span>Commandes</span></div>
+                    <div><strong>{asCount(route.total_packages)}</strong><span>Boîtes / colis</span></div>
+                    <div><strong>{asCount(route.total_pallets)}</strong><span>Palettes</span></div>
+                  </div>
+
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <Link
+                      href={`/dashboard/admin/dispatch/routes/${route.id}`}
+                      className={styles.routesViewButton}
+                    >
+                      Voir la fiche de route
+                      <ChevronRight size={16} />
+                    </Link>
+                    {['draft','assigned','in_progress'].includes(String(route.status || '')) && (
+                      <button type="button" className={styles.routesDeleteButton} onClick={() => void deleteDispatchRoute(route)}>
+                        <Trash2 size={16} /> Supprimer la route
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {!filteredDispatchRoutes.length && (
+                <p>Aucune route pour ces filtres.</p>
+              )}
+            </div>
+          )}
+
+          {dispatchRouteDetailLoading && (
+            <p>Chargement des arrêts et commandes...</p>
+          )}
+
+          {selectedDispatchRoute && (
+            <div
+              style={{
+                marginTop: 24,
+                padding: 20,
+                border: "1px solid #d1d5db",
+                borderRadius: 16,
+                background: "#f9fafb",
+                display: "grid",
+                gap: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "center",
+                }}
+              >
+                <h3>
+                  {selectedDispatchRoute.route_code ||
+                    `Route #${selectedDispatchRoute.id}`}
+                </h3>
+
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={() => setSelectedDispatchRoute(null)}
+                >
+                  <X size={16} />
+                  Fermer
+                </button>
+              </div>
+
+              <div className={styles.routeProMetrics}>
+                <div><strong>{asCount(selectedDispatchRoute.total_stops)}</strong><span>Arrêts</span></div>
+                <div><strong>{asCount(selectedDispatchRoute.total_orders)}</strong><span>Commandes uniques</span></div>
+                <div><strong>{asCount(selectedDispatchRoute.total_packages)}</strong><span>Boîtes / colis uniques</span></div>
+                <div><strong>{asCount(selectedDispatchRoute.total_pallets)}</strong><span>Palettes uniques</span></div>
+              </div>
+
+              {(selectedDispatchRoute.stops || []).map((stop) => (
+                <details
+                  key={stop.id}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 12,
+                    padding: 16,
+                    background: "#fff",
+                  }}
+                >
+                  <summary style={{ cursor: "pointer" }}>
+                    <strong>
+                      Arrêt #{stop.stop_position ?? "—"}
+                      {" · "}
+                      {stop.task_type === "pickup"
+                        ? "Ramassage"
+                        : stop.task_type === "delivery"
+                          ? "Livraison"
+                          : stop.task_type}
+                    </strong>
+
+                    <div style={{ marginTop: 8 }}>
+                      {[
+                        stop.address,
+                        stop.city,
+                        stop.province,
+                        stop.postal_code,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "Adresse non renseignée"}
+                    </div>
+
+                    <div style={{ marginTop: 8 }}>
+                      {asCount(stop.total_orders)} commande(s)
+                      {" · "}
+                      {asCount(stop.total_packages)} boîte(s) / colis
+                      {" · "}
+                      {asCount(stop.total_pallets)} palette(s)
+                    </div>
+                  </summary>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 12,
+                      marginTop: 16,
+                    }}
+                  >
+                    <p>
+                      Date :{" "}
+                      {dateTime(
+                        stop.scheduled_date,
+                        stop.scheduled_time
+                      )}
+                      {" · "}
+                      Statut : {stop.status || "—"}
+                    </p>
+
+                    {stop.notes && <p>Note : {stop.notes}</p>}
+
+                    {(stop.orders || []).map((order) => (
+                      <details
+                        key={order.id}
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 10,
+                          padding: 14,
+                        }}
+                      >
+                        <summary style={{ cursor: "pointer" }}>
+                          <strong>
+                            {order.order_number ||
+                              `Commande #${order.id}`}
+                          </strong>
+                          {" · "}
+                          {order.packages?.length || 0} boîte(s) / colis
+                        </summary>
+
+                        <div
+                          style={{
+                            display: "grid",
+                            gap: 8,
+                            marginTop: 12,
+                          }}
+                        >
+                          <p>
+                            Client :{" "}
+                            {order.client_company_name ||
+                              [
+                                order.client_first_name,
+                                order.client_last_name,
+                              ]
+                                .filter(Boolean)
+                                .join(" ") ||
+                              `Client #${order.client_id || "—"}`}
+                          </p>
+
+                          <p>Statut : {order.status || "—"}</p>
+                          <p>
+                            Ramassage :{" "}
+                            {order.pickup_address || "—"}
+                          </p>
+                          <p>
+                            Livraison :{" "}
+                            {order.delivery_address || "—"}
+                          </p>
+                          <p>
+                            Service :{" "}
+                            {order.service_level === "same_day"
+                              ? "Jour même"
+                              : order.service_level === "urgent"
+                                ? "Urgent"
+                                : order.service_level === "standard"
+                                  ? "Standard"
+                                  : order.service_level || "—"}
+                          </p>
+
+                          <p>
+                            Priorité : {order.priority || "—"}
+                          </p>
+
+                          <strong>Rendez-vous de ramassage</strong>
+                          <p>
+                            {order.pickup_appointment
+                              ? "Rendez-vous obligatoire"
+                              : "Sans rendez-vous précis"}
+                          </p>
+                          <p>
+                            Date : {dateTime(order.pickup_date)}
+                            {order.pickup_time
+                              ? ` · Heure : ${order.pickup_time}`
+                              : ""}
+                          </p>
+
+                          <strong>Rendez-vous de livraison</strong>
+                          <p>
+                            {order.delivery_appointment
+                              ? "Rendez-vous obligatoire"
+                              : "Sans rendez-vous précis"}
+                          </p>
+                          <p>
+                            Date : {dateTime(order.delivery_date)}
+                            {order.delivery_time
+                              ? ` · Heure : ${order.delivery_time}`
+                              : ""}
+                          </p>
+
+                          <strong>Destinataire</strong>
+                          <p>
+                            Type :{" "}
+                            {order.destination_type === "commercial"
+                              ? "Commercial"
+                              : order.destination_type === "residential"
+                                ? "Résidentiel"
+                                : "—"}
+                          </p>
+
+                          {order.company_name && (
+                            <p>Entreprise : {order.company_name}</p>
+                          )}
+
+                          {order.contact_name && (
+                            <p>Contact : {order.contact_name}</p>
+                          )}
+
+                          {order.contact_phone && (
+                            <p>
+                              Téléphone : {order.contact_phone}
+                              {order.contact_extension
+                                ? ` poste ${order.contact_extension}`
+                                : ""}
+                            </p>
+                          )}
+
+                          {order.delivery_unit && (
+                            <p>Unité : {order.delivery_unit}</p>
+                          )}
+
+                          <strong>Preuve de livraison</strong>
+                          <p>
+                            {order.signature_required
+                              ? "Signature requise"
+                              : "Photo requise"}
+                          </p>
+
+                          {order.description && (
+                            <p>Description : {order.description}</p>
+                          )}
+
+                          {order.notes && (
+                            <p>Instructions du client : {order.notes}</p>
+                          )}
+
+                          <strong>Colis</strong>
+
+                          {(order.packages || []).map((item) => (
+                            <div
+                              key={item.id}
+                              style={{
+                                border: "1px solid #e5e7eb",
+                                borderRadius: 8,
+                                padding: 10,
+                              }}
+                            >
+                              <strong>
+                                Colis #{item.package_number ?? item.id}
+                              </strong>
+
+                              <p>
+                                Code-barres : {item.barcode || "—"}
+                              </p>
+                              <p>
+                                Type :{" "}
+                                {item.package_type === "box"
+                                  ? "Boîte"
+                                  : item.package_type === "pallet"
+                                    ? "Palette"
+                                    : item.package_type || "—"}
+                              </p>
+
+                              <p>
+                                Poids :{" "}
+                                {item.weight != null
+                                  ? `${item.weight} ${item.weight_unit || ""}`
+                                  : "Non renseigné"}
+                              </p>
+
+                              <p>
+                                Dimensions :{" "}
+                                {item.length != null &&
+                                item.width != null &&
+                                item.height != null
+                                  ? `${item.length} × ${item.width} × ${item.height} ${item.dimension_unit || ""}`
+                                  : "Non renseignées"}
+                              </p>
+
+                              <p>
+                                Statut : {item.current_status || "—"}
+                              </p>
+
+                              {item.description && (
+                                <p>{item.description}</p>
+                              )}
+                            </div>
+                          ))}
+
+                          {!order.packages?.length && (
+                            <p>Aucun colis enregistré.</p>
+                          )}
+                        </div>
+                      </details>
+                    ))}
+
+                    {!stop.orders?.length && (
+                      <p>Aucune commande reliée à cet arrêt.</p>
+                    )}
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {warehouseScannerOpen && (
         <div

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import JsBarcode from "jsbarcode";
+import { gloryLocalPrint, gloryPrintValue } from "../../../../../lib/glory-local-print";
 
 type OrderPackage = {
   id: number;
@@ -59,9 +61,6 @@ type Order = {
   packages?: OrderPackage[];
   stops?: OrderStop[];
 };
-
-const PRINT_SERVICE_URL =
-  process.env.NEXT_PUBLIC_GLORY_PRINT_URL || "http://127.0.0.1:17891";
 
 function clean(value: unknown) {
   return String(value ?? "").trim();
@@ -161,19 +160,6 @@ export default function LabelsPage() {
     loadOrder();
   }, [loadOrder]);
 
-  async function ensurePrintService() {
-    try {
-      const response = await fetch(`${PRINT_SERVICE_URL}/health`, {
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error();
-    } catch {
-      throw new Error(
-        "Glory Print Service n’est pas démarré. Démarrez le service local sur le port 17891 puis réessayez."
-      );
-    }
-  }
-
   function buildPrintPayload(pkg: OrderPackage) {
     if (!order) throw new Error("Commande introuvable.");
 
@@ -242,62 +228,355 @@ export default function LabelsPage() {
     };
   }
 
-  async function sendPrint(pkg: OrderPackage) {
-    const response = await fetch(`${PRINT_SERVICE_URL}/print/delivery-note`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildPrintPayload(pkg)),
-    });
+  async function printThermalPackage(pkg: OrderPackage) {
+    if (!order || printingAll || printingId !== null) return;
+    if (!window.confirm(`Imprimer UNE étiquette MUNBYN pour le colis ${pkg.package_number} de ${order.order_number} ?`)) return;
+    setPrintingId(pkg.id);
+    setError("");
+    try {
+      const data = buildPrintPayload(pkg);
+      const fields = order as Order & Record<string, unknown>;
+      const field = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = gloryPrintValue(fields[key]);
+          if (value) return value;
+        }
+        return "";
+      };
+      const pickupAddress = [data.pickupAddress, data.pickupCity, data.pickupProvince, data.pickupPostalCode].filter(Boolean).join(", ");
+      const deliveryAddress = [data.deliveryAddress, data.deliveryCity, data.deliveryProvince, data.deliveryPostalCode].filter(Boolean).join(", ");
+      const weight = Number(pkg.weight);
+      // TSPL attend des kg : convertir les livres si nécessaire.
+      const weightKg = Number.isFinite(weight) && weight > 0
+        ? (clean(pkg.weight_unit).toLowerCase() === "lb" || clean(pkg.weight_unit).toLowerCase() === "lbs"
+          ? (weight * 0.45359237).toFixed(2) : String(weight)) : "";
+      const result = await gloryLocalPrint({
+        reference: order.order_number,
+        orderId: order.id,
+        packageBarcode: data.reference,
+        senderName: data.senderName,
+        pickupAddress,
+        senderPhone: data.pickupPhone,
+        recipientName: data.recipientName,
+        deliveryAddress,
+        recipientPhone: data.deliveryPhone,
+        routeCode: field("routeCode", "route_code"),
+        sector: field("sector", "sector_name"),
+        stopNumber: field("stopNumber", "stop_position"),
+        packageText: `${data.packageNumber} / ${data.totalPackages}`,
+        weight: weightKg,
+        deliveryDate: clean(order.created_at).slice(0, 10).replaceAll("-", "/") || "-",
+        trackingUrl: `https://glorysolutions.ca/tracking?ref=${encodeURIComponent(order.order_number)}`,
+      });
+      window.alert(`Colis ${data.packageNumber} transmis à ${result.printer || "MUNBYN"}. Vérifiez l'étiquette physique.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impression MUNBYN impossible.");
+    } finally { setPrintingId(null); }
+  }
 
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
+  function printLabels(selectedPackages: OrderPackage[]) {
+    if (!order || selectedPackages.length === 0) {
+      throw new Error("Aucun colis à imprimer.");
+    }
+
+    // Ouvrir immédiatement pendant le clic pour éviter le bloqueur de popups.
+    const printWindow = window.open("", "_blank");
+
+    if (!printWindow) {
       throw new Error(
-        payload?.message ||
-          payload?.error ||
-          `Erreur d’impression (${response.status}).`
+        "Chrome a bloqué la fenêtre d'impression. Autorisez les popups pour Glory Solutions."
       );
+    }
+
+    try {
+      const escapeHtml = (value: unknown) =>
+        clean(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      const labels = selectedPackages.map((pkg) => {
+        const data = buildPrintPayload(pkg);
+        const barcode = clean(pkg.barcode);
+
+        if (!barcode) {
+          throw new Error(
+            `Le colis ${pkg.package_number} n'a pas de code-barres enregistré.`
+          );
+        }
+
+        const canvas = document.createElement("canvas");
+
+        JsBarcode(canvas, barcode, {
+          format: "CODE128",
+          displayValue: false,
+          margin: 0,
+          width: 2,
+          height: 65,
+          background: "#ffffff",
+          lineColor: "#000000",
+        });
+
+        const barcodeImage = canvas.toDataURL("image/png");
+
+        const destination = [
+          data.deliveryCity,
+          data.deliveryProvince,
+          data.deliveryPostalCode,
+        ].filter(Boolean).join("  ");
+
+        return `
+          <section class="label">
+            <header>
+              <div class="brand">GLORY SOLUTIONS</div>
+              <div class="subtitle">ÉTIQUETTE D'EXPÉDITION</div>
+            </header>
+
+            <div class="recipient">
+              <div class="section-title">DESTINATAIRE</div>
+              <div class="recipient-name">${escapeHtml(data.recipientName)}</div>
+              <div>${escapeHtml(data.deliveryAddress)}</div>
+              <div>${escapeHtml(destination)}</div>
+              ${
+                data.deliveryPhone
+                  ? `<div>TÉL : ${escapeHtml(data.deliveryPhone)}</div>`
+                  : ""
+              }
+            </div>
+
+            <div class="shipment">
+              <div><strong>COMMANDE :</strong> ${escapeHtml(order.order_number)}</div>
+              <div>
+                ${escapeHtml(packageLabel(pkg))}
+                ${escapeHtml(data.packageNumber)}/${escapeHtml(data.totalPackages)}
+              </div>
+              <div>
+                <strong>POIDS :</strong>
+                ${escapeHtml(data.weight ?? "-")}
+                ${escapeHtml(data.weightUnit)}
+              </div>
+            </div>
+
+            <div class="barcode-area">
+              <img
+                src="${barcodeImage}"
+                alt="Code-barres ${escapeHtml(barcode)}"
+              />
+              <div class="barcode-text">${escapeHtml(barcode)}</div>
+            </div>
+
+            <footer>GLORY SOLUTIONS | 4 × 6</footer>
+          </section>
+        `;
+      }).join("");
+
+      const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Glory Solutions — Étiquettes</title>
+<style>
+  @page {
+    size: 4in 6in;
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: white;
+    color: black;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  .label {
+    width: 4in;
+    height: 5.72in;
+    padding: 0.19in;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .label:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  header {
+    border-bottom: 2px solid black;
+    padding-bottom: 9px;
+  }
+
+  .brand {
+    font-size: 21px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+  }
+
+  .subtitle {
+    margin-top: 3px;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  .recipient {
+    margin-top: 14px;
+    min-height: 1.85in;
+    font-size: 13px;
+    line-height: 1.38;
+    overflow-wrap: anywhere;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 900;
+    margin-bottom: 9px;
+  }
+
+  .recipient-name {
+    font-size: 15px;
+    font-weight: 900;
+    margin-bottom: 5px;
+  }
+
+  .shipment {
+    border-top: 2px solid black;
+    padding-top: 10px;
+    font-size: 12px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+
+  .barcode-area {
+    position: absolute;
+    left: 0.19in;
+    right: 0.19in;
+    bottom: 0.40in;
+    text-align: center;
+  }
+
+  .barcode-area img {
+    display: block;
+    width: 100%;
+    height: 0.78in;
+    object-fit: fill;
+  }
+
+  .barcode-text {
+    margin-top: 7px;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    overflow-wrap: anywhere;
+  }
+
+  footer {
+    position: absolute;
+    bottom: 0.13in;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9px;
+  }
+
+  @media screen {
+    body {
+      background: #eeeeee;
+    }
+
+    .label {
+      background: white;
+      margin: 15px auto;
+      box-shadow: 0 3px 15px #0002;
     }
   }
 
-  async function printOne(pkg: OrderPackage) {
+  @media print {
+    html, body {
+      width: 4in;
+      background: white;
+    }
+
+    .label {
+      margin: 0.025in auto 0;
+      box-shadow: none;
+    }
+  }
+</style>
+</head>
+<body>
+${labels}
+<script>
+  window.addEventListener("load", function () {
+    var images = Array.from(document.images);
+
+    Promise.all(
+      images.map(function (image) {
+        if (image.complete) return Promise.resolve();
+
+        return new Promise(function (resolve) {
+          image.onload = resolve;
+          image.onerror = resolve;
+        });
+      })
+    ).then(function () {
+      window.focus();
+      window.print();
+    });
+  });
+<\/script>
+</body>
+</html>`;
+
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+    } catch (error) {
+      printWindow.close();
+      throw error;
+    }
+  }
+
+  function printOne(pkg: OrderPackage) {
     if (printingAll || printingId !== null) return;
 
     try {
       setPrintingId(pkg.id);
-      await ensurePrintService();
-      await sendPrint(pkg);
-      alert(`Étiquette ${clean(pkg.barcode) || pkg.package_number} envoyée à l’imprimante.`);
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Impossible d’imprimer l’étiquette.");
-    } finally {
-      setPrintingId(null);
-    }
-  }
-
-  async function printAll() {
-    if (printingAll || printingId !== null || packages.length === 0) return;
-
-    try {
-      setPrintingAll(true);
-      await ensurePrintService();
-
-      // Séquentiel pour éviter d'envoyer plusieurs jobs simultanément à la thermique.
-      for (const pkg of packages) {
-        await sendPrint(pkg);
-      }
-
-      alert(
-        `${packages.length} étiquette${packages.length > 1 ? "s" : ""} envoyée${
-          packages.length > 1 ? "s" : ""
-        } à l’imprimante.`
-      );
+      printLabels([pkg]);
     } catch (err) {
       console.error(err);
       alert(
         err instanceof Error
           ? err.message
-          : "Impossible d’imprimer toutes les étiquettes."
+          : "Impossible d'imprimer l'étiquette."
+      );
+    } finally {
+      setPrintingId(null);
+    }
+  }
+
+  function printAll() {
+    if (printingAll || printingId !== null || packages.length === 0) return;
+
+    try {
+      setPrintingAll(true);
+      printLabels(packages);
+    } catch (err) {
+      console.error(err);
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'imprimer les étiquettes."
       );
     } finally {
       setPrintingAll(false);
@@ -426,7 +705,15 @@ export default function LabelsPage() {
                       }}
                       onClick={() => printOne(pkg)}
                     >
-                      {printingId === pkg.id ? "Impression…" : "Imprimer l’étiquette"}
+                      {printingId === pkg.id ? "Impression…" : "Imprimer l’étiquette (navigateur)"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      style={{ ...primaryButtonStyle, marginTop: 8, opacity: busy ? 0.6 : 1 }}
+                      onClick={() => { void printThermalPackage(pkg); }}
+                    >
+                      Imprimer sur MUNBYN (4×6)
                     </button>
                   </section>
                 );

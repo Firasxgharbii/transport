@@ -134,7 +134,7 @@ type DashboardData = {
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 const emptyDashboardData: DashboardData = {
   users: [],
@@ -1708,7 +1708,7 @@ export default function AdminDashboardPage() {
 
             <SystemStatus
               label="Cloudinary"
-              value="À configurer"
+              value="Connecté"
               healthy={false}
             />
           </div>

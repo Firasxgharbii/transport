@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { gloryLocalPrint, gloryPrintValue } from "../../../lib/glory-local-print";
 import {
   AlertCircle,
   CheckCircle2,
@@ -1054,7 +1055,7 @@ export default function DeliveryNotesPage() {
 
             html, body {
               width: 4in;
-              min-height: 6in;
+              height: 5.75in;
               margin: 0;
               padding: 0;
               background: #fff;
@@ -1069,7 +1070,8 @@ export default function DeliveryNotesPage() {
 
             .ticket {
               width: 4in;
-              min-height: 6in;
+              height: 5.70in;
+              max-height: 5.70in;
               background: #fff;
               border: 1.7px solid #111;
               display: flex;
@@ -1376,7 +1378,31 @@ export default function DeliveryNotesPage() {
             .footer strong { color: #dc143c; }
 
             @media print {
-              html, body { width: 4in; height: 6in; }
+              @page { size: 4in 6in; margin: 0; }
+              html, body {
+                width: 4in !important;
+                height: 5.75in !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+              }
+              .ticket {
+                width: 3.92in !important;
+                height: 5.70in !important;
+                min-height: 0 !important;
+                max-height: 5.70in !important;
+                margin: 0 !important;
+                break-after: avoid !important;
+                page-break-after: avoid !important;
+                overflow: hidden !important;
+              }
+              .ticket > * { break-inside: avoid; page-break-inside: avoid; }
+              /* Réserve une marge physique pour les rouleaux 4 × 6. */
+              .ticket { margin: .025in auto 0 !important; }
+              .proof { min-height: 0 !important; }
+              .footer { flex-shrink: 0; }
+
             }
           </style>
         </head>
@@ -1559,9 +1585,15 @@ export default function DeliveryNotesPage() {
 
           <script>
             window.onload = function () {
-              setTimeout(function () {
-                window.print();
-              }, 350);
+              Promise.all(Array.from(document.images).map(function (img) {
+                if (img.complete) return Promise.resolve();
+                return new Promise(function (resolve) {
+                  img.onload = resolve;
+                  img.onerror = resolve;
+                });
+              })).then(function () {
+                setTimeout(function () { window.focus(); window.print(); }, 200);
+              });
             };
           </script>
         </body>
@@ -1640,7 +1672,7 @@ export default function DeliveryNotesPage() {
           <style>
             @page {
               size: A4 portrait;
-              margin: 10mm;
+              margin: 8mm;
             }
 
             * {
@@ -1663,6 +1695,8 @@ export default function DeliveryNotesPage() {
             .sheet {
               width: 100%;
               max-width: 190mm;
+              max-height: 278mm;
+              overflow: hidden;
               margin: 0 auto;
               border: 1.5px solid #111;
               background: #fff;
@@ -1999,6 +2033,8 @@ export default function DeliveryNotesPage() {
             }
 
             @media print {
+              html, body { width: auto !important; height: auto !important; }
+              .sheet { width: 100% !important; max-height: 278mm !important; break-inside: avoid; page-break-inside: avoid; }
               body {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -2422,11 +2458,67 @@ export default function DeliveryNotesPage() {
       </html>
     `;
 
+    // Le BOL est un document A4, pas une étiquette thermique 4×6.
+    // Chrome conserve parfois la dernière imprimante utilisée (MUNBYN).
+    // L'utilisateur doit choisir une imprimante A4 ou « Enregistrer au format PDF ».
     openPrintWindow(
       `Bill of Lading ${bolNumber}`,
       html,
       "width=1100,height=950",
     );
+  };
+
+  // Impression directe sur la MUNBYN reliée à l'ordinateur qui ouvre le site.
+  // Le bon HTML et le BOL restent disponibles sans changement.
+  const handleThermalPrint = async (note: DeliveryNote) => {
+    if (printingId !== null) return;
+    if (!window.confirm(`Imprimer UNE étiquette thermique 4×6 pour ${getOrderNumber(note)} sur la MUNBYN de cet ordinateur ?`)) return;
+    setPrintingId(note.id);
+    setError("");
+    try {
+      const fresh = await fetchFreshDeliveryNote(note.id);
+      const field = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = gloryPrintValue(fresh[key]);
+          if (value) return value;
+        }
+        return "";
+      };
+      const address = (prefix: "pickup" | "delivery") =>
+        [field(`${prefix}_address`), field(`${prefix}_city`),
+         field(`${prefix}_province`), field(`${prefix}_postal_code`)]
+          .filter(Boolean).join(", ");
+      const reference = getOrderNumber(fresh);
+      const quantity = Number(fresh.quantity);
+      // quantity n'est pas un numéro d'arrêt ni un total de missions.
+      const packageText = Number.isInteger(quantity) && quantity > 0
+        ? `${quantity} colis` : "Colis N/D";
+      const date = field("delivery_date", "pickup_date", "created_at").slice(0, 10);
+      const payload = {
+        reference,
+        orderId: fresh.id,
+        packageBarcode: field("package_barcode", "barcode") || reference,
+        routeCode: field("routeCode", "route_code"),
+        sector: field("sector", "sector_name"),
+        stopNumber: field("stopNumber", "stop_position"),
+        senderName: field("pickup_name", "sender_name", "company_name", "client_name") || getClientName(fresh),
+        pickupAddress: address("pickup"),
+        senderPhone: field("pickup_phone", "sender_phone", "client_phone"),
+        recipientName: field("recipient_name", "delivery_name", "contact_name") || getClientName(fresh),
+        deliveryAddress: address("delivery"),
+        recipientPhone: field("delivery_phone", "recipient_phone", "contact_phone", "client_phone"),
+        deliveryDate: date ? date.replaceAll("-", "/") : "-",
+        packageText,
+        weight: field("weight"),
+        trackingUrl: `https://glorysolutions.ca/tracking?ref=${encodeURIComponent(reference)}`,
+      };
+      const result = await gloryLocalPrint(payload);
+      window.alert(`Étiquette transmise à ${result.printer || "la MUNBYN"}. Vérifiez l'impression physique.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impression thermique impossible.");
+    } finally {
+      setPrintingId(null);
+    }
   };
 
   const handlePrintDeliveryNote = async (
@@ -3499,7 +3591,17 @@ export default function DeliveryNotesPage() {
                   }
                 >
                   <Printer size={17} />
-                  Imprimer le bon 4×6
+                  Imprimer le bon 4×6 (navigateur)
+                </button>
+                <button
+                  type="button"
+                  className="printButton"
+                  disabled={printingId !== null}
+                  onClick={() => { void handleThermalPrint(selectedNote); }}
+                  title="Impression directe sur la MUNBYN de cet ordinateur"
+                >
+                  <Printer size={17} />
+                  {printingId === selectedNote.id ? "Envoi MUNBYN…" : "Imprimer sur MUNBYN (4×6)"}
                 </button>
               </div>
             </div>

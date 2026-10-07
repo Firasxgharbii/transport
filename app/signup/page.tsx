@@ -54,7 +54,7 @@ type SignupResponse = {
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  "https://api.glorysolutions.ca";
 
 const initialFormData: SignupFormData = {
   firstName: "",

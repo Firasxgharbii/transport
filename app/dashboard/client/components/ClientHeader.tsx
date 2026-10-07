@@ -409,17 +409,37 @@ export default function ClientHeader({
   ============================================================ */
 
   async function handleNotificationClick(notification: Notification) {
-    await markAsRead(notification);
+    const marked = await markAsRead(notification);
+
+    if (!marked) return;
 
     setOpen(false);
 
-    if (notification.action_url) {
-      if (notification.action_url.startsWith("/")) {
-        router.push(notification.action_url);
-      } else {
-        window.location.href = notification.action_url;
-      }
+    const url = notification.action_url?.trim();
+
+    if (!url) return;
+
+    // Un client ne doit jamais être redirigé vers un espace interne.
+    if (
+      url.startsWith("/dashboard/admin") ||
+      url.startsWith("/dashboard/driver")
+    ) {
+      router.push("/dashboard/client/orders");
+      return;
     }
+
+    // Autoriser uniquement les chemins internes prévus pour le client.
+    if (
+      url === "/dashboard/client" ||
+      url.startsWith("/dashboard/client/") ||
+      url.startsWith("/track/")
+    ) {
+      router.push(url);
+      return;
+    }
+
+    // Ne pas ouvrir une URL externe fournie par une notification.
+    router.push("/dashboard/client");
   }
 
   /* ============================================================

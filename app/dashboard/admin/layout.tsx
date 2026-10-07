@@ -60,7 +60,7 @@ export default function AdminLayout({ children }: Props) {
   useEffect(() => {
     const token = localStorage.getItem("glory_token");
     const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      process.env.NEXT_PUBLIC_API_URL || "https://api.glorysolutions.ca";
 
     if (!token) return;
 

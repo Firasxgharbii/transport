@@ -1,2916 +1,687 @@
 "use client";
+import DriverLiveTracking from "@/app/components/DriverLiveTracking";
 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
-  Bell,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  Filter,
-  LogOut,
-  MapPin,
-  Navigation,
-  PackageCheck,
-  RefreshCw,
-  Search,
-  ScanLine,
-  ShieldCheck,
-  Truck,
-  UserRound,
-  Wifi,
-  WifiOff,
+  AlertTriangle, CheckCircle2, ChevronRight, Clock3, LogOut,
+  MapPin, Navigation, PackageCheck, RefreshCw, ScanLine, Truck,
+  Wifi, WifiOff
 } from "lucide-react";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-
-import { useRouter } from "next/navigation";
-
-import styles from "./driver.module.css";
-
-/* ============================================================
-   CONFIG
-============================================================ */
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://api.glorysolutions.ca";
-
-const ITEMS_PER_PAGE = 6;
-
-/*
- * Évite qu’un navigateur ou un appareil très bavard envoie
- * une rafale de positions au backend. La sécurité réelle reste
- * également contrôlée côté serveur.
- */
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.glorysolutions.ca";
 const GPS_SEND_INTERVAL_MS = 5000;
 
-/* ============================================================
-   TYPES
-============================================================ */
-
-type ConnectedUser = {
+type Stop = {
   id: number;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  role: string;
-};
-
-type Driver = {
-  id: number;
-  user_id: number;
-
-  availability_status?: string;
-
-  first_name?: string;
-  last_name?: string;
-
-  email?: string;
-  phone?: string;
-
-  vehicle_id?: number | null;
-  vehicle_name?: string | null;
-  vehicle_plate?: string | null;
-};
-
-type DriverOrder = {
-  operation_id?: number;
-  operation_type?: string;
-  operation_status?: string;
-  order_id?: number;
-  id: number;
-
-  order_number?: string;
-  reference?: string;
-
+  task_type: "pickup" | "delivery";
   status?: string;
-
-  priority?: string;
-
-  route_position?: number | null;
-
-  pickup_address?: string;
-  pickup_city?: string;
-
-  delivery_address?: string;
-  delivery_city?: string;
-
+  address?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
   scheduled_date?: string;
   scheduled_time?: string;
-
-  pickup_date?: string | null;
-  pickup_time?: string | null;
-  delivery_date?: string | null;
-  delivery_time?: string | null;
-
-  created_at?: string | null;
-  updated_at?: string | null;
-
-  client_name?: string;
-  client_first_name?: string | null;
-  client_last_name?: string | null;
-  company_name?: string | null;
-
-  vehicle_make?: string | null;
-  vehicle_model?: string | null;
-  vehicle_plate?: string | null;
-
-  stop_count?: number;
-  completed_stops?: number;
+  stop_position?: number | null;
+  route_id?: number | null;
+  total_packages?: number;
+  treated_packages?: number;
+  remaining_packages?: number;
+  orders?: Array<{
+    id?: number;
+    order_id?: number;
+    order_number?: string;
+    operation_id?: number;
+    signature_required?: number | boolean;
+    notes?: string | null;
+    packages?: Array<{id:number; barcode?:string; package_type?:string; weight?:number|string|null; weight_unit?:string|null; scanned?:boolean|number; exception_id?:number|null}>;
+  }>;
+  run?: { execution_status?: string; started_at?: string; closed_at?: string };
 };
-
-type Position = {
-  latitude: number;
-  longitude: number;
-  accuracy: number | null;
-  speed: number | null;
-  heading: number | null;
-};
-
-type GpsState =
-  | "loading"
-  | "active"
-  | "permission"
-  | "denied"
-  | "error"
-  | "unsupported";
-
-type HistoryRange =
-  | "today"
-  | "yesterday"
-  | "7d"
-  | "30d"
-  | "3m"
-  | "6m"
-  | "12m";
-
-/* ============================================================
-   HELPERS
-============================================================ */
 
 function getToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return (
-    localStorage.getItem("glory_token") ||
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("glory_token") ||
     sessionStorage.getItem("glory_token") ||
     localStorage.getItem("token") ||
-    sessionStorage.getItem("token") ||
-    ""
-  );
+    sessionStorage.getItem("token") || "";
 }
 
-function statusLabel(value?: string) {
-  switch (value) {
-    case "pending":
-      return "En attente";
-
-    case "assigned":
-      return "Assignée";
-
-    case "accepted":
-      return "Acceptée";
-
-    case "pickup_in_progress":
-      return "Ramassage";
-
-    case "picked_up":
-      return "Ramassée";
-
-    case "in_transit":
-    case "delivery_in_progress":
-      return "En livraison";
-
-    case "arrived":
-      return "Arrivé";
-
-    case "completed":
-    case "delivered":
-      return "Terminée";
-
-    case "incident":
-      return "Incident";
-
-    case "cancelled":
-      return "Annulée";
-
-    default:
-      return value || "Assignée";
-  }
+function stopStatus(s: Stop) {
+  const v = s.run?.execution_status || s.status || "assigned";
+  if (["completed","partial","delivered"].includes(v)) return "completed";
+  if (["incident","exception","problem","failed","cancelled"].includes(v)) return "exception";
+  if (["in_progress","started","pickup_in_progress","delivery_in_progress"].includes(v)) return "progress";
+  return "pending";
 }
 
-function statusClass(value?: string) {
-  switch (value) {
-    case "completed":
-    case "delivered":
-      return styles.statusCompleted;
-
-    case "incident":
-    case "cancelled":
-      return styles.statusIncident;
-
-    case "pickup_in_progress":
-    case "picked_up":
-    case "in_transit":
-    case "delivery_in_progress":
-      return styles.statusProgress;
-
-    default:
-      return styles.statusAssigned;
-  }
+function label(s: Stop) {
+  const v = stopStatus(s);
+  if (v === "completed") return "Terminé";
+  if (v === "exception") return "Exception";
+  if (v === "progress") return "En cours";
+  return "À faire";
 }
 
-function operationTypeLabel(value?: string) {
-  switch (value) {
-    case "pickup":
-      return "RAMASSAGE";
-    case "delivery":
-      return "LIVRAISON";
-    case "warehouse_in":
-      return "ENTRÉE ENTREPÔT";
-    case "warehouse_out":
-      return "SORTIE ENTREPÔT";
-    case "storage":
-      return "ENTREPOSAGE";
-    default:
-      return "TÂCHE";
-  }
-}
+const card: React.CSSProperties = {
+  background:"#fff", border:"1px solid #e5e7eb", borderRadius:16,
+  padding:16, boxShadow:"0 4px 16px rgba(0,0,0,.04)"
+};
+const button: React.CSSProperties = {
+  display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7,
+  border:"1px solid #d7dbe0", background:"#fff", borderRadius:10,
+  padding:"11px 14px", fontWeight:800, cursor:"pointer"
+};
 
-function availabilityLabel(value?: string) {
-  switch (value) {
-    case "available":
-      return "Disponible";
-
-    case "busy":
-      return "En livraison";
-
-    case "on_break":
-      return "En pause";
-
-    case "offline":
-      return "Hors ligne";
-
-    default:
-      return "Disponible";
-  }
-}
-
-function getOrderDate(order: DriverOrder) {
-  const raw =
-    order.scheduled_date ||
-    order.pickup_date ||
-    order.delivery_date ||
-    order.created_at ||
-    order.updated_at ||
-    null;
-
-  if (!raw) {
-    return null;
-  }
-
-  const date = new Date(raw);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
-}
-
-function startOfDay(date: Date) {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-}
-
-function endOfDay(date: Date) {
-  const value = new Date(date);
-  value.setHours(23, 59, 59, 999);
-  return value;
-}
-
-function subtractDays(date: Date, amount: number) {
-  const value = new Date(date);
-  value.setDate(value.getDate() - amount);
-  return value;
-}
-
-function subtractMonths(date: Date, amount: number) {
-  const value = new Date(date);
-  value.setMonth(value.getMonth() - amount);
-  return value;
-}
-
-function getHistoryBounds(range: HistoryRange) {
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
-
-  switch (range) {
-    case "today":
-      return {
-        from: todayStart,
-        to: todayEnd,
-      };
-
-    case "yesterday": {
-      const yesterday = subtractDays(now, 1);
-
-      return {
-        from: startOfDay(yesterday),
-        to: endOfDay(yesterday),
-      };
-    }
-
-    case "7d":
-      return {
-        from: startOfDay(subtractDays(now, 6)),
-        to: todayEnd,
-      };
-
-    case "30d":
-      return {
-        from: startOfDay(subtractDays(now, 29)),
-        to: todayEnd,
-      };
-
-    case "3m":
-      return {
-        from: startOfDay(subtractMonths(now, 3)),
-        to: todayEnd,
-      };
-
-    case "6m":
-      return {
-        from: startOfDay(subtractMonths(now, 6)),
-        to: todayEnd,
-      };
-
-    case "12m":
-    default:
-      return {
-        from: startOfDay(subtractMonths(now, 12)),
-        to: todayEnd,
-      };
-  }
-}
-
-function formatOrderDate(value: Date) {
-  return new Intl.DateTimeFormat("fr-CA", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(value);
-}
-
-function formatOrderDateShort(value?: string | null) {
-  if (!value) {
-    return "Date non définie";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Date non définie";
-  }
-
-  return new Intl.DateTimeFormat("fr-CA", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-function getClientLabel(order: DriverOrder) {
-  return (
-    order.client_name ||
-    order.company_name ||
-    [
-      order.client_first_name,
-      order.client_last_name,
-    ]
-      .filter(Boolean)
-      .join(" ") ||
-    "Livraison"
-  );
-}
-
-function getVehicleLabel(order: DriverOrder) {
-  const name = [
-    order.vehicle_make,
-    order.vehicle_model,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  if (name && order.vehicle_plate) {
-    return `${name} · ${order.vehicle_plate}`;
-  }
-
-  return (
-    name ||
-    order.vehicle_plate ||
-    "Véhicule non défini"
-  );
-}
-
-
-/* ============================================================
-   PAGE
-============================================================ */
-
-export default function DriverDashboardPage() {
+export default function DriverPage() {
   const router = useRouter();
-
-  const watchIdRef =
-    useRef<number | null>(null);
-
-  const gpsRequestInFlightRef =
-    useRef(false);
-
-  const lastGpsSendAtRef =
-    useRef(0);
-
-  const [user, setUser] =
-    useState<ConnectedUser | null>(null);
-
-  const [driver, setDriver] =
-    useState<Driver | null>(null);
-
-  const [orders, setOrders] =
-    useState<DriverOrder[]>([]);
-
-  const [position, setPosition] =
-    useState<Position | null>(null);
-
-  const [gpsState, setGpsState] =
-    useState<GpsState>("loading");
-
-  const [gpsError, setGpsError] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [refreshing, setRefreshing] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [search, setSearch] =
-    useState("");
-
-  const [filter, setFilter] =
-    useState("all");
-
-  const [page, setPage] =
-    useState(1);
-
-  const [historyRange, setHistoryRange] =
-    useState<HistoryRange>("12m");
-
-  /* ==========================================================
-     API
-  ========================================================== */
-
-  const apiFetch =
-    useCallback(
-      async <T,>(
-        endpoint: string,
-        options: RequestInit = {},
-      ): Promise<T> => {
-        const token =
-          getToken();
-
-        if (!token) {
-          throw new Error(
-            "Session expirée.",
-          );
-        }
-
-        const response =
-          await fetch(
-            `${API_URL}${endpoint}`,
-            {
-              ...options,
-
-              headers: {
-                Accept:
-                  "application/json",
-
-                Authorization:
-                  `Bearer ${token}`,
-
-                ...(options.body
-                  ? {
-                      "Content-Type":
-                        "application/json",
-                    }
-                  : {}),
-
-                ...options.headers,
-              },
-
-              cache:
-                "no-store",
-            },
-          );
-
-        let result: any = {};
-
-        try {
-          result =
-            await response.json();
-        } catch {
-          result = {};
-        }
-
-        if (
-          response.status ===
-          401
-        ) {
-          logout();
-
-          throw new Error(
-            "Session expirée.",
-          );
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            result?.message ||
-              `Erreur API (${response.status}).`,
-          );
-        }
-
-        return result;
-      },
-      [],
-    );
-
-  /* ==========================================================
-     AUTH — IDENTITÉ VÉRIFIÉE PAR LE BACKEND
-
-     IMPORTANT :
-     - le rôle stocké dans localStorage/sessionStorage n'est jamais
-       utilisé comme preuve d'autorisation ;
-     - le JWT est envoyé à /api/auth/me ;
-     - seul le backend décide de l'identité et du rôle réels.
-  ========================================================== */
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const verifySession =
-      async () => {
-        const token =
-          getToken();
-
-        if (!token) {
-          router.replace(
-            "/login",
-          );
-
-          return;
-        }
-
-        try {
-          const result =
-            await apiFetch<any>(
-              "/api/auth/me",
-            );
-
-          if (cancelled) {
-            return;
-          }
-
-          const verifiedUser =
-            result?.user ||
-            result?.data ||
-            null;
-
-          if (
-            !verifiedUser ||
-            verifiedUser.role !==
-              "driver"
-          ) {
-            router.replace(
-              "/dashboard",
-            );
-
-            return;
-          }
-
-          setUser(
-            verifiedUser as ConnectedUser,
-          );
-        } catch (reason) {
-          if (cancelled) {
-            return;
-          }
-
-          console.error(
-            "Vérification de session impossible :",
-            reason,
-          );
-
-          /*
-           * apiFetch gère déjà les 401 et supprime la session.
-           * Pour toute autre erreur d'authentification, on évite
-           * d'afficher des données chauffeur sans identité vérifiée.
-           */
-          setUser(null);
-
-          setLoading(false);
-
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : "Impossible de vérifier votre session.",
-          );
-        }
-      };
-
-    void verifySession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    apiFetch,
-    router,
-  ]);
-
-  /* ==========================================================
-     LOAD DATA
-  ========================================================== */
-
-  const loadDriverData =
-    useCallback(async () => {
-      try {
-        setError("");
-
-        const driverResult =
-          await apiFetch<any>(
-            "/api/drivers/me",
-          );
-
-        const currentDriver =
-          driverResult.driver ||
-          driverResult.data;
-
-        if (!currentDriver) {
-          throw new Error(
-            "Profil chauffeur introuvable.",
-          );
-        }
-
-        setDriver(
-          currentDriver,
-        );
-
-        /*
-         * MES TÂCHES
-         *
-         * SÉCURITÉ :
-         * Le frontend n'envoie aucun driver_id.
-         * Le backend détermine le chauffeur depuis le JWT et ne retourne
-         * que les opérations qui lui sont assignées.
-         */
-        const operationsResult =
-          await apiFetch<any>(
-            "/api/drivers/me/operations",
-          );
-
-        const rawOperations =
-          Array.isArray(operationsResult.operations)
-            ? operationsResult.operations
-            : Array.isArray(operationsResult.data)
-              ? operationsResult.data
-              : [];
-
-        const receivedOrders: DriverOrder[] =
-          rawOperations.map((operation: any) => ({
-            ...operation,
-            id:
-              Number(operation.id) ||
-              Number(operation.operation_id),
-            operation_id:
-              Number(operation.operation_id) ||
-              Number(operation.id),
-            order_id:
-              Number(operation.order_id) ||
-              Number(operation.order?.id) ||
-              undefined,
-            operation_type:
-              operation.operation_type ||
-              operation.type,
-            operation_status:
-              operation.operation_status ||
-              operation.status,
-            status:
-              operation.operation_status ||
-              operation.status,
-            order_number:
-              operation.order_number ||
-              operation.order?.order_number,
-            reference:
-              operation.reference ||
-              operation.order?.reference,
-            pickup_address:
-              operation.pickup_address ||
-              operation.order?.pickup_address,
-            pickup_city:
-              operation.pickup_city ||
-              operation.order?.pickup_city,
-            delivery_address:
-              operation.delivery_address ||
-              operation.order?.delivery_address,
-            delivery_city:
-              operation.delivery_city ||
-              operation.order?.delivery_city,
-            pickup_date:
-              operation.pickup_date ||
-              operation.order?.pickup_date,
-            pickup_time:
-              operation.pickup_time ||
-              operation.order?.pickup_time,
-            delivery_date:
-              operation.delivery_date ||
-              operation.order?.delivery_date,
-            delivery_time:
-              operation.delivery_time ||
-              operation.order?.delivery_time,
-            scheduled_date:
-              operation.scheduled_date ||
-              operation.operation_date ||
-              operation.order?.scheduled_date,
-            scheduled_time:
-              operation.scheduled_time ||
-              operation.operation_time ||
-              operation.order?.scheduled_time,
-            route_position:
-              operation.route_position ??
-              operation.order?.route_position ??
-              null,
-            client_name:
-              operation.client_name ||
-              operation.order?.client_name,
-            company_name:
-              operation.company_name ||
-              operation.order?.company_name,
-            client_first_name:
-              operation.client_first_name ||
-              operation.order?.client_first_name,
-            client_last_name:
-              operation.client_last_name ||
-              operation.order?.client_last_name,
-            vehicle_make:
-              operation.vehicle_make ||
-              operation.order?.vehicle_make,
-            vehicle_model:
-              operation.vehicle_model ||
-              operation.order?.vehicle_model,
-            vehicle_plate:
-              operation.vehicle_plate ||
-              operation.order?.vehicle_plate,
-            stop_count:
-              operation.stop_count ??
-              operation.order?.stop_count,
-            completed_stops:
-              operation.completed_stops ??
-              operation.order?.completed_stops,
-          }));
-
-        const dispatchOrdered = [...receivedOrders].sort(
-          (a, b) => {
-            const aPosition =
-              typeof a.route_position === "number"
-                ? a.route_position
-                : Number.MAX_SAFE_INTEGER;
-
-            const bPosition =
-              typeof b.route_position === "number"
-                ? b.route_position
-                : Number.MAX_SAFE_INTEGER;
-
-            if (aPosition !== bPosition) {
-              return aPosition - bPosition;
-            }
-
-            return a.id - b.id;
-          },
-        );
-
-        setOrders(
-          dispatchOrdered,
-        );
-      } catch (reason) {
-        console.error(reason);
-
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Impossible de charger votre espace.",
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }, [apiFetch]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    void loadDriverData();
-  }, [
-    user,
-    loadDriverData,
-  ]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
+  const [user,setUser] = useState<any>(null);
+  const [driver,setDriver] = useState<any>(null);
+  const [stops,setStops] = useState<Stop[]>([]);
+  const [loading,setLoading] = useState(true);
+  const [refreshing,setRefreshing] = useState(false);
+  const [error,setError] = useState("");
+  const [gpsActive,setGpsActive] = useState(false);
+  const [showCompletedHistory,setShowCompletedHistory] = useState(false);
+  const watchId = useRef<number|null>(null);
+  const lastGps = useRef(0);
+  const gpsBusy = useRef(false);
+
+  const logout = useCallback(() => {
+    if (watchId.current !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(watchId.current);
     }
-
-    const refreshSilently = () => {
-      if (
-        typeof document !== "undefined" &&
-        document.visibilityState !== "visible"
-      ) {
-        return;
-      }
-
-      void loadDriverData();
-    };
-
-    const intervalId =
-      window.setInterval(
-        refreshSilently,
-        5000,
-      );
-
-    window.addEventListener(
-      "focus",
-      refreshSilently,
-    );
-
-    document.addEventListener(
-      "visibilitychange",
-      refreshSilently,
-    );
-
-    return () => {
-      window.clearInterval(
-        intervalId,
-      );
-
-      window.removeEventListener(
-        "focus",
-        refreshSilently,
-      );
-
-      document.removeEventListener(
-        "visibilitychange",
-        refreshSilently,
-      );
-    };
-  }, [
-    user,
-    loadDriverData,
-  ]);
-
-  /* ==========================================================
-     GPS BACKEND
-  ========================================================== */
-
-  const sendPosition =
-    useCallback(
-      async (
-        coords:
-          GeolocationCoordinates,
-      ) => {
-        if (!driver) return;
-
-        const latitude =
-          Number(coords.latitude);
-
-        const longitude =
-          Number(coords.longitude);
-
-        /*
-         * Validation locale défensive.
-         * Le backend refait obligatoirement les mêmes contrôles.
-         */
-        if (
-          !Number.isFinite(
-            latitude,
-          ) ||
-          !Number.isFinite(
-            longitude,
-          ) ||
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          console.error(
-            "Coordonnées GPS locales invalides.",
-          );
-
-          return;
-        }
-
-        const gpsPosition: Position =
-          {
-            latitude,
-
-            longitude,
-
-            accuracy:
-              Number.isFinite(
-                Number(
-                  coords.accuracy,
-                ),
-              )
-                ? Number(
-                    coords.accuracy,
-                  )
-                : null,
-
-            speed:
-              coords.speed !==
-                null &&
-              Number.isFinite(
-                Number(
-                  coords.speed,
-                ),
-              )
-                ? Math.max(
-                    0,
-                    Number(
-                      coords.speed,
-                    ),
-                  )
-                : null,
-
-            heading:
-              coords.heading !==
-                null &&
-              Number.isFinite(
-                Number(
-                  coords.heading,
-                ),
-              )
-                ? Math.min(
-                    360,
-                    Math.max(
-                      0,
-                      Number(
-                        coords.heading,
-                      ),
-                    ),
-                  )
-                : null,
-          };
-
-        setPosition(
-          gpsPosition,
-        );
-
-        const now =
-          Date.now();
-
-        /*
-         * Empêche :
-         * - les requêtes GPS concurrentes ;
-         * - les rafales de watchPosition ;
-         * - une charge inutile sur l'API et MySQL.
-         */
-        if (
-          gpsRequestInFlightRef.current ||
-          now -
-            lastGpsSendAtRef.current <
-            GPS_SEND_INTERVAL_MS
-        ) {
-          return;
-        }
-
-        gpsRequestInFlightRef.current =
-          true;
-
-        lastGpsSendAtRef.current =
-          now;
-
-        try {
-          /*
-           * SÉCURITÉ :
-           *
-           * On n'envoie volontairement PLUS driver_id.
-           * Le trackingController sécurisé détermine le chauffeur
-           * avec le JWT -> users.id -> drivers.user_id.
-           *
-           * Le navigateur ne choisit donc jamais son identité chauffeur.
-           */
-          await apiFetch(
-            "/api/tracking/location",
-            {
-              method:
-                "POST",
-
-              body:
-                JSON.stringify({
-                  ...gpsPosition,
-                }),
-            },
-          );
-        } catch (reason) {
-          console.error(
-            "Erreur GPS backend:",
-            reason,
-          );
-        } finally {
-          gpsRequestInFlightRef.current =
-            false;
-        }
-      },
-      [
-        driver,
-        apiFetch,
-      ],
-    );
-
-  /* ==========================================================
-     START GPS
-  ========================================================== */
-
-  const startGps =
-    useCallback(() => {
-      if (
-        typeof navigator ===
-          "undefined" ||
-        !navigator.geolocation
-      ) {
-        setGpsState(
-          "unsupported",
-        );
-
-        setGpsError(
-          "La géolocalisation n'est pas disponible.",
-        );
-
-        return;
-      }
-
-      if (
-        watchIdRef.current !==
-        null
-      ) {
-        navigator.geolocation.clearWatch(
-          watchIdRef.current,
-        );
-      }
-
-      setGpsState(
-        "loading",
-      );
-
-      const watchId =
-        navigator.geolocation.watchPosition(
-          (gps) => {
-            setGpsState(
-              "active",
-            );
-
-            setGpsError("");
-
-            void sendPosition(
-              gps.coords,
-            );
-          },
-
-          (gpsError) => {
-            if (
-              gpsError.code ===
-              gpsError.PERMISSION_DENIED
-            ) {
-              setGpsState(
-                "denied",
-              );
-
-              setGpsError(
-                "L'accès à votre localisation a été refusé.",
-              );
-
-              return;
-            }
-
-            setGpsState(
-              "error",
-            );
-
-            if (
-              gpsError.code ===
-              gpsError.POSITION_UNAVAILABLE
-            ) {
-              setGpsError(
-                "Position GPS indisponible.",
-              );
-            } else if (
-              gpsError.code ===
-              gpsError.TIMEOUT
-            ) {
-              setGpsError(
-                "Le GPS prend trop de temps à répondre.",
-              );
-            } else {
-              setGpsError(
-                "Impossible de récupérer votre position.",
-              );
-            }
-          },
-
-          {
-            enableHighAccuracy:
-              true,
-
-            timeout: 15000,
-
-            maximumAge: 5000,
-          },
-        );
-
-      watchIdRef.current =
-        watchId;
-    }, [sendPosition]);
-
-  /* ==========================================================
-     AUTO GPS
-  ========================================================== */
-
-  useEffect(() => {
-    if (!driver) return;
-
-    if (
-      typeof navigator ===
-        "undefined" ||
-      !navigator.geolocation
-    ) {
-      setGpsState(
-        "unsupported",
-      );
-
-      return;
-    }
-
-    const initializeGps =
-      async () => {
-        try {
-          if (
-            !navigator.permissions
-          ) {
-            startGps();
-            return;
-          }
-
-          const permission =
-            await navigator.permissions.query(
-              {
-                name:
-                  "geolocation",
-              },
-            );
-
-          if (
-            permission.state ===
-            "granted"
-          ) {
-            startGps();
-          } else if (
-            permission.state ===
-            "prompt"
-          ) {
-            /*
-             * Le navigateur affiche sa demande système
-             * automatiquement à la première utilisation.
-             * Après autorisation, les ouvertures suivantes
-             * démarrent le suivi sans bouton supplémentaire.
-             */
-            startGps();
-          } else {
-            setGpsState(
-              "denied",
-            );
-          }
-
-          permission.onchange =
-            () => {
-              if (
-                permission.state ===
-                "granted"
-              ) {
-                startGps();
-              }
-
-              if (
-                permission.state ===
-                "denied"
-              ) {
-                setGpsState(
-                  "denied",
-                );
-              }
-            };
-        } catch {
-          startGps();
-        }
-      };
-
-    void initializeGps();
-
-    return () => {
-      if (
-        watchIdRef.current !==
-        null
-      ) {
-        navigator.geolocation.clearWatch(
-          watchIdRef.current,
-        );
-
-        watchIdRef.current =
-          null;
-      }
-    };
-  }, [
-    driver,
-    startGps,
-  ]);
-
-  /* ==========================================================
-     LOGOUT
-  ========================================================== */
-
-  function logout() {
-    if (
-      typeof navigator !==
-        "undefined" &&
-      navigator.geolocation &&
-      watchIdRef.current !==
-        null
-    ) {
-      navigator.geolocation.clearWatch(
-        watchIdRef.current,
-      );
-
-      watchIdRef.current =
-        null;
-    }
-
-    gpsRequestInFlightRef.current =
-      false;
-
-    lastGpsSendAtRef.current =
-      0;
-
-    localStorage.removeItem(
-      "glory_token",
-    );
-
-    localStorage.removeItem(
-      "token",
-    );
-
-    localStorage.removeItem(
-      "glory_user",
-    );
-
-    sessionStorage.removeItem(
-      "glory_token",
-    );
-
-    sessionStorage.removeItem(
-      "token",
-    );
-
-    sessionStorage.removeItem(
-      "glory_user",
-    );
-
+    ["glory_token","token"].forEach(k => {
+      localStorage.removeItem(k); sessionStorage.removeItem(k);
+    });
     router.replace("/login");
-  }
+  },[router]);
 
-  /* ==========================================================
-     STATS
-  ========================================================== */
+  const api = useCallback(async (path:string, init:RequestInit={}) => {
+    const token=getToken();
+    if(!token){ logout(); throw new Error("Session expirée."); }
+    const r=await fetch(API_URL+path,{
+      ...init, cache:"no-store",
+      headers:{Accept:"application/json",Authorization:`Bearer ${token}`,...(init.body?{"Content-Type":"application/json"}:{}),...(init.headers||{})}
+    });
+    let j:any={}; try{j=await r.json()}catch{}
+    if(r.status===401){logout();throw new Error("Session expirée.");}
+    if(!r.ok || j.success===false) throw new Error(j.message||`Erreur API (${r.status})`);
+    return j;
+  },[logout]);
 
-  const activeOrders =
-    useMemo(
-      () =>
-        orders.filter(
-          (order) =>
-            [
-              "assigned",
-              "accepted",
-              "pickup_in_progress",
-              "picked_up",
-              "in_transit",
-              "delivery_in_progress",
-              "arrived",
-            ].includes(
-              order.status || "",
-            ),
-        ).length,
-      [orders],
-    );
+  const load = useCallback(async(silent=false)=>{
+    try{
+      if(!silent)setRefreshing(true);
+      setError("");
+      const [d,t]=await Promise.all([
+        api("/api/drivers/me"),
+        api("/api/drivers/me/dispatch-tasks")
+      ]);
+      setDriver(d.driver||d.data||null);
+      const raw=Array.isArray(t.tasks)?t.tasks:Array.isArray(t.dispatch_tasks)?t.dispatch_tasks:Array.isArray(t.data)?t.data:[];
+      setStops(raw.filter((x:any)=>Number(x.id)>0 && ["pickup","delivery"].includes(x.task_type))
+        .map((x:any)=>({...x,id:Number(x.id),orders:Array.isArray(x.orders)?x.orders:[]}))
+         .sort((a:any,b:any)=>{
+          const rank=(x:any)=>{const st=stopStatus(x);return st==="progress"?0:st==="pending"?1:st==="exception"?2:3};
+          return rank(a)-rank(b)||(Number(a.stop_position)||999999)-(Number(b.stop_position)||999999)||a.id-b.id;
+        }));
+    }catch(e:any){setError(e.message||"Impossible de charger la route.");}
+    finally{setLoading(false);setRefreshing(false)}
+  },[api]);
 
-  const completedOrders =
-    useMemo(
-      () =>
-        orders.filter(
-          (order) =>
-            [
-              "completed",
-              "delivered",
-            ].includes(
-              order.status || "",
-            ),
-        ).length,
-      [orders],
-    );
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const me=await api("/api/auth/me");
+        const u=me.user||me.data;
+        if(!u || u.role!=="driver"){router.replace("/dashboard");return;}
+        setUser(u); await load();
+      }catch(e:any){setError(e.message);setLoading(false)}
+    })();
+  },[api,load,router]);
 
-  const incidentOrders =
-    useMemo(
-      () =>
-        orders.filter(
-          (order) =>
-            [
-              "incident",
-              "cancelled",
-            ].includes(
-              order.status || "",
-            ),
-        ).length,
-      [orders],
-    );
+  useEffect(()=>{
+    if(!user)return;
+    const id=window.setInterval(()=>{if(document.visibilityState==="visible")void load(true)},8000);
+    const focus=()=>void load(true);
+    window.addEventListener("focus",focus);
+    return()=>{clearInterval(id);window.removeEventListener("focus",focus)}
+  },[user,load]);
 
-  const activeDelivery =
-    useMemo(
-      () =>
-        orders.find(
-          (order) =>
-            [
-              "pickup_in_progress",
-              "picked_up",
-              "in_transit",
-              "delivery_in_progress",
-              "arrived",
-            ].includes(
-              order.status || "",
-            ),
-        ) ||
-        orders.find(
-          (order) =>
-            [
-              "assigned",
-              "accepted",
-            ].includes(
-              order.status || "",
-            ),
-        ) ||
-        null,
-      [orders],
-    );
+  useEffect(()=>{
+    if(!driver || !navigator.geolocation)return;
+    watchId.current=navigator.geolocation.watchPosition(async p=>{
+      setGpsActive(true);
+      const now=Date.now();
+      if(gpsBusy.current || now-lastGps.current<GPS_SEND_INTERVAL_MS)return;
+      gpsBusy.current=true;lastGps.current=now;
+      try{
+        await api("/api/tracking/location",{method:"POST",body:JSON.stringify({
+          latitude:p.coords.latitude,longitude:p.coords.longitude,
+          accuracy:Number.isFinite(p.coords.accuracy)?p.coords.accuracy:null,
+          speed:p.coords.speed,heading:p.coords.heading
+        })});
+      }catch{}finally{gpsBusy.current=false}
+    },()=>setGpsActive(false),{enableHighAccuracy:true,maximumAge:3000,timeout:10000});
+    return()=>{if(watchId.current!==null)navigator.geolocation.clearWatch(watchId.current)}
+  },[driver,api]);
 
-  /* ==========================================================
-     FILTERING + HISTORIQUE 12 MOIS
-  ========================================================== */
+  const stats=useMemo(()=>({
+    total:stops.length,
+    progress:stops.filter(s=>stopStatus(s)==="progress").length,
+    completed:stops.filter(s=>stopStatus(s)==="completed").length,
+    exceptions:stops.filter(s=>stopStatus(s)==="exception").length
+  }),[stops]);
 
-  const filteredOrders =
-    useMemo(() => {
-      const value =
-        search
-          .trim()
-          .toLowerCase();
+  const activeStops = useMemo(
+    () => stops.filter(s => stopStatus(s) !== "completed"),
+    [stops]
+  );
 
-      const { from, to } =
-        getHistoryBounds(
-          historyRange,
-        );
+  const completedStops = useMemo(
+    () => stops.filter(s => stopStatus(s) === "completed"),
+    [stops]
+  );
 
-      return orders.filter(
-        (order) => {
-          const orderDate =
-            getOrderDate(order);
+  const renderStop = (s: Stop, index: number, count: number) => {
+    const packages=s.orders?.flatMap(o=>o.packages||[])||[];
+    const treated=packages.filter((p:any)=>Number(p.scanned)===1||p.scanned===true||p.exception_id).length;
+    const total=packages.length||Number(s.total_packages||0);
+    const status=stopStatus(s);
+    const address=[s.address,s.city,s.province,s.postal_code].filter(Boolean).join(", ");
+    const isCompleted=status==="completed";
 
-          const matchesDate =
-            orderDate !== null &&
-            orderDate >= from &&
-            orderDate <= to;
-
-          const matchesSearch =
-            !value ||
-            [
-              order.order_number,
-              order.reference,
-              order.client_name,
-              order.company_name,
-              order.client_first_name,
-              order.client_last_name,
-              order.pickup_address,
-              order.delivery_address,
-              order.pickup_city,
-              order.delivery_city,
-              order.vehicle_make,
-              order.vehicle_model,
-              order.vehicle_plate,
-            ]
-              .filter(Boolean)
-              .some((item) =>
-                String(
-                  item,
-                )
-                  .toLowerCase()
-                  .includes(
-                    value,
-                  ),
-              );
-
-          let matchesFilter =
-            true;
-
-          if (
-            filter ===
-            "active"
-          ) {
-            matchesFilter =
-              [
-                "assigned",
-                "accepted",
-                "pickup_in_progress",
-                "picked_up",
-                "in_transit",
-                "delivery_in_progress",
-                "arrived",
-              ].includes(
-                order.status || "",
-              );
-          }
-
-          if (
-            filter ===
-            "completed"
-          ) {
-            matchesFilter =
-              [
-                "completed",
-                "delivered",
-              ].includes(
-                order.status || "",
-              );
-          }
-
-          if (
-            filter ===
-            "incident"
-          ) {
-            matchesFilter =
-              [
-                "incident",
-                "cancelled",
-              ].includes(
-                order.status || "",
-              );
-          }
-
-          return (
-            matchesDate &&
-            matchesSearch &&
-            matchesFilter
-          );
-        },
-      );
-    }, [
-      orders,
-      search,
-      filter,
-      historyRange,
-    ]);
-
-  const sortedFilteredOrders =
-    useMemo(
-      () =>
-        [...filteredOrders].sort(
-          (a, b) => {
-            const aDate =
-              getOrderDate(a);
-
-            const bDate =
-              getOrderDate(b);
-
-            const aTime =
-              aDate?.getTime() || 0;
-
-            const bTime =
-              bDate?.getTime() || 0;
-
-            if (aTime !== bTime) {
-              return bTime - aTime;
-            }
-
-            const aPosition =
-              typeof a.route_position ===
-              "number"
-                ? a.route_position
-                : Number.MAX_SAFE_INTEGER;
-
-            const bPosition =
-              typeof b.route_position ===
-              "number"
-                ? b.route_position
-                : Number.MAX_SAFE_INTEGER;
-
-            if (
-              aPosition !==
-              bPosition
-            ) {
-              return (
-                aPosition -
-                bPosition
-              );
-            }
-
-            return b.id - a.id;
-          },
-        ),
-      [filteredOrders],
-    );
-
-  const totalPages =
-    Math.max(
-      1,
-      Math.ceil(
-        sortedFilteredOrders.length /
-          ITEMS_PER_PAGE,
-      ),
-    );
-
-  useEffect(() => {
-    setPage(1);
-  }, [
-    search,
-    filter,
-    historyRange,
-  ]);
-
-  useEffect(() => {
-    if (
-      page >
-      totalPages
-    ) {
-      setPage(
-        totalPages,
-      );
-    }
-  }, [
-    page,
-    totalPages,
-  ]);
-
-  const visibleOrders =
-    sortedFilteredOrders.slice(
-      (page - 1) *
-        ITEMS_PER_PAGE,
-      page *
-        ITEMS_PER_PAGE,
-    );
-
-  const groupedVisibleOrders =
-    useMemo(() => {
-      const groups = new Map<
-        string,
-        {
-          date: Date;
-          orders: DriverOrder[];
-        }
-      >();
-
-      for (
-        const order of visibleOrders
-      ) {
-        const date =
-          getOrderDate(order);
-
-        if (!date) {
-          continue;
-        }
-
-        const key =
-          `${date.getFullYear()}-${String(
-            date.getMonth() + 1,
-          ).padStart(
-            2,
-            "0",
-          )}-${String(
-            date.getDate(),
-          ).padStart(
-            2,
-            "0",
-          )}`;
-
-        const existing =
-          groups.get(key);
-
-        if (existing) {
-          existing.orders.push(
-            order,
-          );
-        } else {
-          groups.set(
-            key,
-            {
-              date,
-              orders: [order],
-            },
-          );
-        }
-      }
-
-      return Array.from(
-        groups.values(),
-      ).sort(
-        (a, b) =>
-          b.date.getTime() -
-          a.date.getTime(),
-      );
-    }, [
-      visibleOrders,
-    ]);
-
-  const yearOrderCount =
-    useMemo(() => {
-      const bounds =
-        getHistoryBounds("12m");
-
-      return orders.filter(
-        (order) => {
-          const date =
-            getOrderDate(order);
-
-          return (
-            date !== null &&
-            date >= bounds.from &&
-            date <= bounds.to
-          );
-        },
-      ).length;
-    }, [orders]);
-
-  /* ==========================================================
-     LOADING
-  ========================================================== */
-
-  if (loading) {
-    return (
-      <main
-        className={
-          styles.loading
-        }
-      >
-        <div
-          className={
-            styles.loadingLogo
-          }
-        >
-          GS
-        </div>
-
-        <div
-          className={
-            styles.spinner
-          }
-        />
-
-        <strong>
-          Glory Solutions
-        </strong>
-
-        <p>
-          Chargement de votre espace chauffeur...
-        </p>
-      </main>
-    );
-  }
-
-  /* ==========================================================
-     UI
-  ========================================================== */
-
-  return (
-    <main
-      className={
-        styles.page
-      }
+    return <article
+      key={s.id}
+      onClick={()=>router.push(`/dashboard/driver/tasks/${s.id}`)}
+      style={{
+        padding:"16px 18px",
+        borderBottom:index<count-1?"1px solid #eee":"none",
+        cursor:"pointer",
+        display:"grid",
+        gap:10,
+        background:isCompleted?"#fbfefc":"#fff"
+      }}
     >
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
+      <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start"}}>
+        <div>
+          <small style={{fontWeight:900,color:s.task_type==="pickup"?"#0f766e":"#b42318"}}>
+            {s.task_type==="pickup"?"RAMASSAGE":"LIVRAISON"} · STOP {s.stop_position?`#${s.stop_position}`:`#${s.id}`}
+          </small>
 
-      <header
-        className={
-          styles.header
-        }
-      >
-        <div
-          className={
-            styles.headerIdentity
-          }
-        >
-          <span
-            className={
-              styles.eyebrow
-            }
-          >
-            GLORY SOLUTIONS
-          </span>
-
-          <h1>
-            Bonjour{" "}
-            {user?.first_name ||
-              driver?.first_name ||
-              "Chauffeur"}
-          </h1>
-
-          <p>
-            Votre espace de travail pour gérer toutes vos tâches assignées.
-          </p>
+          <h3 style={{margin:"5px 0"}}>
+            {address||"Adresse à confirmer"}
+          </h3>
         </div>
 
-        <div
-          className={
-            styles.headerActions
-          }
-        >
-          <button
-            type="button"
-            className={
-              styles.notificationButton
-            }
-            aria-label="Notifications"
-          >
-            <Bell
-              size={19}
-            />
+        <span style={{
+          fontWeight:900,
+          fontSize:12,
+          padding:"6px 9px",
+          borderRadius:999,
+          background:
+            status==="completed"?"#dcfce7":
+            status==="exception"?"#fee2e2":
+            status==="progress"?"#dbeafe":
+            "#f3f4f6",
+          color:
+            status==="completed"?"#166534":
+            status==="exception"?"#991b1b":
+            status==="progress"?"#1d4ed8":
+            "#374151"
+        }}>
+          {isCompleted && <CheckCircle2 size={13} style={{verticalAlign:"middle",marginRight:4}}/>}
+          {label(s)}
+        </span>
+      </div>
 
-            <span />
-          </button>
+      <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:14,color:"#555"}}>
+        <span>
+          <PackageCheck size={15} style={{verticalAlign:"middle"}}/> {s.orders?.length||0} commande(s)
+        </span>
 
-          <div
-            className={
-              styles.driverMiniProfile
-            }
-          >
-            <div
-              className={
-                styles.driverAvatar
-              }
-            >
-              {(
-                user?.first_name?.[0] ||
-                "D"
-              ).toUpperCase()}
+        <span>
+          <ScanLine size={15} style={{verticalAlign:"middle"}}/> {treated}/{total} unité(s) traitée(s)
+        </span>
+
+        {s.scheduled_time&&
+          <span>
+            <Clock3 size={15} style={{verticalAlign:"middle"}}/> {s.scheduled_time}
+          </span>
+        }
+
+        {isCompleted && s.run?.closed_at &&
+          <span style={{fontWeight:800,color:"#166534"}}>
+            <CheckCircle2 size={15} style={{verticalAlign:"middle"}}/> Fermé {new Date(s.run.closed_at).toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"})}
+          </span>
+        }
+      </div>
+
+      {packages.length>0&&
+        <div style={{
+          display:"grid",
+          gap:6,
+          fontSize:14,
+          background:isCompleted?"#f0fdf4":"#f8fafc",
+          borderRadius:10,
+          padding:10
+        }}>
+          {packages.map((p:any)=>
+            <div key={p.id} style={{display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+              <span><b>Type :</b> {p.package_type==="pallet"?"Palette":"Colis"}</span>
+              <span><b>Poids :</b> {p.weight!=null&&p.weight!==""?`${p.weight} ${p.weight_unit||"lb"}`:"—"}</span>
             </div>
+          )}
+        </div>
+      }
 
-            <div>
-              <strong>
-                {[
-                  user?.first_name,
-                  user?.last_name,
-                ]
-                  .filter(
-                    Boolean,
-                  )
-                  .join(
-                    " ",
-                  ) ||
-                  "Chauffeur"}
-              </strong>
+      {s.orders?.some((o:any)=>String(o.notes||"").trim())&&
+        <div style={{fontSize:13,color:"#555"}}>
+          <b>Instructions :</b> {s.orders?.map((o:any)=>o.notes).filter(Boolean).join(" · ")}
+        </div>
+      }
 
-              <span>
-                {availabilityLabel(
-                  driver?.availability_status,
-                )}
-              </span>
-            </div>
-          </div>
+      <button
+        style={{
+          ...button,
+          width:"100%",
+          background:isCompleted?"#f0fdf4":"#17191d",
+          color:isCompleted?"#166534":"#fff",
+          borderColor:isCompleted?"#bbf7d0":"#17191d"
+        }}
+        onClick={e=>{
+          e.stopPropagation();
+          router.push(`/dashboard/driver/tasks/${s.id}`);
+        }}
+      >
+        {isCompleted ? "Consulter le stop terminé" : "Ouvrir le stop"}
+        <ChevronRight size={17}/>
+      </button>
+    </article>;
+  };
 
-          <button
-            type="button"
-            className={
-              styles.logout
-            }
-            onClick={
-              logout
-            }
-            aria-label="Déconnexion"
-          >
-            <LogOut
-              size={18}
-            />
-          </button>
+  if(loading)return <main style={{minHeight:"100dvh",padding:24,background:"#f5f6f8"}}><DriverLiveTracking/><b>Chargement de votre route…</b></main>;
+
+  return <main style={{minHeight:"100dvh",background:"#f5f6f8",color:"#17191d",padding:"18px 12px 70px"}}>
+    <div style={{maxWidth:980,margin:"auto",display:"grid",gap:14}}>
+      <header style={{...card,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div>
+          <small style={{fontWeight:900,color:"#d9043d",letterSpacing:".08em"}}>GLORY SOLUTIONS · CHAUFFEUR</small>
+          <h1 style={{margin:"6px 0 2px",fontSize:"clamp(25px,5vw,38px)"}}>Route du jour</h1>
+          <p style={{margin:0,color:"#60646c"}}>{driver?.first_name||user?.first_name||"Chauffeur"} · {gpsActive?"GPS actif":"GPS à vérifier"}</p>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button style={button} disabled={refreshing} onClick={()=>load()}><RefreshCw size={17}/>{refreshing?"...":"Actualiser"}</button>
+          <button style={button} onClick={logout}><LogOut size={17}/>Déconnexion</button>
         </div>
       </header>
 
-      {/* ======================================================
-          GPS / STATUS
-      ====================================================== */}
+      {error&&<div style={{...card,borderColor:"#ef4444",color:"#991b1b",display:"flex",gap:8}}><AlertTriangle size={19}/>{error}</div>}
 
-      <section
-        className={`${styles.gpsCard} ${
-          gpsState ===
-          "active"
-            ? styles.gpsOnline
-            : styles.gpsOffline
-        }`}
-      >
-        <div
-          className={
-            styles.gpsIcon
+      <section style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
+        {[
+          {
+            title:"Total stops",
+            value:stats.total,
+            icon:<Navigation size={21}/>,
+            action:null
+          },
+          {
+            title:"En cours",
+            value:stats.progress,
+            icon:<Clock3 size={21}/>,
+            action:null
+          },
+          {
+            title:"Terminés",
+            value:stats.completed,
+            icon:<CheckCircle2 size={21}/>,
+            action:()=>setShowCompletedHistory(true)
+          },
+          {
+            title:"Exceptions",
+            value:stats.exceptions,
+            icon:<AlertTriangle size={21}/>,
+            action:null
           }
-        >
-          {gpsState ===
-          "active" ? (
-            <Navigation
-              size={21}
-            />
-          ) : (
-            <WifiOff
-              size={21}
-            />
-          )}
-        </div>
-
-        <div
-          className={
-            styles.gpsContent
-          }
-        >
-          <div
-            className={
-              styles.gpsTitle
-            }
-          >
-            <strong>
-              {gpsState ===
-              "active"
-                ? "Suivi GPS actif"
-                : gpsState ===
-                    "permission"
-                  ? "Activation GPS requise"
-                  : gpsState ===
-                      "loading"
-                    ? "Connexion GPS..."
-                    : "GPS inactif"}
-            </strong>
-
-            {gpsState ===
-              "active" && (
-              <span
-                className={
-                  styles.liveIndicator
-                }
-              >
-                <span />
-
-                EN DIRECT
-              </span>
-            )}
-          </div>
-
-          <p>
-            {gpsState ===
-            "active"
-              ? position?.accuracy
-                ? `Position synchronisée · précision ±${Math.round(
-                    position.accuracy,
-                  )} m`
-                : "Votre position est transmise à Glory Solutions."
-              : gpsError ||
-                "Le suivi permet à l'équipe opérationnelle de connaître votre position pendant vos livraisons."}
-          </p>
-        </div>
-
-        {gpsState ===
-          "permission" && (
+        ].map((item:any)=>
           <button
+            key={item.title}
             type="button"
-            className={
-              styles.activateGps
-            }
-            onClick={
-              startGps
-            }
-          >
-            <Navigation
-              size={16}
-            />
-
-            Activer le GPS
-          </button>
-        )}
-
-        {gpsState ===
-          "active" && (
-          <div
-            className={
-              styles.gpsBadge
-            }
-          >
-            <Wifi
-              size={15}
-            />
-
-            Connecté
-          </div>
-        )}
-      </section>
-
-      {/* ======================================================
-          STATS
-      ====================================================== */}
-
-      <section
-        className={
-          styles.stats
-        }
-      >
-        <StatCard
-          icon={
-            <PackageCheck
-              size={20}
-            />
-          }
-          label="Tâches"
-          value={
-            yearOrderCount
-          }
-          description="12 derniers mois"
-        />
-
-        <StatCard
-          icon={
-            <Truck
-              size={20}
-            />
-          }
-          label="En cours"
-          value={
-            activeOrders
-          }
-          description="À effectuer"
-        />
-
-        <StatCard
-          icon={
-            <CheckCircle2
-              size={20}
-            />
-          }
-          label="Terminées"
-          value={
-            completedOrders
-          }
-          description="Complétées"
-        />
-
-        <StatCard
-          icon={
-            <AlertTriangle
-              size={20}
-            />
-          }
-          label="Incidents"
-          value={
-            incidentOrders
-          }
-          description="À vérifier"
-        />
-      </section>
-
-      {/* ======================================================
-          ACTIVE DELIVERY
-      ====================================================== */}
-
-      {activeDelivery && (
-        <section
-          className={
-            styles.activeDelivery
-          }
-        >
-          <div
-            className={
-              styles.activeDeliveryHeader
-            }
-          >
-            <div>
-              <span
-                className={
-                  styles.sectionLabel
-                }
-              >
-                {activeDelivery.route_position
-                  ? `${operationTypeLabel(activeDelivery.operation_type)} · #${activeDelivery.route_position}`
-                  : operationTypeLabel(activeDelivery.operation_type)}
-              </span>
-
-              <h2>
-                Votre prochaine tâche
-              </h2>
-            </div>
-
-            <span
-              className={`${styles.orderStatus} ${statusClass(
-                activeDelivery.status,
-              )}`}
-            >
-              {statusLabel(
-                activeDelivery.status,
-              )}
-            </span>
-          </div>
-
-          <div
-            className={
-              styles.activeDeliveryBody
-            }
-          >
-            <div
-              className={
-                styles.activeOrderIdentity
-              }
-            >
-              <span>
-                COMMANDE
-              </span>
-
-              <strong>
-                #
-                {activeDelivery.order_number ||
-                  activeDelivery.reference ||
-                  activeDelivery.id}
-              </strong>
-
-              <p>
-                {activeDelivery.client_name ||
-                  "Livraison Glory Solutions"}
-              </p>
-            </div>
-
-            <div
-              className={
-                styles.activeRoute
-              }
-            >
-              <RoutePoint
-                type="pickup"
-                label="RAMASSAGE"
-                address={
-                  activeDelivery.pickup_address ||
-                  "Adresse non disponible"
-                }
-                city={
-                  activeDelivery.pickup_city
-                }
-              />
-
-              <div
-                className={
-                  styles.activeRouteLine
-                }
-              />
-
-              <RoutePoint
-                type="delivery"
-                label="LIVRAISON"
-                address={
-                  activeDelivery.delivery_address ||
-                  "Adresse non disponible"
-                }
-                city={
-                  activeDelivery.delivery_city
-                }
-              />
-            </div>
-
-            <button
-              type="button"
-              className={
-                styles.activeDeliveryButton
-              }
-              onClick={() =>
-                router.push(
-                  `/dashboard/driver/tasks/${activeDelivery.operation_id || activeDelivery.id}`,
-                )
-              }
-            >
-              Ouvrir la tâche
-
-              <ChevronRight
-                size={17}
-              />
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* ======================================================
-          ORDERS HEADER
-      ====================================================== */}
-
-      <section
-        className={
-          styles.ordersSection
-        }
-      >
-        <div
-          className={
-            styles.sectionHeader
-          }
-        >
-          <div>
-            <span
-              className={
-                styles.sectionLabel
-              }
-            >
-              MES TÂCHES
-            </span>
-
-            <h2>
-              Historique des tâches
-            </h2>
-
-            <p>
-              Consultez toutes vos tâches assignées des 12 derniers mois, séparées par date.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className={
-              styles.refresh
-            }
-            onClick={() =>
-              router.push(
-                "/dashboard/driver/scanner",
-              )
-            }
-          >
-            <ScanLine
-              size={17}
-            />
-
-            <span>
-              Scanner un colis
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={
-              styles.refresh
-            }
-            disabled={
-              refreshing
-            }
-            onClick={() => {
-              setRefreshing(
-                true,
-              );
-
-              void loadDriverData();
+            onClick={item.action || undefined}
+            style={{
+              ...card,
+              appearance:"none",
+              textAlign:"left",
+              font:"inherit",
+              color:"inherit",
+              width:"100%",
+              cursor:item.action?"pointer":"default",
+              transition:"transform .15s ease, box-shadow .15s ease",
+              ...(item.title==="Terminés" ? {
+                borderColor:"#bbf7d0",
+                background:"#f0fdf4"
+              } : {})
             }}
           >
-            <RefreshCw
-              size={17}
-              className={
-                refreshing
-                  ? styles.rotating
-                  : ""
-              }
-            />
+            <div style={{
+              display:"flex",
+              justifyContent:"space-between",
+              alignItems:"center",
+              color:item.title==="Terminés"?"#166534":"#666"
+            }}>
+              <b>{item.title}</b>
+              {item.icon}
+            </div>
 
-            <span>
-              Actualiser
-            </span>
+            <strong style={{
+              fontSize:30,
+              display:"block",
+              marginTop:8,
+              color:item.title==="Terminés"?"#166534":"inherit"
+            }}>
+              {item.value}
+            </strong>
+
+            {item.title==="Terminés" &&
+              <small style={{
+                display:"block",
+                marginTop:5,
+                fontWeight:800,
+                color:"#15803d"
+              }}>
+                Voir l'historique
+              </small>
+            }
           </button>
-        </div>
-
-        {/* FILTERS */}
-
-        <div
-          className={
-            styles.commandBar
-          }
-        >
-          <div
-            className={
-              styles.searchBox
-            }
-          >
-            <Search
-              size={17}
-            />
-
-            <input
-              type="search"
-              placeholder="Rechercher une tâche, une commande, une adresse..."
-              value={
-                search
-              }
-              onChange={(
-                event,
-              ) =>
-                setSearch(
-                  event.target
-                    .value,
-                )
-              }
-            />
-          </div>
-
-          <div
-            className={
-              styles.filters
-            }
-          >
-            <Clock3
-              size={15}
-            />
-
-            {[
-              ["today", "Aujourd’hui"],
-              ["yesterday", "Hier"],
-              ["7d", "7 jours"],
-              ["30d", "30 jours"],
-              ["3m", "3 mois"],
-              ["6m", "6 mois"],
-              ["12m", "1 an"],
-            ].map(
-              ([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={
-                    historyRange === value
-                      ? styles.filterActive
-                      : ""
-                  }
-                  onClick={() =>
-                    setHistoryRange(
-                      value as HistoryRange,
-                    )
-                  }
-                >
-                  {label}
-                </button>
-              ),
-            )}
-          </div>
-
-          <div
-            className={
-              styles.filters
-            }
-          >
-            <Filter
-              size={15}
-            />
-
-            {[
-              [
-                "all",
-                "Toutes",
-              ],
-              [
-                "active",
-                "En cours",
-              ],
-              [
-                "completed",
-                "Terminées",
-              ],
-              [
-                "incident",
-                "Incidents",
-              ],
-            ].map(
-              ([
-                value,
-                label,
-              ]) => (
-                <button
-                  key={
-                    value
-                  }
-                  type="button"
-                  className={
-                    filter ===
-                    value
-                      ? styles.filterActive
-                      : ""
-                  }
-                  onClick={() =>
-                    setFilter(
-                      value,
-                    )
-                  }
-                >
-                  {label}
-                </button>
-              ),
-            )}
-          </div>
-        </div>
-
-        {error && (
-          <div
-            className={
-              styles.error
-            }
-          >
-            <AlertTriangle
-              size={17}
-            />
-
-            {error}
-          </div>
         )}
+      </section>
 
-        {/* ====================================================
-            ORDER LIST
-        ==================================================== */}
+      <section style={{display:"grid",gap:14}}>
 
-        <div
-          className={
-            styles.orders
+        <div style={{...card,padding:0,overflow:"hidden"}}>
+          <div style={{
+            padding:"17px 18px",
+            borderBottom:"1px solid #eee",
+            display:"flex",
+            justifyContent:"space-between",
+            gap:8,
+            alignItems:"center"
+          }}>
+            <div>
+              <b style={{fontSize:20}}>En cours / À faire</b>
+              <div style={{fontSize:13,color:"#6b7280"}}>
+                Les stops actifs de votre route.
+              </div>
+            </div>
+
+            <span style={{
+              display:"inline-flex",
+              alignItems:"center",
+              gap:6,
+              fontSize:13,
+              fontWeight:800
+            }}>
+              {gpsActive?<Wifi size={16}/>:<WifiOff size={16}/>} GPS
+            </span>
+          </div>
+
+          {activeStops.length===0
+            ? <div style={{padding:28,textAlign:"center"}}>
+                <CheckCircle2 size={34} style={{color:"#16a34a"}}/>
+                <h3>Aucun stop actif</h3>
+                <p style={{color:"#666",marginBottom:0}}>
+                  Tous les stops actuellement disponibles sont terminés.
+                </p>
+              </div>
+            : <div style={{display:"grid"}}>
+                {activeStops.map((s,index)=>renderStop(s,index,activeStops.length))}
+              </div>
           }
-          style={{
-            maxHeight: "72vh",
-            overflowY: "auto",
-            paddingRight: 4,
-          }}
-        >
-          {visibleOrders.length ===
-          0 ? (
-            <div
-              className={
-                styles.emptyState
-              }
-            >
-              <div
-                className={
-                  styles.emptyIcon
-                }
-              >
-                <Truck
-                  size={29}
-                />
+        </div>
+
+        {completedStops.length>0 &&
+          <div style={{
+            ...card,
+            padding:0,
+            overflow:"hidden",
+            borderColor:"#bbf7d0"
+          }}>
+            <div style={{
+              padding:"17px 18px",
+              borderBottom:"1px solid #dcfce7",
+              background:"#f0fdf4"
+            }}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <CheckCircle2 size={21} style={{color:"#16a34a"}}/>
+                <b style={{fontSize:20,color:"#166534"}}>
+                  Terminés aujourd'hui
+                </b>
               </div>
 
-              <h3>
-                Aucune tâche
-              </h3>
-
-              <p>
-                Aucune tâche ne correspond à la période et aux filtres sélectionnés.
-              </p>
+              <div style={{
+                fontSize:13,
+                color:"#4b7358",
+                marginTop:4
+              }}>
+                {completedStops.length} stop{completedStops.length>1?"s":""} terminé{completedStops.length>1?"s":""} · consultation seulement
+              </div>
             </div>
-          ) : (
-            groupedVisibleOrders.map(
-              (group) => (
-                <section
-                  key={
-                    group.date.toISOString()
-                  }
-                  style={{
-                    display: "grid",
-                    gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "sticky",
-                      top: 0,
-                      zIndex: 4,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent:
-                        "space-between",
-                      gap: 12,
-                      padding:
-                        "10px 12px",
-                      borderRadius: 12,
-                      background:
-                        "rgba(255,255,255,0.96)",
-                      border:
-                        "1px solid rgba(15,23,42,0.08)",
-                      backdropFilter:
-                        "blur(12px)",
-                    }}
-                  >
-                    <div>
-                      <strong
-                        style={{
-                          display: "block",
-                          textTransform:
-                            "capitalize",
-                        }}
-                      >
-                        {formatOrderDate(
-                          group.date,
-                        )}
-                      </strong>
 
-                      <span
-                        style={{
-                          fontSize: 12,
-                          opacity: 0.65,
-                        }}
-                      >
-                        {
-                          group.orders
-                            .length
-                        }{" "}
-                        commande
-                        {group.orders
-                          .length > 1
-                          ? "s"
-                          : ""}
-                      </span>
-                    </div>
-
-                    <Clock3
-                      size={17}
-                    />
-                  </div>
-
-                  {group.orders.map(
-                    (order) => (
-                      <article
-                        key={
-                          order.id
-                        }
-                        className={
-                          styles.orderCard
-                        }
-                      >
-                        <div
-                          className={
-                            styles.orderTop
-                          }
-                        >
-                          <div
-                            className={
-                              styles.orderIdentity
-                            }
-                          >
-                            <div
-                              className={
-                                styles.orderIcon
-                              }
-                            >
-                              <PackageCheck
-                                size={18}
-                              />
-                            </div>
-
-                            <div>
-                              <span
-                                className={
-                                  styles.orderNumber
-                                }
-                              >
-                                {operationTypeLabel(order.operation_type)}
-                                {" · "}
-                                {order.route_position
-                                  ? `#${order.route_position} · `
-                                  : ""}
-                                {order.order_number ||
-                                  order.reference ||
-                                  order.id}
-                              </span>
-
-                              <h3>
-                                {getClientLabel(
-                                  order,
-                                )}
-                              </h3>
-                            </div>
-                          </div>
-
-                          <span
-                            className={`${styles.orderStatus} ${statusClass(
-                              order.status,
-                            )}`}
-                          >
-                            {statusLabel(
-                              order.status,
-                            )}
-                          </span>
-                        </div>
-
-                        <div
-                          className={
-                            styles.orderRoute
-                          }
-                        >
-                          <RoutePoint
-                            type="pickup"
-                            label="RAMASSAGE"
-                            address={
-                              order.pickup_address ||
-                              "Adresse non disponible"
-                            }
-                            city={
-                              order.pickup_city
-                            }
-                          />
-
-                          <div
-                            className={
-                              styles.routeConnector
-                            }
-                          />
-
-                          <RoutePoint
-                            type="delivery"
-                            label="LIVRAISON"
-                            address={
-                              order.delivery_address ||
-                              "Adresse non disponible"
-                            }
-                            city={
-                              order.delivery_city
-                            }
-                          />
-                        </div>
-
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns:
-                              "repeat(auto-fit, minmax(150px, 1fr))",
-                            gap: 8,
-                            marginTop: 12,
-                          }}
-                        >
-                          <div>
-                            <small>
-                              Ramassage
-                            </small>
-                            <div>
-                              {formatOrderDateShort(
-                                order.pickup_date ||
-                                  order.scheduled_date,
-                              )}
-                              {order.pickup_time ||
-                              order.scheduled_time
-                                ? ` · ${
-                                    order.pickup_time ||
-                                    order.scheduled_time
-                                  }`
-                                : ""}
-                            </div>
-                          </div>
-
-                          <div>
-                            <small>
-                              Livraison
-                            </small>
-                            <div>
-                              {formatOrderDateShort(
-                                order.delivery_date,
-                              )}
-                              {order.delivery_time
-                                ? ` · ${order.delivery_time}`
-                                : ""}
-                            </div>
-                          </div>
-
-                          <div>
-                            <small>
-                              Véhicule
-                            </small>
-                            <div>
-                              {getVehicleLabel(
-                                order,
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <small>
-                              Arrêts
-                            </small>
-                            <div>
-                              {Number(
-                                order.completed_stops ||
-                                  0,
-                              )}
-                              {" / "}
-                              {Number(
-                                order.stop_count ||
-                                  0,
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div
-                          className={
-                            styles.orderFooter
-                          }
-                        >
-                          <div
-                            className={
-                              styles.schedule
-                            }
-                          >
-                            <Clock3
-                              size={15}
-                            />
-
-                            <span>
-                              {formatOrderDateShort(
-                                order.scheduled_date ||
-                                  order.pickup_date ||
-                                  order.created_at,
-                              )}
-
-                              {order.scheduled_time ||
-                              order.pickup_time
-                                ? ` · ${
-                                    order.scheduled_time ||
-                                    order.pickup_time
-                                  }`
-                                : ""}
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            className={
-                              styles.orderButton
-                            }
-                            onClick={() =>
-                              router.push(
-                                `/dashboard/driver/tasks/${order.operation_id || order.id}`,
-                              )
-                            }
-                          >
-                            Ouvrir la tâche
-
-                            <ChevronRight
-                              size={16}
-                            />
-                          </button>
-                        </div>
-                      </article>
-                    ),
-                  )}
-                </section>
-              ),
-            )
-          )}
-        </div>
-
-        {/* ====================================================
-            PAGINATION
-        ==================================================== */}
-
-        {sortedFilteredOrders.length >
-          0 && (
-          <div
-            className={
-              styles.pagination
-            }
-          >
-            <span>
-              {sortedFilteredOrders.length} commande
-              {sortedFilteredOrders.length >
-              1
-                ? "s"
-                : ""}
-            </span>
-
-            <div>
-              <button
-                type="button"
-                disabled={
-                  page <= 1
-                }
-                onClick={() =>
-                  setPage(
-                    (current) =>
-                      Math.max(
-                        1,
-                        current -
-                          1,
-                      ),
-                  )
-                }
-              >
-                Précédent
-              </button>
-
-              <span>
-                Page {page} /{" "}
-                {totalPages}
-              </span>
-
-              <button
-                type="button"
-                disabled={
-                  page >=
-                  totalPages
-                }
-                onClick={() =>
-                  setPage(
-                    (current) =>
-                      Math.min(
-                        totalPages,
-                        current +
-                          1,
-                      ),
-                  )
-                }
-              >
-                Suivant
-              </button>
+            <div style={{display:"grid"}}>
+              {completedStops.map((s,index)=>renderStop(s,index,completedStops.length))}
             </div>
           </div>
-        )}
+        }
+
+        {stops.length===0 &&
+          <div style={{...card,padding:28,textAlign:"center"}}>
+            <Truck size={34}/>
+            <h3>Aucun stop assigné</h3>
+            <p style={{color:"#666"}}>
+              Les nouveaux stops apparaîtront automatiquement après assignation dans le Dispatch.
+            </p>
+          </div>
+        }
+
       </section>
 
-      {/* ======================================================
-          DRIVER INFO
-      ====================================================== */}
-
-      <section
-        className={
-          styles.driverInfo
-        }
-      >
+      {showCompletedHistory &&
         <div
-          className={
-            styles.driverInfoIcon
-          }
+          role="dialog"
+          aria-modal="true"
+          onClick={()=>setShowCompletedHistory(false)}
+          style={{
+            position:"fixed",
+            inset:0,
+            zIndex:9999,
+            background:"rgba(0,0,0,.48)",
+            display:"flex",
+            alignItems:"flex-end",
+            justifyContent:"center",
+            padding:0
+          }}
         >
-          <ShieldCheck
-            size={20}
-          />
+          <div
+            onClick={e=>e.stopPropagation()}
+            style={{
+              width:"100%",
+              maxWidth:700,
+              maxHeight:"88dvh",
+              overflowY:"auto",
+              background:"#f5f6f8",
+              borderRadius:"22px 22px 0 0",
+              boxShadow:"0 -12px 40px rgba(0,0,0,.18)"
+            }}
+          >
+            <div style={{
+              position:"sticky",
+              top:0,
+              zIndex:2,
+              background:"#fff",
+              padding:"16px",
+              borderBottom:"1px solid #e5e7eb",
+              display:"flex",
+              justifyContent:"space-between",
+              alignItems:"center",
+              gap:12
+            }}>
+              <div>
+                <small style={{
+                  color:"#15803d",
+                  fontWeight:900,
+                  letterSpacing:".06em"
+                }}>
+                  TRAÇABILITÉ CHAUFFEUR
+                </small>
+
+                <h2 style={{margin:"4px 0 0"}}>
+                  Stops terminés
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={()=>setShowCompletedHistory(false)}
+                style={button}
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div style={{padding:12,display:"grid",gap:10}}>
+              {completedStops.length===0
+                ? <div style={{
+                    ...card,
+                    textAlign:"center",
+                    padding:30
+                  }}>
+                    <CheckCircle2 size={34} style={{color:"#16a34a"}}/>
+                    <h3>Aucun stop terminé</h3>
+                    <p style={{color:"#6b7280",marginBottom:0}}>
+                      Les stops terminés aujourd'hui apparaîtront ici.
+                    </p>
+                  </div>
+
+                : completedStops.map(s=>{
+                    const address=[
+                      s.address,
+                      s.city,
+                      s.province,
+                      s.postal_code
+                    ].filter(Boolean).join(", ");
+
+                    const packages=
+                      s.orders?.flatMap(o=>o.packages||[])||[];
+
+                    return <article
+                      key={s.id}
+                      style={{
+                        ...card,
+                        borderColor:"#bbf7d0",
+                        display:"grid",
+                        gap:10
+                      }}
+                    >
+                      <div style={{
+                        display:"flex",
+                        justifyContent:"space-between",
+                        alignItems:"flex-start",
+                        gap:10
+                      }}>
+                        <div>
+                          <small style={{
+                            fontWeight:900,
+                            color:s.task_type==="pickup"
+                              ? "#0f766e"
+                              : "#b42318"
+                          }}>
+                            {s.task_type==="pickup"
+                              ? "RAMASSAGE"
+                              : "LIVRAISON"}
+                            {" · "}
+                            STOP {s.stop_position
+                              ? `#${s.stop_position}`
+                              : `#${s.id}`}
+                          </small>
+
+                          <h3 style={{margin:"5px 0"}}>
+                            {address||"Adresse non disponible"}
+                          </h3>
+                        </div>
+
+                        <span style={{
+                          background:"#dcfce7",
+                          color:"#166534",
+                          padding:"6px 9px",
+                          borderRadius:999,
+                          fontSize:12,
+                          fontWeight:900,
+                          whiteSpace:"nowrap"
+                        }}>
+                          ✓ Terminé
+                        </span>
+                      </div>
+
+                      <div style={{
+                        display:"grid",
+                        gap:5,
+                        fontSize:13,
+                        color:"#555"
+                      }}>
+                        <span>
+                          <b>Commandes :</b> {s.orders?.length||0}
+                        </span>
+
+                        <span>
+                          <b>Colis :</b> {packages.length||Number(s.total_packages||0)}
+                        </span>
+
+                        <span>
+                          <b>Heure de fermeture :</b>{" "}
+                          {s.run?.closed_at
+                            ? new Date(s.run.closed_at).toLocaleString(
+                                "fr-CA",
+                                {
+                                  hour:"2-digit",
+                                  minute:"2-digit",
+                                  year:"numeric",
+                                  month:"2-digit",
+                                  day:"2-digit"
+                                }
+                              )
+                            : "—"}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        style={{
+                          ...button,
+                          width:"100%",
+                          background:"#f0fdf4",
+                          color:"#166534",
+                          borderColor:"#bbf7d0"
+                        }}
+                        onClick={()=>{
+                          setShowCompletedHistory(false);
+                          router.push(`/dashboard/driver/tasks/${s.id}`);
+                        }}
+                      >
+                        Consulter le stop
+                        <ChevronRight size={17}/>
+                      </button>
+                    </article>
+                  })
+              }
+            </div>
+          </div>
         </div>
-
-        <div>
-          <span>
-            PROFIL OPÉRATIONNEL
-          </span>
-
-          <strong>
-            {availabilityLabel(
-              driver?.availability_status,
-            )}
-          </strong>
-
-          <p>
-            {driver?.vehicle_name
-              ? `Véhicule : ${driver.vehicle_name}${
-                  driver.vehicle_plate
-                    ? ` · ${driver.vehicle_plate}`
-                    : ""
-                }`
-              : "Aucun véhicule assigné actuellement."}
-          </p>
-        </div>
-      </section>
-
-      <div
-        className={
-          styles.bottomSpace
-        }
-      />
-    </main>
-  );
-}
-
-/* ============================================================
-   SMALL COMPONENTS
-============================================================ */
-
-function StatCard({
-  icon,
-  label,
-  value,
-  description,
-}: {
-  icon:
-    React.ReactNode;
-  label: string;
-  value: number;
-  description: string;
-}) {
-  return (
-    <article
-      className={
-        styles.statCard
       }
-    >
-      <div
-        className={
-          styles.statIcon
-        }
-      >
-        {icon}
-      </div>
 
-      <div>
-        <span>
-          {label}
-        </span>
-
-        <strong>
-          {value}
-        </strong>
-
-        <small>
-          {description}
-        </small>
-      </div>
-    </article>
-  );
-}
-
-function RoutePoint({
-  type,
-  label,
-  address,
-  city,
-}: {
-  type:
-    | "pickup"
-    | "delivery";
-  label: string;
-  address: string;
-  city?: string;
-}) {
-  return (
-    <div
-      className={
-        styles.routeItem
-      }
-    >
-      <span
-        className={
-          type ===
-          "pickup"
-            ? styles.pickupDot
-            : styles.deliveryDot
-        }
-      >
-        {type ===
-          "delivery" && (
-          <MapPin
-            size={13}
-          />
-        )}
-      </span>
-
-      <div>
-        <small>
-          {label}
-        </small>
-
-        <strong>
-          {address}
-        </strong>
-
-        {city && (
-          <span>
-            {city}
-          </span>
-        )}
-      </div>
+      <button style={{...button,width:"100%"}} onClick={()=>router.push("/dashboard/driver/scanner")}><ScanLine size={18}/> Scanner / saisir un code manuellement</button>
+      <div style={{fontSize:12,color:"#777",textAlign:"center"}}><MapPin size={13}/> La position GPS reste transmise au système opérationnel pendant l'utilisation.</div>
     </div>
-  );
+  </main>;
 }

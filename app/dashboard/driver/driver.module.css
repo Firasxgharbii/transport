@@ -1908,3 +1908,23 @@
     transition-duration: 0.01ms !important;
   }
 }
+/* Missions groupées — ajout isolé, styles existants conservés */
+.missionsSection { margin-bottom: 20px; padding: 20px; border: 1px solid var(--border); border-radius: 19px; background: #fff; }
+.missionsGrid { display: grid; gap: 12px; }
+.missionCard { padding: 17px; border: 1px solid var(--brand-border); border-radius: 15px; background: linear-gradient(130deg, #fff7f9, #fff 58%); }
+.missionTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.missionTop h3 { margin: 6px 0 3px; font-size: 15px; overflow-wrap: anywhere; }
+.missionTop p { margin: 0; color: var(--text-soft); font-size: 11px; }
+.missionMetrics { display: flex; flex-wrap: wrap; gap: 9px; margin: 16px 0 10px; }
+.missionMetrics strong { padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: #fff; font-size: 11px; }
+.missionProgress { height: 8px; overflow: hidden; border-radius: 999px; background: #f4d9e0; }
+.missionProgress span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width .2s ease; }
+.missionActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+.missionOrders { display: grid; gap: 10px; margin-top: 15px; }
+.missionOrder { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.missionOrder > strong { font-size: 12px; }
+.missionOrder ul { margin: 9px 0 0; padding: 0; list-style: none; }
+.missionOrder li { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 11px; overflow-wrap: anywhere; }
+.missionOrder li span:last-child { white-space: nowrap; color: var(--success); }
+.missionOrder p { color: var(--text-soft); font-size: 11px; }
+@media (max-width: 640px) { .missionsSection { padding: 13px; } .missionTop { flex-wrap: wrap; } .missionActions > button { flex: 1 1 100%; } }

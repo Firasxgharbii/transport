@@ -17,6 +17,7 @@ const ALLOWED_OPERATION_TYPES = [
   "warehouse_in",
   "warehouse_storage",
   "warehouse_out",
+  "load_vehicle",
   "delivery",
 ];
 
@@ -81,6 +82,19 @@ function buildFilters(filters = {}) {
   const params = [];
   const search = String(filters.search || "").trim();
 
+  // Ne pas reproposer une commande pendant qu'une mission active la traite.
+  // Une fois le ramassage termine, la commande peut revenir pour planifier
+  // sa livraison. Aucune commande ni aucun colis n'est supprime.
+  where.push(`NOT EXISTS (
+    SELECT 1 FROM order_operations planned_op
+    INNER JOIN dispatch_tasks planned_task
+      ON planned_task.id = planned_op.dispatch_task_id
+    WHERE planned_op.order_id = o.id
+      AND planned_op.status <> 'cancelled'
+      AND planned_task.status NOT IN ('completed', 'cancelled')
+  )`);
+
+
   if (search) {
     where.push(`(
       o.order_number LIKE ? OR c.company_name LIKE ? OR
@@ -91,29 +105,92 @@ function buildFilters(filters = {}) {
     params.push(term, term, term, term, term, term);
   }
 
-  const clientId = positiveInt(filters.client_id);
-  if (clientId) {
+  const rawClientId = String(filters.client_id ?? "").trim();
+  if (rawClientId) {
+    const clientId = Number(rawClientId);
+
+    if (!Number.isSafeInteger(clientId) || clientId <= 0) {
+      throw new Error("Identifiant client invalide.");
+    }
+
     where.push("o.client_id = ?");
     params.push(clientId);
   }
 
-  const driverId = positiveInt(filters.driver_id);
-  if (driverId) {
+  const rawDriverId = String(filters.driver_id ?? "").trim();
+  if (rawDriverId) {
+    const driverId = Number(rawDriverId);
+
+    if (!Number.isSafeInteger(driverId) || driverId <= 0) {
+      throw new Error("Identifiant chauffeur invalide.");
+    }
+
     where.push(`(
-      o.driver_id = ? OR EXISTS (
+      o.driver_id = ?
+      OR o.pickup_driver_id = ?
+      OR o.delivery_driver_id = ?
+      OR EXISTS (
         SELECT 1
         FROM order_operations oo_filter
         WHERE oo_filter.order_id = o.id
           AND oo_filter.driver_id = ?
+          AND oo_filter.status <> 'cancelled'
       )
     )`);
-    params.push(driverId, driverId);
+
+    params.push(driverId, driverId, driverId, driverId);
   }
 
   const status = String(filters.status || "").trim();
   if (status && ALLOWED_STATUSES.includes(status)) {
     where.push("o.status = ?");
     params.push(status);
+  } else {
+    // Le Dispatch est une vue de travail active. Les livraisons terminées et
+    // commandes annulées restent dans l'historique, jamais dans le Dispatch actif.
+    where.push("o.status NOT IN ('completed','cancelled')");
+  }
+
+
+  const dateColumns = {
+    pickup: "o.pickup_date",
+    delivery: "o.delivery_date",
+    created: "o.created_at",
+  };
+
+  const dateType = String(filters.date_type || "pickup").trim();
+
+  if (!Object.prototype.hasOwnProperty.call(dateColumns, dateType)) {
+    throw new Error("Type de date invalide.");
+  }
+
+  const dateColumn = dateColumns[dateType];
+
+  const dateFrom = String(filters.date_from || "").trim();
+  const dateTo = String(filters.date_to || "").trim();
+
+  const validDate = /^\d{4}-\d{2}-\d{2}$/;
+
+  if (dateFrom && !validDate.test(dateFrom)) {
+    throw new Error("Date de début invalide.");
+  }
+
+  if (dateTo && !validDate.test(dateTo)) {
+    throw new Error("Date de fin invalide.");
+  }
+
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    throw new Error("La date de début dépasse la date de fin.");
+  }
+
+  if (dateFrom) {
+    where.push(`${dateColumn} >= ?`);
+    params.push(dateFrom);
+  }
+
+  if (dateTo) {
+    where.push(`${dateColumn} < DATE_ADD(?, INTERVAL 1 DAY)`);
+    params.push(dateTo);
   }
 
   return {
@@ -704,6 +781,225 @@ const DispatchModel = {
     if (!result.affectedRows) throw new Error("Opération introuvable.");
     return { affectedRows: result.affectedRows };
   },
+};
+
+
+/*
+ * Historique des scans entrepôt / Dispatch.
+ * Lecture seule : ne modifie aucun colis ni aucune commande.
+ */
+DispatchModel.getWarehouseScanHistory = async function (limit = 50) {
+  const parsedLimit = Number(limit);
+
+  const safeLimit =
+    Number.isSafeInteger(parsedLimit) && parsedLimit > 0
+      ? Math.min(parsedLimit, 200)
+      : 50;
+
+  const [rows] = await db.query(
+    `
+      SELECT
+        se.id,
+        se.order_id,
+        se.package_id,
+        se.operation_id,
+        se.driver_id,
+        se.vehicle_id,
+        se.scanned_by_user_id,
+        se.scanned_code,
+        se.scan_type,
+        se.scan_status,
+        se.latitude,
+        se.longitude,
+        se.accuracy,
+        se.device_type,
+        se.device_name,
+        se.scan_source,
+        se.notes,
+        se.scanned_at,
+        se.created_at
+      FROM scan_events AS se
+      WHERE se.scan_type IN (
+        'warehouse_in',
+        'warehouse_storage',
+        'warehouse_out'
+      )
+      ORDER BY se.scanned_at DESC, se.id DESC
+      LIMIT ?
+    `,
+    [safeLimit]
+  );
+
+  return rows;
+};
+
+
+/*
+ * Entrée physique au triage.
+ * Contrairement au scanner chauffeur, ce scan ne dépend d'aucune affectation
+ * chauffeur. L'utilisateur qui scanne vient exclusivement du JWT.
+ */
+DispatchModel.processWarehouseScan = async function (scannedByUserId, payload = {}) {
+  const userId = positiveInt(scannedByUserId);
+  if (!userId) {
+    const error = new Error("Utilisateur non authentifié.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const cleanCode = String(payload.scanned_code || payload.barcode || payload.code || "")
+    .trim()
+    .toUpperCase();
+  if (!cleanCode) {
+    const error = new Error("Le code-barres est obligatoire.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const requestedType = String(payload.scan_type || "warehouse_in").trim().toLowerCase();
+  if (requestedType !== "warehouse_in") {
+    const error = new Error("Le module Triage accepte uniquement les entrées entrepôt.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const source = String(payload.scan_source || "manual").trim().toLowerCase();
+  const allowedSources = new Set(["camera", "zebra", "manual", "barcode_scanner"]);
+  const scanSource = allowedSources.has(source) ? source : "manual";
+  const nullableNumber = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const barcodeMatch = /^(GLY-\d{4}-\d{6})-P(\d{1,3})$/.exec(cleanCode);
+    const compatibleCode = barcodeMatch
+      ? `${barcodeMatch[1]}-P${barcodeMatch[2].padStart(3, "0")}`
+      : cleanCode;
+
+    let [packageRows] = await connection.query(
+      `SELECT p.id,p.order_id,p.barcode,p.package_number,p.description,p.weight,p.current_status,o.order_number
+       FROM order_packages p
+       INNER JOIN orders o ON o.id=p.order_id
+       WHERE UPPER(TRIM(p.barcode)) IN (?,?)
+       ORDER BY CASE WHEN UPPER(TRIM(p.barcode))=? THEN 0 ELSE 1 END
+       LIMIT 1 FOR UPDATE`,
+      [cleanCode, compatibleCode, cleanCode]
+    );
+    let packageRow = packageRows[0] || null;
+
+    if (!packageRow && barcodeMatch) {
+      const [legacyRows] = await connection.query(
+        `SELECT p.id,p.order_id,p.barcode,p.package_number,p.description,p.weight,p.current_status,o.order_number
+         FROM order_packages p
+         INNER JOIN orders o ON o.id=p.order_id
+         WHERE UPPER(TRIM(o.order_number))=? AND p.package_number=?
+           AND UPPER(TRIM(p.barcode))=UPPER(TRIM(o.order_number))
+         LIMIT 1 FOR UPDATE`,
+        [barcodeMatch[1], Number(barcodeMatch[2])]
+      );
+      packageRow = legacyRows[0] || null;
+    }
+
+    // Compatibilité : scanner la référence de commande crée P01 si nécessaire.
+    if (!packageRow) {
+      const referenceMatch = /^GLY-\d{4}-(\d{6})$/.exec(cleanCode);
+      const referenceOrderId = referenceMatch ? Number(referenceMatch[1]) : null;
+      const [orderRows] = await connection.query(
+        `SELECT id,order_number FROM orders
+         WHERE UPPER(TRIM(order_number))=? OR (? IS NOT NULL AND id=?)
+         ORDER BY CASE WHEN UPPER(TRIM(order_number))=? THEN 0 ELSE 1 END LIMIT 1`,
+        [cleanCode, referenceOrderId, referenceOrderId, cleanCode]
+      );
+      const order = orderRows[0] || null;
+      if (order) {
+        const generatedBarcode = `${String(order.order_number).toUpperCase()}-P01`;
+        await connection.query(
+          `INSERT INTO order_packages (order_id,barcode,package_number,current_status)
+           VALUES (?,?,1,'created')
+           ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id),updated_at=CURRENT_TIMESTAMP`,
+          [order.id, generatedBarcode]
+        );
+        [packageRows] = await connection.query(
+          `SELECT p.id,p.order_id,p.barcode,p.package_number,p.description,p.weight,p.current_status,o.order_number
+           FROM order_packages p INNER JOIN orders o ON o.id=p.order_id
+           WHERE p.order_id=? AND p.package_number=1 LIMIT 1 FOR UPDATE`,
+          [order.id]
+        );
+        packageRow = packageRows[0] || null;
+      }
+    }
+
+    if (!packageRow) {
+      const error = new Error("Aucun colis ou numéro de commande correspondant à ce code.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const [duplicateRows] = await connection.query(
+      `SELECT id,operation_id,driver_id,vehicle_id,scanned_at
+       FROM scan_events
+       WHERE package_id=? AND scan_type='warehouse_in' AND scan_status='accepted'
+       ORDER BY id DESC LIMIT 1`,
+      [packageRow.id]
+    );
+    const previous = duplicateRows[0] || null;
+
+    // L'opération est informative seulement. Le triage ne dépend pas d'un chauffeur.
+    const [operationRows] = await connection.query(
+      `SELECT id,driver_id,vehicle_id,dispatch_task_id,status
+       FROM order_operations
+       WHERE order_id=? AND operation_type='delivery' AND status<>'cancelled'
+       ORDER BY CASE WHEN status IN ('pending','assigned') THEN 0 ELSE 1 END,id DESC LIMIT 1`,
+      [packageRow.order_id]
+    );
+    const operation = operationRows[0] || null;
+
+    if (previous) {
+      const [dup] = await connection.query(
+        `INSERT INTO scan_events
+         (order_id,package_id,operation_id,driver_id,vehicle_id,scanned_by_user_id,scanned_code,scan_type,scan_status,
+          latitude,longitude,accuracy,device_type,device_name,scan_source,notes)
+         VALUES (?,?,?,?,?,?,?,'warehouse_in','duplicate',?,?,?,?,?,?,?,?)`,
+        [packageRow.order_id,packageRow.id,operation?.id||previous.operation_id||null,
+         operation?.driver_id||previous.driver_id||null,operation?.vehicle_id||previous.vehicle_id||null,userId,cleanCode,
+         nullableNumber(payload.latitude),nullableNumber(payload.longitude),nullableNumber(payload.accuracy),
+         payload.device_type||null,payload.device_name||null,scanSource,payload.notes||"Entrée triage déjà enregistrée."]
+      );
+      await connection.commit();
+      return {success:true,duplicate:true,rejected:false,scan_status:"duplicate",event_id:dup.insertId,
+        message:"Ce colis est déjà en attente au triage.",package:packageRow,operation,scan_type:"warehouse_in"};
+    }
+
+    const [insert] = await connection.query(
+      `INSERT INTO scan_events
+       (order_id,package_id,operation_id,driver_id,vehicle_id,scanned_by_user_id,scanned_code,scan_type,scan_status,
+        latitude,longitude,accuracy,device_type,device_name,scan_source,notes)
+       VALUES (?,?,?,?,?,?,?,'warehouse_in','accepted',?,?,?,?,?,?,?,?)`,
+      [packageRow.order_id,packageRow.id,operation?.id||null,operation?.driver_id||null,operation?.vehicle_id||null,userId,cleanCode,
+       nullableNumber(payload.latitude),nullableNumber(payload.longitude),nullableNumber(payload.accuracy),
+       payload.device_type||null,payload.device_name||null,scanSource,payload.notes||null]
+    );
+
+    await connection.query(
+      `UPDATE order_packages SET current_status='warehouse_in',updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+      [packageRow.id]
+    );
+
+    await connection.commit();
+    return {success:true,duplicate:false,rejected:false,scan_status:"accepted",event_id:insert.insertId,
+      message:"Colis accepté — en attente au triage.",package:{...packageRow,current_status:"warehouse_in"},operation,
+      scan_type:"warehouse_in"};
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
 module.exports = DispatchModel;
