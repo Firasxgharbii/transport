@@ -169,7 +169,7 @@ export default function ForgotPasswordPage() {
               aria-label="Retour à l’accueil Glory Solutions"
             >
               <Image
-                src="/images/logo1.png"
+                src="/images/logo1.webp"
                 alt="Glory Solutions"
                 width={145}
                 height={60}
@@ -232,7 +232,7 @@ export default function ForgotPasswordPage() {
               aria-label="Retour à l’accueil"
             >
               <Image
-                src="/images/logo1.png"
+                src="/images/logo1.webp"
                 alt="Glory Solutions"
                 width={105}
                 height={45}

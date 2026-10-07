@@ -373,7 +373,7 @@ export default function SignupPage() {
               aria-label="Retour à l’accueil Glory Solutions"
             >
               <Image
-                src="/images/logo1.png"
+                src="/images/logo1.webp"
                 alt="Glory Solutions"
                 width={190}
                 height={78}
@@ -481,7 +481,7 @@ export default function SignupPage() {
               className={styles.mobileLogoLink}
             >
               <Image
-                src="/images/logo1.png"
+                src="/images/logo1.webp"
                 alt="Glory Solutions"
                 width={155}
                 height={62}

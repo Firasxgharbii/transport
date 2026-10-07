@@ -54,12 +54,12 @@ export default function Footer() {
             >
               <span className="footer-logo-image-wrapper">
                 <Image
-                  src="/images/logo1.png"
+                  src="/images/logo1.webp"
                   alt="Logo Glory Solutions"
                   width={70}
                   height={70}
                   className="footer-logo-image"
-                  priority
+                  loading="lazy"
                 />
               </span>
 

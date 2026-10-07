@@ -304,7 +304,7 @@ function ResetPasswordForm() {
             }
           >
             <Image
-              src="/images/logo1.png"
+              src="/images/logo1.webp"
               alt="Glory Solutions"
               width={62}
               height={62}

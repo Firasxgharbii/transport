@@ -944,7 +944,7 @@ export default function RegionsMap() {
         html: `
           <div class="${styles.logoOnlyMarker}">
             <img
-              src="/images/logo1.png"
+              src="/images/logo1.webp"
               alt=""
             />
           </div>
@@ -1054,7 +1054,7 @@ export default function RegionsMap() {
                         }
                       >
                         <img
-                          src="/images/logo1.png"
+                          src="/images/logo1.webp"
                           alt="Glory Solutions"
                         />
                       </div>

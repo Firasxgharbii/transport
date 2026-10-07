@@ -47,7 +47,7 @@ export default function AdminSidebar({
       <div className={styles.sidebarHeader}>
         <Link href="/dashboard/admin" className={styles.brand}>
           <Image
-            src="/images/logo1.png"
+            src="/images/logo1.webp"
             alt="Glory Solutions"
             width={38}
             height={38}

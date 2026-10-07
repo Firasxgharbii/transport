@@ -1037,8 +1037,8 @@ export default function DeliveryNotesPage() {
 
     const logoUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/images/logo1.png`
-        : "/images/logo1.png";
+        ? `${window.location.origin}/images/logo1.webp`
+        : "/images/logo1.webp";
 
     const html = `
       <!DOCTYPE html>
@@ -1643,8 +1643,8 @@ export default function DeliveryNotesPage() {
 
     const logoUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/images/logo1.png`
-        : "/images/logo1.png";
+        ? `${window.location.origin}/images/logo1.webp`
+        : "/images/logo1.webp";
 
     const quantity =
       note.quantity !== null &&

@@ -398,7 +398,7 @@ img {
 
   color: var(--white);
 
-  background-image: url("/images/trucks-hero.jpeg");
+  background-image: url("/images/trucks-hero.webp");
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -1454,7 +1454,7 @@ a.footer-contact-row:hover {
     align-items: flex-end;
 
     /* Image dédiée au mobile pour éviter le gros recadrage du logo */
-    background-image: url("/images/trucks-hero-mobile.jpeg");
+    background-image: url("/images/trucks-hero-mobile.webp");
     background-position: center top;
     background-repeat: no-repeat;
     background-size: cover;

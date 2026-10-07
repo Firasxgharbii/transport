@@ -403,7 +403,7 @@ export default function LoginPage() {
               aria-label="Retour à l’accueil Glory Solutions"
             >
               <Image
-                src="/images/logo1.png"
+                src="/images/logo1.webp"
                 alt="Glory Solutions"
                 width={170}
                 height={70}
@@ -489,7 +489,7 @@ export default function LoginPage() {
               aria-label="Retour à l’accueil Glory Solutions"
             >
               <Image
-                src="/images/logo1.png"
+                src="/images/logo1.webp"
                 alt="Glory Solutions"
                 width={130}
                 height={55}

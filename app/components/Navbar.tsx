@@ -34,7 +34,7 @@ export default function Navbar() {
           aria-label="Retour à l'accueil"
         >
           <Image
-            src="/images/logo1.png"
+            src="/images/logo1.webp"
             alt="Glory Solutions"
             width={70}
             height={70}
@@ -56,6 +56,8 @@ export default function Navbar() {
           }`}
           onClick={toggleMenu}
           aria-expanded={menuOpen}
+          aria-label={menuOpen ? "Fermer le menu de navigation" : "Ouvrir le menu de navigation"}
+          aria-controls="navigation-principale"
         >
           <span />
           <span />
@@ -64,6 +66,8 @@ export default function Navbar() {
 
         {/* NAVIGATION */}
         <nav
+          id="navigation-principale"
+          aria-label="Navigation principale"
           className={`nav-links ${
             menuOpen ? "nav-links-open" : ""
           }`}

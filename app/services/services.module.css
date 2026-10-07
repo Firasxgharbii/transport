@@ -54,7 +54,7 @@
       rgba(5, 5, 5, 0.7) 48%,
       rgba(5, 5, 5, 0.32) 100%
     ),
-    url("/images/trucks-hero.jpeg");
+    url("/images/trucks-hero.webp");
 
   background-position: center;
   background-repeat: no-repeat;
@@ -747,7 +747,7 @@
         rgba(0, 0, 0, 0.64) 55%,
         rgba(0, 0, 0, 0.9) 100%
       ),
-      url("/images/trucks-hero-mobile.jpeg");
+      url("/images/trucks-hero-mobile.webp");
 
     background-position:
       center top;
